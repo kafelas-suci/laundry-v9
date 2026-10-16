@@ -1,8 +1,8 @@
 {
   "id": "/",
-  "name": "Laundry Suci POS",
-  "short_name": "LaundrySuci",
-  "description": "Aplikasi Manajemen Operasional, Kasir, dan Keuangan Laundry",
+  "name": "Kafelas Laundry POS",
+  "short_name": "KafelasLaundry",
+  "description": "Aplikasi Manajemen Operasional, Kasir, dan Keuangan Kafelas Laundry",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
