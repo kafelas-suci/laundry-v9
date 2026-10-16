@@ -427,54 +427,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <div className="max-w-7xl mx-auto w-full space-y-5">
               <PWAInstallButton variant="banner" />
 
-              {/* Kartu Status Langganan & Masa Aktif PC */}
-              <div
-                onClick={onOpenKelolaOwner}
-                className="p-4 rounded-2xl bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-amber-500/5 border border-amber-300/80 shadow-2xs flex flex-wrap items-center justify-between gap-3 cursor-pointer hover:border-amber-400 transition active:scale-99"
-              >
-                <div className="flex items-center gap-3.5 min-w-0">
-                  <div className="w-11 h-11 rounded-2xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
-                    <Crown className="w-6 h-6 stroke-[2.3]" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-[11px] font-black uppercase tracking-wider text-amber-900/80">
-                        Status Langganan
-                      </span>
-                      <span className="px-2.5 py-0.5 rounded-lg bg-amber-500 text-white text-xs font-black tracking-wide shadow-2xs">
-                        {paketNama}
-                      </span>
-                      <span
-                        className={`px-2.5 py-0.5 rounded-lg text-xs font-black ${
-                          isExpired
-                            ? 'bg-red-600 text-white'
-                            : isExpiringSoon
-                            ? 'bg-amber-300 text-amber-950 animate-pulse'
-                            : 'bg-emerald-100 text-emerald-900 border border-emerald-200'
-                        }`}
-                      >
-                        {isExpired ? 'Masa Aktif Berakhir' : `Sisa ${sisaHari} Hari Lagi`}
-                      </span>
-                    </div>
-                    <p className="text-xs text-amber-950/80 font-medium mt-1">
-                      Masa aktif berlaku sampai: <strong className="text-amber-950 font-bold">{formatTanggalKadaluarsa}</strong> • {laundries.length} Cabang Aktif
-                    </p>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onOpenKelolaOwner();
-                  }}
-                  className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-black text-xs shadow-xs flex items-center gap-1.5 transition active:scale-95 shrink-0"
-                >
-                  <Sparkles className="w-4 h-4" />
-                  <span>Kelola & Perpanjang</span>
-                  <ChevronRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
+          
 
               {/* Alert Banner Batas Transaksi Aktif (>= 300 Peringatan, >= 400 Terkunci) */}
               {activeBranchTrx.length >= 300 && (
