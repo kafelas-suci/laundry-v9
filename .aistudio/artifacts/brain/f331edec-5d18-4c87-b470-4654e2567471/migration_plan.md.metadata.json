@@ -1,0 +1,6 @@
+{
+  "summary":  "Rencana migrasi penyimpanan logo dan struk dari Firebase Storage ke IndexedDB. Termasuk pembuatan service IndexedDB, pembaruan komponen untuk membaca gambar dari IndexedDB, dan penyesuaian printing struk.",
+  "updatedAt":  "2026-10-09T14:12:00.862191875Z",
+  "requestFeedback":  true,
+  "userFacing":  true
+}

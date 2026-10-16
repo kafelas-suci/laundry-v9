@@ -1,0 +1,6 @@
+{
+  "summary":  "Rencana implementasi integrasi cetak logo dan tanda tangan (TTD) fisik printer Bluetooth thermal untuk aplikasi Android APK WebView:\n1. Pembaruan StrukModal di Web App untuk mengirimkan Base64 logo, tanda tangan, nama brand, dan nama kasir ke antarmuka JavaScript Android (window.MesinPrint).\n2. Pembaruan WebPrintInterface di Kotlin untuk menerima parameter Base64 logo dan TTD.\n3. Pembaruan StrukHelper di Kotlin dengan algoritma konversi Bitmap Base64 ke perintah ESC/POS Raster Bit Image (GS v 0) monokrom, serta tata letak cetak logo di header dan tanda tangan di bagian tanda tangan bawah struk fisik.",
+  "updatedAt":  "2026-10-11T00:26:46.977146752Z",
+  "requestFeedback":  true,
+  "userFacing":  true
+}

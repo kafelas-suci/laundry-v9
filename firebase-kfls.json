@@ -1,0 +1,22 @@
+{
+  "hosting": {
+    "site": "kfls",
+    "public": "dist",
+    "ignore": [
+      "firebase.json",
+      "firebase-kfls.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "/b/**",
+        "destination": "/booking.html"
+      },
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}

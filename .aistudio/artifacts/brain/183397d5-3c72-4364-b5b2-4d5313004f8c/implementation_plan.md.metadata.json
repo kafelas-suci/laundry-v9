@@ -1,0 +1,6 @@
+{
+  "summary": "Revisi rencana implementasi dengan penegasan jaminan:\\n1. Logika cetak Bluetooth Android (native bridge, window.MesinPrint, ESC/POS, dan nativeBridge.ts) 100% dipertahankan dan TIDAK diubah sama sekali.\\n2. Tombol Cetak Bluetooth Android tetap memanggil alur yang sama persis seperti saat ini.\\n3. Menambahkan tombol terpisah khusus untuk pengguna iPhone/PC yaitu 'Cetak AirPrint / Standar' (window.print).\\n4. Memisahkan tombol 'Bagikan Struk' agar langsung membuka menu Share Sheet (WhatsApp, Web Share API, Unduh Gambar PNG, Salin Teks) tanpa mengubah fungsi cetak.",
+  "updatedAt": "2026-10-16T00:58:37.007483176Z",
+  "requestFeedback": true,
+  "userFacing": true
+}

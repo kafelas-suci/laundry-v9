@@ -1,0 +1,6 @@
+{
+  "summary":  "Rencana implementasi batasan fitur dan kuota berdasarkan paket langganan (Standar, Pro, Ultimate). Meliputi pembuatan utilitas subscription, penyesuaian UI untuk menonaktifkan fitur terbatas, serta pembatasan pembuatan jadwal baru.",
+  "updatedAt":  "2026-10-09T06:08:06.425743139Z",
+  "requestFeedback":  true,
+  "userFacing":  true
+}

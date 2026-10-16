@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.kafilasuci4.app",
+      "sha256_cert_fingerprints": [
+        "14:6D:E9:75:A0:68:5A:A1:0C:6F:E1:90:E5:A9:6F:4A:A7:F2:F2:10:4E:5F:8A:23:44:B2:7D:66:31:00:1E:59"
+      ]
+    }
+  }
+]

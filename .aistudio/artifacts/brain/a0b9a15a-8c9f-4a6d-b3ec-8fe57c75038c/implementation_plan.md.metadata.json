@@ -1,0 +1,6 @@
+{
+  "summary":  "Rencana perbaikan: Mengonversi gambar logo dan tanda tangan dari URL eksternal menjadi format Base64 (Data URL) sebelum digambar ke kanvas. Ini akan menghindari masalah 'Tainted Canvas' dan CORS yang menyebabkan gambar tidak muncul saat export ke PNG.",
+  "updatedAt":  "2026-10-09T08:40:10.791395096Z",
+  "requestFeedback":  true,
+  "userFacing":  true
+}

@@ -1,0 +1,10 @@
+[
+  {
+    "origin": [
+      "https://ais-dev-mpn5hkeua4gpz4zlxpvsca-211022736644.asia-east1.run.app",
+      "https://kflsagnd.web.app"
+    ],
+    "method": ["GET"],
+    "maxAgeSeconds": 3600
+  }
+]

@@ -1,0 +1,6 @@
+{
+  "summary":  "Rencana implementasi arsitektur Multi-Brand / Multi-Tenant SaaS:\n1. Routing dinamis berbasis Slug URL (domain.web.app/:brandSlug) dan Custom Subdomain/Domain Firebase Hosting (brand.web.app).\n2. Tampilan Web Profil Publik Brand Otomatis saat pengunjung membuka URL brand (dengan tombol login kasir/owner disembunyikan untuk kenyamanan pengunjung umum, serta pintu masuk rahasia/terselubung untuk kru).\n3. Dashboard Super Admin komprehensif untuk mendaftarkan dan mengelola lisensi 30+ brand klien, masa aktif, kuota paket, dan kredensial login pemilik studio.",
+  "updatedAt":  "2026-10-11T06:48:38.464956946Z",
+  "requestFeedback":  true,
+  "userFacing":  true
+}

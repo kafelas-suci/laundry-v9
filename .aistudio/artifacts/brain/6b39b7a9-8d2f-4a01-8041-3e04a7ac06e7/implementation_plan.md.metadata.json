@@ -1,0 +1,6 @@
+{
+  "summary": "Rencana implementasi keamanan Firestore:\n1. Menetapkan struktur data (koleksi owners, tim_studio, dll) untuk mendukung query role-based.\n2. Membuat helper function untuk pengecekan peran (isOwner, isAdmin, isStaff) dengan membaca dokumen referensi.\n3. Menulis aturan keamanan (firestore.rules) dengan prinsip default-deny.\n4. Membatasi akses staff hanya pada jadwal yang relevan (terbatas) dan melarang edit paket/profil.\n5. Memperbarui aplikasi untuk menangani error izin (FirebaseErrorInfo) sesuai panduan.",
+  "updatedAt": "2026-10-07T02:04:11.347891990Z",
+  "requestFeedback": true,
+  "userFacing": true
+}

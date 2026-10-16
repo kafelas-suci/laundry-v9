@@ -1,0 +1,6 @@
+{
+  "summary":  "Revisi rencana implementasi: Merombak visual lembaran struk agar 100% otentik seperti struk kasir profesional (font mono thermal, garis putus-putus pembatas, banner status pelunasan besar, watermark DANA berulang, rincian biaya tabulasi, dan wadah tanda tangan resmi), dipadukan dengan arsitektur responsif versi PC (split panel) dan versi HP (sticky action bar).",
+  "updatedAt":  "2026-10-09T22:06:52.047119102Z",
+  "requestFeedback":  true,
+  "userFacing":  true
+}

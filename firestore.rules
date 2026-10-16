@@ -1,0 +1,47 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // 0. Direktori Pendaftaran Brand & Web Publik
+    match /brands_registry/{slug} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    // 1. Data Tim Studio / Staf
+    match /tim_studio/{uid} {
+      allow read, write: if isSignedIn();
+    }
+
+    // 2. Data Owner & Sub-koleksi
+    match /owners/{ownerId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+
+      match /{subcollection}/{docId} {
+        allow read: if true;
+        allow write: if isSignedIn();
+      }
+    }
+
+    // 3. User profile document kasir & laundry
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn() && request.auth.uid == userId;
+      allow delete: if false;
+    }
+
+    // 4. Laundry branches and their nested resources
+    match /laundries/{laundryId} {
+      allow read, write: if isSignedIn();
+
+      match /{subcollection}/{docId} {
+        allow read, write: if isSignedIn();
+      }
+    }
+  }
+}

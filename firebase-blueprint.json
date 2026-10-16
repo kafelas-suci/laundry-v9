@@ -1,0 +1,134 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Profil pengguna kasir atau owner laundry",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["owner", "admin", "karyawan"] },
+        "laundryId": { "type": "string" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["uid", "role"]
+    },
+    "LaundryBranch": {
+      "title": "LaundryBranch",
+      "description": "Informasi cabang toko laundry",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "namaLaundry": { "type": "string" },
+        "alamat": { "type": "string" },
+        "nomorTelepon": { "type": "string" }
+      },
+      "required": ["id", "ownerId", "namaLaundry"]
+    },
+    "LaundryTransaksi": {
+      "title": "LaundryTransaksi",
+      "description": "Dokumen transaksi pesanan laundry",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "laundryId": { "type": "string" },
+        "nomorTransaksi": { "type": "string" },
+        "namaPelanggan": { "type": "string" },
+        "nomorTelepon": { "type": "string" },
+        "totalHarga": { "type": "number" },
+        "jumlahDp": { "type": "number" },
+        "status": { "type": "string" },
+        "statusPembayaran": { "type": "string" },
+        "tanggalMasuk": { "type": "number" },
+        "tanggalSelesai": { "type": "number" }
+      },
+      "required": ["id", "laundryId", "namaPelanggan", "totalHarga", "status", "statusPembayaran"]
+    },
+    "LaundryPelanggan": {
+      "title": "LaundryPelanggan",
+      "description": "Data pelanggan laundry",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "laundryId": { "type": "string" },
+        "nama": { "type": "string" },
+        "nomorTelepon": { "type": "string" },
+        "poin": { "type": "number" }
+      },
+      "required": ["id", "laundryId", "nama"]
+    },
+    "LaundryLayanan": {
+      "title": "LaundryLayanan",
+      "description": "Daftar paket dan harga layanan laundry",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "laundryId": { "type": "string" },
+        "nama": { "type": "string" },
+        "harga": { "type": "number" },
+        "satuanHarga": { "type": "string" },
+        "durasi": { "type": "string" }
+      },
+      "required": ["id", "laundryId", "nama", "harga"]
+    },
+    "LaundryPengeluaran": {
+      "title": "LaundryPengeluaran",
+      "description": "Catatan pengeluaran operasional toko",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "laundryId": { "type": "string" },
+        "tanggal": { "type": "number" },
+        "keterangan": { "type": "string" },
+        "jumlah": { "type": "number" }
+      },
+      "required": ["id", "laundryId", "keterangan", "jumlah"]
+    },
+    "LaundrySettings": {
+      "title": "LaundrySettings",
+      "description": "Pengaturan struk dan identitas laundry",
+      "type": "object",
+      "properties": {
+        "appTitle": { "type": "string" },
+        "headerStruk": { "type": "string" },
+        "address": { "type": "string" },
+        "phoneNumber": { "type": "string" },
+        "useLogo": { "type": "boolean" },
+        "logoPath": { "type": "string" }
+      },
+      "required": ["appTitle"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Dokumen profil setiap user"
+    },
+    "/laundries/{laundryId}": {
+      "schema": "LaundryBranch",
+      "description": "Dokumen data cabang laundry"
+    },
+    "/laundries/{laundryId}/transaksi/{transaksiId}": {
+      "schema": "LaundryTransaksi",
+      "description": "Sub-koleksi transaksi laundry"
+    },
+    "/laundries/{laundryId}/pelanggan/{pelangganId}": {
+      "schema": "LaundryPelanggan",
+      "description": "Sub-koleksi pelanggan laundry"
+    },
+    "/laundries/{laundryId}/layanan/{layananId}": {
+      "schema": "LaundryLayanan",
+      "description": "Sub-koleksi paket layanan laundry"
+    },
+    "/laundries/{laundryId}/pengeluaran/{pengeluaranId}": {
+      "schema": "LaundryPengeluaran",
+      "description": "Sub-koleksi pengeluaran operasional"
+    },
+    "/laundries/{laundryId}/settings/{settingId}": {
+      "schema": "LaundrySettings",
+      "description": "Sub-koleksi pengaturan cabang laundry"
+    }
+  }
+}

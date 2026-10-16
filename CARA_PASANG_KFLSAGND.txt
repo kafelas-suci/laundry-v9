@@ -1,0 +1,29 @@
+================================================================================
+PANDUAN UPLOAD CEPAT (3 DETIK) KE https://kflsagnd.web.app
+================================================================================
+
+Folder "dist" di dalam ZIP ini SUDAH MATANG (termasuk index.html, booking.html,
+profil.html Website Profesional 3 Tema, dan firebase-config.js). Bapak TIDAK PERLU
+menjalankan "npm install" atau "npm run build" lagi.
+
+Setelah di-upload, ketiga tautan ini langsung aktif:
+1. Web Utama Aplikasi  : https://kflsagnd.web.app
+2. Website Klien (Bio) : https://kflsagnd.web.app/[username]
+3. Form Booking Pendek : https://kflsagnd.web.app/b/[username]
+
+--------------------------------------------------------------------------------
+CARA 1: KLIK 2X FILE OTOMATIS (PALING MUDAH - 3 DETIK)
+--------------------------------------------------------------------------------
+1. Ekstrak (Unzip) file ZIP ini ke sebuah folder di PC Bapak.
+2. Klik 2x file:
+   UPLOAD_KE_KFLSAGND.bat
+3. Selesai! Folder "dist" akan langsung ter-upload ke https://kflsagnd.web.app.
+
+--------------------------------------------------------------------------------
+CARA 2: LEWAT CMD / POWERSHELL (JIKA INGIN KETIK MANUAL)
+--------------------------------------------------------------------------------
+Buka CMD / PowerShell di dalam folder hasil ekstrak, lalu cukup ketik:
+
+   firebase deploy --only hosting
+
+================================================================================
