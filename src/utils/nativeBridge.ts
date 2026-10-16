@@ -223,17 +223,140 @@ export async function printViaAndroidBluetooth(
   }
 }
 
+// Cached Web Bluetooth device and characteristic for zero-prompt auto-reconnect
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let cachedBluetoothDevice: any = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let cachedCharacteristic: any = null;
+
+const STANDARD_PRINTER_SERVICES = [
+  '000018f0-0000-1000-8000-00805f9b34fb', // Standard Thermal Printer Service
+  'e7810a71-73ae-499d-8c15-faa9aef0c3f2',
+  '49535343-fe7d-4ae5-8fa9-9fafd205e455',
+  '0000ffe0-0000-1000-8000-00805f9b34fb',
+  '0000af30-0000-1000-8000-00805f9b34fb',
+  '49535343-8841-43f4-a8d4-ecbe34729bb3',
+];
+
 /**
- * Fitur opsional: Cetak langsung lewat Web Bluetooth API (Google Chrome di Android/PC)
- * Kompatibel dengan printer Bluetooth Thermal RPP02N, PT-210, dsb.
+ * Ambil nama dan ID printer Bluetooth yang saat ini tersimpan di memori / localStorage
+ */
+export function getSavedBluetoothPrinter(): { name: string | null; id: string | null } {
+  if (typeof window === 'undefined') return { name: null, id: null };
+  const name = localStorage.getItem('saved_bt_printer_name');
+  const id = localStorage.getItem('saved_bt_printer_id');
+  return { name, id };
+}
+
+/**
+ * Putus koneksi dan lupakan printer Bluetooth tersimpan
+ */
+export function disconnectBluetoothPrinter(): void {
+  try {
+    if (cachedBluetoothDevice?.gatt?.connected) {
+      cachedBluetoothDevice.gatt.disconnect();
+    }
+  } catch (e) {
+    console.warn('Disconnect error:', e);
+  }
+  cachedBluetoothDevice = null;
+  cachedCharacteristic = null;
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('saved_bt_printer_name');
+    localStorage.removeItem('saved_bt_printer_id');
+  }
+}
+
+/**
+ * Mencari characteristic yang mendukung operasi penulisan (write)
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function findWriteCharacteristic(device: any): Promise<any> {
+  const server = await device.gatt.connect();
+  const services = await server.getPrimaryServices();
+  if (!services || services.length === 0) {
+    throw new Error('Tidak ditemukan service Bluetooth printer.');
+  }
+
+  for (const service of services) {
+    try {
+      const chars = await service.getCharacteristics();
+      for (const char of chars) {
+        if (char.properties.write || char.properties.writeWithoutResponse) {
+          return char;
+        }
+      }
+    } catch {
+      // lanjut cari di service lain
+    }
+  }
+  throw new Error('Karakteristik cetak printer tidak ditemukan.');
+}
+
+/**
+ * Sandingkan printer Bluetooth baru secara langsung (misal dari menu Pengaturan / tombol Ganti)
+ */
+export async function pairBluetoothPrinterDirectly(): Promise<{
+  success: boolean;
+  message: string;
+  printerName?: string;
+}> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const nav = navigator as any;
+  if (!nav?.bluetooth || typeof nav.bluetooth.requestDevice !== 'function') {
+    return {
+      success: false,
+      message: 'Browser Anda tidak mendukung Web Bluetooth. Buka lewat Google Chrome di Android/PC.',
+    };
+  }
+
+  try {
+    const device = await nav.bluetooth.requestDevice({
+      acceptAllDevices: true,
+      optionalServices: STANDARD_PRINTER_SERVICES,
+    });
+
+    if (!device || !device.gatt) {
+      return { success: false, message: 'Gagal memilih printer Bluetooth.' };
+    }
+
+    const char = await findWriteCharacteristic(device);
+    cachedBluetoothDevice = device;
+    cachedCharacteristic = char;
+
+    const deviceName = device.name || 'Printer Bluetooth';
+    localStorage.setItem('saved_bt_printer_name', deviceName);
+    if (device.id) {
+      localStorage.setItem('saved_bt_printer_id', device.id);
+    }
+
+    return {
+      success: true,
+      message: `Printer ${deviceName} berhasil disambungkan & disimpan otomatis!`,
+      printerName: deviceName,
+    };
+  } catch (err: unknown) {
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    if (errorMsg.includes('User cancelled')) {
+      return { success: false, message: 'Pemilihan printer dibatalkan.' };
+    }
+    return { success: false, message: `Gagal menyambungkan: ${errorMsg}` };
+  }
+}
+
+/**
+ * Cetak langsung via Web Bluetooth API dengan:
+ * 1. Zero-Prompt Auto-Reconnect: Jika printer sudah pernah tersimpan, langsung cetak tanpa dialog.
+ * 2. Auto-Fallback: Jika printer lama mati/tidak terjangkau, otomatis buka dialog pencarian printer baru.
  */
 export async function printViaWebBluetooth(
   transaksi: Transaksi,
   settings: SettingsData,
   laundryName?: string,
   laundryAddress?: string,
-  laundryPhone?: string
-): Promise<{ success: boolean; message: string }> {
+  laundryPhone?: string,
+  forcePicker = false
+): Promise<{ success: boolean; message: string; printerName?: string }> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const nav = navigator as any;
   if (!nav.bluetooth || typeof nav.bluetooth.requestDevice !== 'function') {
@@ -261,53 +384,82 @@ export async function printViaWebBluetooth(
       logoRasterBytes
     );
 
-    // Filter printer bluetooth thermal populer (SPP / Serial Port UUID standar)
-    const device = await nav.bluetooth.requestDevice({
-      acceptAllDevices: true,
-      optionalServices: [
-        '000018f0-0000-1000-8000-00805f9b34fb', // Standard Thermal Printer Service
-        'e7810a71-73ae-499d-8c15-faa9aef0c3f2',
-        '49535343-fe7d-4ae5-8fa9-9fafd205e455',
-        '0000ffe0-0000-1000-8000-00805f9b34fb',
-      ],
-    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let activeChar: any = null;
+    let targetDeviceName = localStorage.getItem('saved_bt_printer_name') || 'Printer Bluetooth';
 
-    if (!device || !device.gatt) {
-      return { success: false, message: 'Gagal terhubung ke printer Bluetooth.' };
-    }
+    // 1. Coba Zero-Prompt Auto-Reconnect jika tidak dipaksa buka dialog pemilih
+    if (!forcePicker) {
+      try {
+        // A. Gunakan cachedBluetoothDevice jika masih aktif di memori
+        if (cachedBluetoothDevice?.gatt) {
+          if (!cachedBluetoothDevice.gatt.connected) {
+            await cachedBluetoothDevice.gatt.connect();
+          }
+          activeChar = await findWriteCharacteristic(cachedBluetoothDevice);
+          targetDeviceName = cachedBluetoothDevice.name || targetDeviceName;
+        } else if (typeof nav.bluetooth.getDevices === 'function') {
+          // B. Periksa perangkat yang sudah diberi izin sebelumnya oleh browser Chrome
+          const grantedDevices = await nav.bluetooth.getDevices();
+          const savedId = localStorage.getItem('saved_bt_printer_id');
+          const savedName = localStorage.getItem('saved_bt_printer_name');
 
-    const server = await device.gatt.connect();
-    const services = await server.getPrimaryServices();
-    if (!services || services.length === 0) {
-      return { success: false, message: 'Tidak ditemukan layanan printer pada perangkat ini.' };
-    }
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const matched = grantedDevices.find((d: any) =>
+            (savedId && d.id === savedId) || (savedName && d.name === savedName)
+          );
 
-    // Cari characteristic yang bisa di-write
-    let writeChar = null;
-    for (const service of services) {
-      const chars = await service.getCharacteristics();
-      for (const char of chars) {
-        if (char.properties.write || char.properties.writeWithoutResponse) {
-          writeChar = char;
-          break;
+          if (matched && matched.gatt) {
+            await matched.gatt.connect();
+            activeChar = await findWriteCharacteristic(matched);
+            cachedBluetoothDevice = matched;
+            targetDeviceName = matched.name || targetDeviceName;
+          }
         }
+      } catch (autoErr) {
+        console.warn('Auto-reconnect printer lama gagal (mungkin mati/di luar jangkauan), auto-fallback ke dialog:', autoErr);
+        // Reset cache untuk trigger fallback
+        cachedBluetoothDevice = null;
+        cachedCharacteristic = null;
+        activeChar = null;
       }
-      if (writeChar) break;
     }
 
-    if (!writeChar) {
-      return { success: false, message: 'Karakteristik cetak printer tidak ditemukan.' };
+    // 2. Auto-Fallback: Jika belum terhubung atau dipaksa pilih baru, buka dialog pemilihan printer
+    if (!activeChar) {
+      const device = await nav.bluetooth.requestDevice({
+        acceptAllDevices: true,
+        optionalServices: STANDARD_PRINTER_SERVICES,
+      });
+
+      if (!device || !device.gatt) {
+        return { success: false, message: 'Gagal terhubung ke printer Bluetooth.' };
+      }
+
+      activeChar = await findWriteCharacteristic(device);
+      cachedBluetoothDevice = device;
+      targetDeviceName = device.name || 'Printer Bluetooth';
+
+      // Simpan untuk cetak otomatis berikutnya tanpa dialog
+      localStorage.setItem('saved_bt_printer_name', targetDeviceName);
+      if (device.id) {
+        localStorage.setItem('saved_bt_printer_id', device.id);
+      }
     }
 
-    // Kirim data dalam chunk maksimal 100 bytes (Bluetooth MTU safe)
+    // 3. Kirim data ESC/POS dalam potongan maksimal 100 bytes (Bluetooth MTU safe)
     const chunkSize = 100;
     for (let i = 0; i < rawBytes.length; i += chunkSize) {
       const chunk = rawBytes.slice(i, i + chunkSize);
-      await writeChar.writeValue(chunk);
+      await activeChar.writeValue(chunk);
       await new Promise((resolve) => setTimeout(resolve, 30));
     }
 
-    return { success: true, message: 'Berhasil mencetak ke printer Bluetooth!' };
+    return {
+      success: true,
+      message: `Struk berhasil dicetak ke ${targetDeviceName}!`,
+      printerName: targetDeviceName,
+    };
   } catch (err: unknown) {
     const errorMsg = err instanceof Error ? err.message : String(err);
     if (errorMsg.includes('User cancelled')) {
@@ -316,3 +468,4 @@ export async function printViaWebBluetooth(
     return { success: false, message: `Gagal cetak Bluetooth: ${errorMsg}` };
   }
 }
+

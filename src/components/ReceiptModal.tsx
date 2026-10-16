@@ -1,8 +1,16 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { X, Printer, Share2, MessageCircle, Download, Check } from 'lucide-react';
+import { X, Printer, Share2, RefreshCw, CheckCircle2 } from 'lucide-react';
 import { Transaksi, SettingsData, Pelanggan } from '../types';
-import { formatRupiah, formatDateIndo, formatNumberOnly } from '../utils/formatters';
-import { isAndroidPrintAvailable, printViaAndroidBluetooth, printViaWebBluetooth, preloadLogoBase64 } from '../utils/nativeBridge';
+import { formatDateIndo, formatNumberOnly } from '../utils/formatters';
+import {
+  isAndroidPrintAvailable,
+  printViaAndroidBluetooth,
+  printViaWebBluetooth,
+  preloadLogoBase64,
+  getSavedBluetoothPrinter,
+  pairBluetoothPrinterDirectly,
+} from '../utils/nativeBridge';
+import { ShareReceiptModal } from './ShareReceiptModal';
 
 interface ReceiptModalProps {
   isOpen: boolean;
@@ -26,14 +34,21 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
   laundryAddress,
 }) => {
   const receiptRef = useRef<HTMLDivElement>(null);
-  const [copiedWA, setCopiedWA] = useState(false);
   const [printFeedback, setPrintFeedback] = useState<string | null>(null);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [savedPrinterName, setSavedPrinterName] = useState<string | null>(() => {
+    return getSavedBluetoothPrinter().name || settings.printerName || null;
+  });
 
   useEffect(() => {
-    if (isOpen && settings.useLogo && settings.logoPath) {
-      preloadLogoBase64(settings.logoPath);
+    if (isOpen) {
+      const current = getSavedBluetoothPrinter().name || settings.printerName || null;
+      setSavedPrinterName(current);
+      if (settings.useLogo && settings.logoPath) {
+        preloadLogoBase64(settings.logoPath);
+      }
     }
-  }, [isOpen, settings.useLogo, settings.logoPath]);
+  }, [isOpen, settings.useLogo, settings.logoPath, settings.printerName]);
 
   if (!isOpen || !transaksi) return null;
 
@@ -45,11 +60,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
   const sisaBayar = isLunas ? 0 : Math.max(0, transaksi.totalHarga - transaksi.jumlahDp);
   const statusFinal = isLunas || sisaBayar <= 0 ? 'LUNAS' : 'BELUM LUNAS';
 
-  const customerPhoneClean = (transaksi.nomorTelepon || pelanggan?.nomorTelepon || '')
-    .replace(/[^0-9]/g, '')
-    .replace(/^0/, '62');
-
-  const handlePrint = async () => {
+  const handlePrint = async (forcePicker = false) => {
     // 1. Prioritaskan cetak Bluetooth hardware langsung jika berjalan di APK Android
     if (isAndroidPrintAvailable()) {
       setPrintFeedback('Mengirim struk & logo ke printer Bluetooth...');
@@ -67,19 +78,31 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
       }
     }
 
-    // 2. Coba Web Bluetooth jika dibuka di Google Chrome
+    // 2. Coba Web Bluetooth jika dibuka di Google Chrome (dengan Zero-Prompt Auto-Reconnect & Auto-Fallback)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const nav = typeof navigator !== 'undefined' ? (navigator as any) : null;
     if (nav?.bluetooth && typeof nav.bluetooth.requestDevice === 'function') {
-      setPrintFeedback('Mencari printer Bluetooth thermal...');
+      if (forcePicker) {
+        setPrintFeedback('Membuka dialog pencarian printer baru...');
+      } else if (savedPrinterName) {
+        setPrintFeedback(`Menghubungkan otomatis ke ${savedPrinterName}...`);
+      } else {
+        setPrintFeedback('Mencari printer Bluetooth thermal...');
+      }
+
       const res = await printViaWebBluetooth(
         transaksi,
         settings,
         laundryName,
         laundryAddress,
-        laundryPhone
+        laundryPhone,
+        forcePicker
       );
+
       if (res.success) {
+        if (res.printerName) {
+          setSavedPrinterName(res.printerName);
+        }
         setPrintFeedback(res.message);
         setTimeout(() => setPrintFeedback(null), 3500);
         return;
@@ -89,6 +112,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
       } else {
         setPrintFeedback(null);
       }
+      return;
     }
 
     // 3. Fallback cetak standar browser web
@@ -99,84 +123,66 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
     window.print();
   };
 
-  const handleShareWhatsAppText = () => {
-    let message = `*${headerTitle}*\n`;
-    if (headerAddress) message += `${headerAddress}\n`;
-    if (headerPhone) message += `Telp: ${headerPhone}\n`;
-    message += `--------------------------------\n`;
-    message += `*No. Nota:* ${transaksi.nomorTransaksi || '-'}\n`;
-    message += `*Pelanggan:* ${transaksi.namaPelanggan}\n`;
-    if (transaksi.alamat) message += `*Alamat:* ${transaksi.alamat}\n`;
-    message += `*Tanggal Masuk:* ${formatDateIndo(transaksi.tanggalMasuk, true)}\n`;
-    if (transaksi.tanggalSelesai) {
-      message += `*Estimasi Selesai:* ${formatDateIndo(transaksi.tanggalSelesai)}\n`;
+  const handleSwitchPrinter = async () => {
+    const res = await pairBluetoothPrinterDirectly();
+    if (res.success && res.printerName) {
+      setSavedPrinterName(res.printerName);
+      setPrintFeedback(res.message);
+      setTimeout(() => setPrintFeedback(null), 3500);
+    } else if (res.message && !res.message.includes('dibatalkan')) {
+      setPrintFeedback(res.message);
+      setTimeout(() => setPrintFeedback(null), 3500);
     }
-    message += `--------------------------------\n`;
-    message += `*Rincian Layanan:*\n`;
-
-    transaksi.items.forEach((item) => {
-      message += `• ${item.namaLayanan}\n  ${item.berat} ${item.satuan} x ${formatRupiah(item.hargaPerKg)} = *${formatRupiah(item.subtotal)}*\n`;
-    });
-
-    message += `--------------------------------\n`;
-    message += `*Total Transaksi: ${formatRupiah(transaksi.totalHarga)}*\n`;
-
-    if (transaksi.jumlahDp > 0) {
-      message += `Pembayaran Awal: ${formatRupiah(transaksi.jumlahDp)}\n`;
-    }
-    if (sisaBayar > 0) {
-      message += `*Sisa Pembayaran: ${formatRupiah(sisaBayar)}*\n`;
-    }
-    message += `*Status: ${statusFinal}*\n`;
-    if (transaksi.metodePembayaran) {
-      message += `Metode: ${transaksi.metodePembayaran}${transaksi.metodePembayaranDetail ? ` (${transaksi.metodePembayaranDetail})` : ''}\n`;
-    }
-    if (transaksi.catatan) {
-      message += `\n*Catatan:* ${transaksi.catatan}\n`;
-    }
-    if (settings.footerStruk) {
-      message += `\n${settings.footerStruk}\n`;
-    }
-    if (settings.chattyFooter) {
-      message += `\n${settings.chattyFooter}\n`;
-    }
-
-    if (customerPhoneClean) {
-      const url = `https://api.whatsapp.com/send?phone=${customerPhoneClean}&text=${encodeURIComponent(message)}`;
-      window.open(url, '_blank');
-    } else {
-      navigator.clipboard.writeText(message);
-      setCopiedWA(true);
-      setTimeout(() => setCopiedWA(false), 2000);
-      alert('Teks nota berhasil disalin ke clipboard! Nomor telepon pelanggan tidak terdaftar.');
-    }
-  };
-
-  const handleDownloadImage = () => {
-    // Canvas-based download of the receipt container
-    if (!receiptRef.current) return;
-    const element = receiptRef.current;
-    
-    // Simple SVG-based foreignObject capture or direct print
-    window.print();
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 overflow-y-auto animate-fade-in">
-      <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[95vh]">
-        {/* Top Header */}
-        <div className="bg-[#800000] text-white p-4 flex items-center justify-between no-print">
-          <div>
-            <h3 className="font-bold text-sm">Struk Transaksi</h3>
-            <p className="text-xs text-white/80">{transaksi.nomorTransaksi || 'Preview Struk'}</p>
+    <>
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 overflow-y-auto animate-fade-in">
+        <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[95vh]">
+          {/* Top Header */}
+          <div className="bg-[#800000] text-white p-4 flex items-center justify-between no-print">
+            <div>
+              <h3 className="font-bold text-sm">Struk Transaksi</h3>
+              <p className="text-xs text-white/80">{transaksi.nomorTransaksi || 'Preview Struk'}</p>
+            </div>
+            <button
+              onClick={onClose}
+              className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
+            >
+              <X className="w-5 h-5 text-white" />
+            </button>
           </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
-          >
-            <X className="w-5 h-5 text-white" />
-          </button>
-        </div>
+
+          {/* Status & Kontrol Sandingan Printer Bluetooth */}
+          <div className="px-4 pt-3 pb-1 bg-slate-50 border-b border-slate-200/80 no-print flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <span
+                className={`w-2.5 h-2.5 rounded-full shrink-0 ${
+                  savedPrinterName ? 'bg-emerald-500 ring-2 ring-emerald-200' : 'bg-amber-400'
+                }`}
+              />
+              <div className="text-xs text-slate-700 truncate">
+                <span className="text-slate-500">Printer: </span>
+                <strong className="text-slate-900 font-semibold">
+                  {savedPrinterName || 'Belum Terhubung'}
+                </strong>
+                {savedPrinterName && (
+                  <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-md ml-1.5">
+                    Tersimpan
+                  </span>
+                )}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleSwitchPrinter}
+              className="text-[11px] font-bold text-[#800000] hover:text-[#660000] hover:bg-[#800000]/10 px-2 py-1 rounded-lg transition shrink-0 flex items-center gap-1"
+              title="Ganti printer Bluetooth yang digunakan"
+            >
+              <RefreshCw className="w-3 h-3" />
+              <span>{savedPrinterName ? 'Ganti' : 'Pilih'}</span>
+            </button>
+          </div>
 
         {/* Scrollable Receipt Area */}
         <div className="p-4 overflow-y-auto bg-slate-100 flex justify-center">
@@ -362,27 +368,63 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
         )}
 
         {/* Action Buttons */}
-        <div className="p-3 sm:p-2 mb-6 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row gap-1 justify-between no-print">
-          <div className="flex flex-wrap gap-2">
+        <div className="p-3 sm:p-3.5 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row gap-2 justify-between items-center no-print">
+          <div className="flex flex-wrap gap-2 w-full sm:w-auto">
             <button
-              onClick={handlePrint}
-              className="flex-1 sm:flex-initial flex items-center justify-center gap-1 px-3.5 py-1 rounded-xl bg-[#800000] hover:bg-[#660000] text-white font-bold text-xs shadow-xs transition cursor-pointer active:scale-95"
-              title="Cetak via printer Bluetooth thermal kasir"
+              type="button"
+              onClick={() => handlePrint(false)}
+              className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#800000] hover:bg-[#660000] text-white font-bold text-xs shadow-xs transition cursor-pointer active:scale-95"
+              title="Cetak langsung ke printer Bluetooth thermal kasir"
             >
               <Printer className="w-4 h-4" />
               <span>{isAndroidPrintAvailable() ? 'Cetak Bluetooth (Android)' : 'Cetak Bluetooth'}</span>
             </button>
-                 <button
+
+            {/* Tombol Bagikan Struk Berdampingan dengan Cetak Bluetooth */}
+            <button
+              type="button"
+              onClick={() => setShowShareModal(true)}
+              className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs shadow-xs transition cursor-pointer active:scale-95"
+              title="Bagikan struk ke WhatsApp atau aplikasi lain"
+            >
+              <Share2 className="w-4 h-4" />
+              <span>Bagikan Struk</span>
+            </button>
+          </div>
+
+          <div className="flex gap-2 w-full sm:w-auto justify-end">
+            <button
+              type="button"
+              onClick={handlePrintStandard}
+              className="flex-1 sm:flex-initial px-3.5 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold text-xs transition"
+              title="Cetak lewat dialog printer standar atau AirPrint"
+            >
+              Cetak Standar
+            </button>
+            <button
+              type="button"
               onClick={onClose}
               className="px-4 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold text-xs transition"
             >
               Tutup
             </button>
-          
           </div>
-    
         </div>
       </div>
     </div>
+
+    {/* Modal Bagikan Struk Terbuka di Atas Struk */}
+    <ShareReceiptModal
+      isOpen={showShareModal}
+      onClose={() => setShowShareModal(false)}
+      transaksi={transaksi}
+      settings={settings}
+      pelanggan={pelanggan}
+      laundryName={laundryName}
+      laundryPhone={laundryPhone}
+      laundryAddress={laundryAddress}
+    />
+  </>
   );
 };
+

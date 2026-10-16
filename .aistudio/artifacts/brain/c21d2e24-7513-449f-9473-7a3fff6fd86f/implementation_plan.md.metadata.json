@@ -1,0 +1,6 @@
+{
+  "summary": "Rencana implementasi cetak Bluetooth instan tanpa dialog berulang (Auto-Reconnect):\n1. Mengintegrasikan persistent Bluetooth Device session & navigator.bluetooth.getDevices() pada PWA Web Bluetooth, sehingga printer yang pernah terhubung langsung dipakai mencetak secara instan.\n2. Otomatis menampilkan dialog pemilihan printer baru HANYA jika printer lama tidak ditemukan, mati, atau koneksi terputus.\n3. Menyediakan kontrol ganti printer manual (opsional) di Pengaturan & Modal Struk untuk fleksibilitas kasir.\n4. Memperbarui panduan Kotlin Android APK agar alur auto-reconnect tersimpan di SharedPreferences bekerja seragam.",
+  "updatedAt": "2026-10-16T08:56:45.234819979Z",
+  "requestFeedback": true,
+  "userFacing": true
+}

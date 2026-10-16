@@ -23,6 +23,11 @@ import { SettingsData, User, Laundry } from '../types';
 import { PWAInstallButton } from '../components/PWAInstallButton';
 import { formatDateIndo } from '../utils/formatters';
 import { StorageService, defaultOwnerUser } from '../utils/storage';
+import {
+  getSavedBluetoothPrinter,
+  disconnectBluetoothPrinter,
+  pairBluetoothPrinterDirectly,
+} from '../utils/nativeBridge';
 
 interface SettingsViewProps {
   onBack: () => void;
@@ -83,8 +88,30 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [useLogo, setUseLogo] = useState(settings.useLogo);
   const [logoPath, setLogoPath] = useState<string | null>(settings.logoPath);
 
-  // Printer name
+  // Printer name & auto-reconnect state
   const [printerName, setPrinterName] = useState(settings.printerName);
+  const [savedBtPrinter, setSavedBtPrinter] = useState<string | null>(() => getSavedBluetoothPrinter().name);
+
+  const handleDisconnectBluetooth = () => {
+    disconnectBluetoothPrinter();
+    setSavedBtPrinter(null);
+    alert('Sandingan printer Bluetooth berhasil diputus!');
+  };
+
+  const handlePairBluetooth = async () => {
+    const res = await pairBluetoothPrinterDirectly();
+    if (res.success && res.printerName) {
+      setSavedBtPrinter(res.printerName);
+      setPrinterName(res.printerName);
+      onUpdateSettings({
+        ...settings,
+        printerName: res.printerName,
+      });
+      alert(res.message);
+    } else if (res.message && !res.message.includes('dibatalkan')) {
+      alert(res.message);
+    }
+  };
 
   // Toggle Features State
   const [pemasukanManual, setPemasukanManual] = useState(settings.pemasukanManualEnabled);
@@ -599,18 +626,52 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </button>
             </div>
 
-            <p className="text-xs text-slate-500">
-              Masukkan nama perangkat printer thermal bluetooth Anda (Contoh standar: <strong>RPP02N</strong> atau <strong>PT-210</strong>).
-            </p>
+            {/* Info Sandingan Otomatis Aktif (Zero-Prompt) */}
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-slate-600">Sandingan Otomatis (Zero-Prompt)</span>
+                <span className="text-[10px] font-extrabold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
+                  Aktif
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 leading-relaxed">
+                Struk langsung dicetak ke printer tersimpan tanpa membuka pop-up berulang kali. Jika printer mati, sistem akan otomatis membuka dialog pencarian baru.
+              </p>
+              <div className="flex items-center justify-between pt-1 border-t border-slate-200/80">
+                <div className="text-xs font-semibold text-slate-800 truncate mr-2">
+                  Tersimpan: <strong className="text-[#800000]">{savedBtPrinter || printerName || 'RPP02N'}</strong>
+                </div>
+                <div className="flex gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={handlePairBluetooth}
+                    className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-900 text-white text-[11px] font-bold transition"
+                  >
+                    Ganti
+                  </button>
+                  {savedBtPrinter && (
+                    <button
+                      type="button"
+                      onClick={handleDisconnectBluetooth}
+                      className="px-2 py-1 rounded-lg border border-red-300 text-red-600 hover:bg-red-50 text-[11px] font-semibold transition"
+                    >
+                      Putus
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
 
             <div>
               <label className="block text-[11px] font-semibold text-slate-500 mb-1">
-                Nama Bluetooth Printer
+                Nama Bluetooth Printer (APK / Fallback)
               </label>
               <input
                 type="text"
                 value={printerName}
                 onChange={(e) => setPrinterName(e.target.value)}
+                placeholder="Contoh: RPP02N atau PT-210"
                 className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold"
               />
             </div>

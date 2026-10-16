@@ -1,0 +1,6 @@
+{
+  "summary":  "Rencana implementasi arsitektur portal Super Admin tersembunyi (stealth mode) berbasis role Firebase Firestore tanpa tombol publik atau hardcode kredensial, serta konfirmasi urutan seksi website profil.",
+  "updatedAt":  "2026-10-11T10:59:01.560317100Z",
+  "requestFeedback":  true,
+  "userFacing":  true
+}

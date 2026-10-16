@@ -204,27 +204,22 @@ export const DetailTransaksiView: React.FC<DetailTransaksiViewProps> = ({
             className="flex items-center justify-center gap-2 py-3 rounded-xl bg-[#800000] hover:bg-[#660000] text-white font-bold text-xs shadow-xs transition active:scale-98"
           >
             <Printer className="w-4 h-4" />
-            Cetak Struk
+            Lihat Struk
           </button>
-          <button
-            onClick={() => setShowShareModal(true)}
-            className="flex items-center justify-center gap-2 py-3 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs shadow-xs transition active:scale-98"
-          >
-            <Share2 className="w-4 h-4" />
-            Bagikan Struk
-          </button>
-        </div>
-
-        {/* Tombol Ambil Cucian jika belum diambil */}
+                  {/* Tombol Ambil Cucian jika belum diambil */}
         {!isArchived && onAmbil && (
           <button
             onClick={() => setShowConfirmAmbil(true)}
             className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition active:scale-98"
           >
             <Truck className="w-4 h-4" />
-            <span>Ambil Cucian (Serahkan ke Pelanggan)</span>
+            <span>Ambil Cucian</span>
           </button>
         )}
+
+ 
+        </div>
+
 
         {/* Edit & Delete Buttons for Owner */}
         {isOwner && !isArchived && (

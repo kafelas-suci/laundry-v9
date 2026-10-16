@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from './firebase';
 import { FirebaseSyncService } from './utils/firebaseSync';
@@ -38,6 +38,7 @@ import { SwitchBranchModal } from './components/SwitchBranchModal';
 import { ApkPlaystoreModal } from './components/ApkPlaystoreModal';
 import { LimitTransaksiModal } from './components/LimitTransaksiModal';
 import { AssignStaffModal } from './components/AssignStaffModal';
+import { ReceiptModal } from './components/ReceiptModal';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { DesktopSidebar } from './components/DesktopSidebar';
 import { DemoBanner } from './components/DemoBanner';
@@ -154,6 +155,143 @@ export default function App() {
   const [isApkModalOpen, setIsApkModalOpen] = useState(false);
   const [isLimitModalOpen, setIsLimitModalOpen] = useState(false);
   const [trxForAssignStaff, setTrxForAssignStaff] = useState<Transaksi | null>(null);
+  const [receiptModalTrx, setReceiptModalTrx] = useState<Transaksi | null>(null);
+
+  // Toast & Double-Tap to Exit state saat berada di menu utama (Dashboard)
+  const [exitToast, setExitToast] = useState(false);
+  const lastBackTimeRef = useRef<number>(0);
+  const exitToastTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Ref tracking state aktif untuk popstate event listener
+  const navStateRef = useRef({
+    activeView,
+    isAturKasOpen,
+    isSwitchBranchOpen,
+    isApkModalOpen,
+    isLimitModalOpen,
+    hasTrxForAssignStaff: !!trxForAssignStaff,
+    hasReceiptModalTrx: !!receiptModalTrx,
+  });
+
+  useEffect(() => {
+    navStateRef.current = {
+      activeView,
+      isAturKasOpen,
+      isSwitchBranchOpen,
+      isApkModalOpen,
+      isLimitModalOpen,
+      hasTrxForAssignStaff: !!trxForAssignStaff,
+      hasReceiptModalTrx: !!receiptModalTrx,
+    };
+  }, [
+    activeView,
+    isAturKasOpen,
+    isSwitchBranchOpen,
+    isApkModalOpen,
+    isLimitModalOpen,
+    trxForAssignStaff,
+    receiptModalTrx,
+  ]);
+
+  // Synchronize history navigation (Sub-menu kembali ke Dashboard, Dashboard minta tekan sekali lagi untuk keluar)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    if (!window.history.state) {
+      window.history.replaceState({ view: 'root' }, '');
+    }
+
+    const handlePopState = () => {
+      const state = navStateRef.current;
+
+      // 1. Jika ada popup modal terbuka, tutup modal tersebut terlebih dahulu
+      if (state.hasReceiptModalTrx) {
+        setReceiptModalTrx(null);
+        window.history.pushState({ view: state.activeView }, '');
+        return;
+      }
+      if (state.isAturKasOpen) {
+        setIsAturKasOpen(false);
+        window.history.pushState({ view: state.activeView }, '');
+        return;
+      }
+      if (state.isSwitchBranchOpen) {
+        setIsSwitchBranchOpen(false);
+        window.history.pushState({ view: state.activeView }, '');
+        return;
+      }
+      if (state.isApkModalOpen) {
+        setIsApkModalOpen(false);
+        window.history.pushState({ view: state.activeView }, '');
+        return;
+      }
+      if (state.isLimitModalOpen) {
+        setIsLimitModalOpen(false);
+        window.history.pushState({ view: state.activeView }, '');
+        return;
+      }
+      if (state.hasTrxForAssignStaff) {
+        setTrxForAssignStaff(null);
+        window.history.pushState({ view: state.activeView }, '');
+        return;
+      }
+
+      // 2. Jika sedang berada di sub menu manapun, kembalikan langsung ke menu utama (dashboard)
+      if (
+        state.activeView !== 'dashboard' &&
+        state.activeView !== 'splash' &&
+        state.activeView !== 'auth'
+      ) {
+        setActiveView('dashboard');
+        setSelectedTransaksiId(null);
+        setTransaksiToEdit(null);
+        window.history.pushState({ view: 'dashboard' }, '');
+        return;
+      }
+
+      // 3. Jika sudah berada di menu utama (dashboard), minta tekan sekali lagi untuk keluar
+      if (state.activeView === 'dashboard') {
+        const now = Date.now();
+        if (now - lastBackTimeRef.current < 2000) {
+          // Tekanan kedua dalam 2 detik -> Izinkan keluar
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const win = window as any;
+          if (win.MesinPrint?.keluarAplikasi) {
+            win.MesinPrint.keluarAplikasi();
+            return;
+          }
+          window.history.back();
+        } else {
+          // Tekanan pertama -> Tahan dan tampilkan toast "Tekan sekali lagi untuk keluar"
+          lastBackTimeRef.current = now;
+          window.history.pushState({ view: 'dashboard' }, '');
+          setExitToast(true);
+
+          if (exitToastTimerRef.current) {
+            clearTimeout(exitToastTimerRef.current);
+          }
+          exitToastTimerRef.current = setTimeout(() => {
+            setExitToast(false);
+          }, 2000);
+        }
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      if (exitToastTimerRef.current) {
+        clearTimeout(exitToastTimerRef.current);
+      }
+    };
+  }, []);
+
+  // Setiap kali berganti halaman (selain splash & auth), dorong riwayat navigasi
+  useEffect(() => {
+    if (typeof window !== 'undefined' && activeView !== 'splash' && activeView !== 'auth') {
+      window.history.pushState({ view: activeView }, '');
+    }
+  }, [activeView]);
 
   // Active branch entity
   const activeLaundry =
@@ -318,7 +456,8 @@ export default function App() {
         FirebaseSyncService.saveTransaksi(updatedTrx).catch(console.error);
       }
       setSelectedTransaksiId(data.id);
-      setActiveView('detail_transaksi');
+      setReceiptModalTrx(updatedTrx);
+      setActiveView('dashboard');
     } else {
       // Create new
       const dateKey = new Date().toISOString().slice(2, 10).replace(/-/g, '');
@@ -373,7 +512,8 @@ export default function App() {
       }
 
       setSelectedTransaksiId(newTrx.id);
-      setActiveView('detail_transaksi');
+      setReceiptModalTrx(newTrx);
+      setActiveView('dashboard');
     }
   };
 
@@ -1023,7 +1163,7 @@ export default function App() {
 
         {activeView === 'kelola_pelanggan' && (
           <KelolaPelangganView
-            onBack={() => setActiveView('settings')}
+            onBack={() => setActiveView('dashboard')}
             pelangganList={pelangganList}
             settings={settings}
             activeLaundryId={activeLaundryId}
@@ -1034,7 +1174,7 @@ export default function App() {
 
         {activeView === 'kelola_layanan' && (
           <KelolaLayananView
-            onBack={() => setActiveView('settings')}
+            onBack={() => setActiveView('dashboard')}
             layananList={layananList}
             activeLaundryId={activeLaundryId}
             onSaveLayanan={handleSaveLayanan}
@@ -1045,7 +1185,7 @@ export default function App() {
 
         {activeView === 'kelola_owner' && currentUser && (
           <KelolaOwnerView
-            onBack={() => setActiveView('settings')}
+            onBack={() => setActiveView('dashboard')}
             currentUser={currentUser}
             laundries={laundries}
             activeLaundryId={activeLaundryId}
@@ -1062,7 +1202,7 @@ export default function App() {
 
         {activeView === 'kelola_kasir' && (
           <KelolaKasirView
-            onBack={() => setActiveView('settings')}
+            onBack={() => setActiveView('dashboard')}
             staffList={staffList}
             laundries={laundries}
             onAddKasir={handleAddKasir}
@@ -1149,6 +1289,34 @@ export default function App() {
             setTrxForAssignStaff(null);
           }}
         />
+
+        {/* Modal Struk Transaksi / Lihat Nota Langsung setelah membuat transaksi */}
+        <ReceiptModal
+          isOpen={!!receiptModalTrx}
+          onClose={() => setReceiptModalTrx(null)}
+          transaksi={receiptModalTrx}
+          settings={settings}
+          pelanggan={
+            receiptModalTrx
+              ? pelangganList.find(
+                  (p) =>
+                    p.nama.toLowerCase() ===
+                    receiptModalTrx.namaPelanggan.toLowerCase()
+                )
+              : null
+          }
+          laundryName={activeLaundry?.namaLaundry || undefined}
+          laundryPhone={activeLaundry?.nomorTelepon || undefined}
+          laundryAddress={activeLaundry?.alamat || undefined}
+        />
+
+        {/* Floating Toast: Tekan sekali lagi untuk keluar */}
+        {exitToast && (
+          <div className="fixed bottom-7 left-1/2 -translate-x-1/2 z-100 flex items-center gap-2.5 px-5 py-3 rounded-2xl bg-slate-900/95 text-white text-xs font-semibold shadow-2xl backdrop-blur-md border border-slate-700 animate-in fade-in slide-in-from-bottom-4 duration-200 pointer-events-none select-none">
+            <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping shrink-0" />
+            <span className="tracking-wide">Tekan sekali lagi untuk keluar</span>
+          </div>
+        )}
       </div>
     </div>
   );

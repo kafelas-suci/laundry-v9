@@ -141,6 +141,16 @@ class WebPrintInterface(
             dpDibayar, isLunas, noStruk, catatan, metodeBayar, isArsip
         )
     }
+
+    /**
+     * METODE 3: Keluar Aplikasi Bersih (Dipanggil saat double-back di menu utama)
+     */
+    @JavascriptInterface
+    fun keluarAplikasi() {
+        (context as? Activity)?.runOnUiThread {
+            (context as? Activity)?.finishAffinity()
+        }
+    }
 }
 ```
 
@@ -297,8 +307,15 @@ class StrukHelper(
                         Toast.makeText(activity, "Struk & logo berhasil dicetak!", Toast.LENGTH_SHORT).show()
                     }
                 } catch (e: Exception) {
+                    // Auto-fallback: Jika koneksi ke printer tersimpan gagal (printer mati / di luar jangkauan),
+                    // hapus MAC tersimpan agar dialog pemilihan printer baru otomatis muncul saat tombol ditekan kembali
+                    sharedPref.edit().remove("SAVED_PRINTER_MAC").apply()
                     activity.runOnUiThread {
-                        Toast.makeText(activity, "Gagal mencetak: ${e.message}", Toast.LENGTH_LONG).show()
+                        Toast.makeText(
+                            activity,
+                            "Gagal terhubung ke printer (${e.message}). Sandingan lama direset, tekan tombol Cetak lagi untuk memilih printer baru.",
+                            Toast.LENGTH_LONG
+                        ).show()
                     }
                 }
             }.start()
@@ -676,11 +693,19 @@ class MainActivity : AppCompatActivity() {
         webView.loadUrl("https://kflslaundry.web.app")
     }
 
+    private var lastBackPressTime: Long = 0
+
     override fun onBackPressed() {
         if (webView.canGoBack()) {
             webView.goBack()
         } else {
-            super.onBackPressed()
+            val currentTime = System.currentTimeMillis()
+            if (currentTime - lastBackPressTime < 2000) {
+                finishAffinity()
+            } else {
+                lastBackPressTime = currentTime
+                Toast.makeText(this, "Tekan sekali lagi untuk keluar", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 }
