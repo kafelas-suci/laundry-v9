@@ -207,7 +207,8 @@ export default function App() {
       setCurrentUser(updatedUser);
       StorageService.set('active_user', updatedUser);
     }
-    toast.success(`Mode simulasi paket beralih ke ${newTier === 'pro' ? 'Paket Pro' : 'Paket Basic'}!`);
+    const limits = getLaundryLimits(newTier);
+    toast.success(`Mode simulasi paket beralih ke ${limits.label}!`);
   };
 
   // Toast & Double-Tap to Exit state saat berada di menu utama (Dashboard)
@@ -520,7 +521,16 @@ export default function App() {
       setReceiptModalTrx(updatedTrx);
       setActiveView('dashboard');
     } else {
-      // Create new
+      // Create new - check monthly quota
+      const limits = getLaundryLimits(activeTier);
+      if (currentMonthTransactions.length >= limits.maxMonthlyTransactions) {
+        toast.warning(
+          `Batas transaksi bulanan (${limits.maxMonthlyTransactions} transaksi/bulan) untuk ${limits.label} telah tercapai.`
+        );
+        handleOpenUpgradeModal(`Batas transaksi bulanan (${limits.maxMonthlyTransactions} nota/bulan) untuk ${limits.label}`);
+        return;
+      }
+
       const dateKey = new Date().toISOString().slice(2, 10).replace(/-/g, '');
       const countToday =
         transaksiList.filter((t) => t.nomorTransaksi?.startsWith(dateKey)).length + 1;
@@ -539,23 +549,29 @@ export default function App() {
         FirebaseSyncService.saveTransaksi(newTrx).catch(console.error);
       }
 
-      // Save customer contact if new
+      // Save customer contact if new (check customer limit)
       if (data.namaPelanggan) {
         const existingCust = pelangganList.find(
           (p) => p.nama.toLowerCase() === data.namaPelanggan.toLowerCase()
         );
         if (!existingCust) {
-          const newCust: Pelanggan = {
-            id: `pel-${Date.now()}`,
-            laundryId: activeLaundryId,
-            nama: data.namaPelanggan,
-            nomorTelepon: data.nomorTelepon,
-            alamat: data.alamat,
-            poin: 0,
-          };
-          updatePelangganList([...pelangganList, newCust]);
-          if (!isDemoMode) {
-            FirebaseSyncService.savePelanggan(newCust).catch(console.error);
+          if (pelangganList.length >= limits.maxCustomers) {
+            toast.warning(
+              `Batas ${limits.maxCustomers} data pelanggan untuk ${limits.label} telah tercapai. Data kontak baru tidak disimpan ke buku pelanggan.`
+            );
+          } else {
+            const newCust: Pelanggan = {
+              id: `pel-${Date.now()}`,
+              laundryId: activeLaundryId,
+              nama: data.namaPelanggan,
+              nomorTelepon: data.nomorTelepon,
+              alamat: data.alamat,
+              poin: 0,
+            };
+            updatePelangganList([...pelangganList, newCust]);
+            if (!isDemoMode) {
+              FirebaseSyncService.savePelanggan(newCust).catch(console.error);
+            }
           }
         } else if (data.nomorTelepon || data.alamat) {
           const updatedCust = {
@@ -630,7 +646,24 @@ export default function App() {
     );
   }, [transaksiList, activeLaundryId]);
 
+  // Transaksi bulan berjalan untuk cabang aktif (kuota per bulan)
+  const currentMonthTransactions = useMemo(() => {
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+    return transaksiList.filter(
+      (t) => t.laundryId === activeLaundryId && (t.tanggalMasuk || 0) >= startOfMonth
+    );
+  }, [transaksiList, activeLaundryId]);
+
   const handleRequestNewTransaksi = () => {
+    const limits = getLaundryLimits(activeTier);
+    if (currentMonthTransactions.length >= limits.maxMonthlyTransactions) {
+      toast.warning(
+        `Batas transaksi bulanan (${limits.maxMonthlyTransactions} transaksi/bulan) untuk ${limits.label} telah tercapai.`
+      );
+      handleOpenUpgradeModal(`Batas transaksi bulanan (${limits.maxMonthlyTransactions} nota/bulan) untuk ${limits.label}`);
+      return;
+    }
     if (activeUncollectedTrx.length >= 300) {
       setIsLimitModalOpen(true);
     } else {
@@ -652,7 +685,15 @@ export default function App() {
   };
 
   const handleSaveCustomer = (cust: Pelanggan) => {
+    const limits = getLaundryLimits(activeTier);
     const exists = pelangganList.some((p) => p.id === cust.id);
+    if (!exists && pelangganList.length >= limits.maxCustomers) {
+      toast.warning(
+        `Batas maksimal ${limits.maxCustomers} data pelanggan untuk ${limits.label} telah tercapai.`
+      );
+      handleOpenUpgradeModal(`Batas maksimal ${limits.maxCustomers} data pelanggan untuk ${limits.label}`);
+      return;
+    }
     const updated = exists
       ? pelangganList.map((p) => (p.id === cust.id ? cust : p))
       : [...pelangganList, cust];
@@ -665,7 +706,15 @@ export default function App() {
   };
 
   const handleSaveLayanan = (lay: Layanan) => {
+    const limits = getLaundryLimits(activeTier);
     const exists = layananList.some((l) => l.id === lay.id);
+    if (!exists && layananList.length >= limits.maxServices) {
+      toast.warning(
+        `Batas maksimal ${limits.maxServices} jenis layanan untuk ${limits.label} telah tercapai.`
+      );
+      handleOpenUpgradeModal(`Batas maksimal ${limits.maxServices} jenis layanan untuk ${limits.label}`);
+      return;
+    }
     const updated = exists
       ? layananList.map((l) => (l.id === lay.id ? lay : l))
       : [...layananList, lay];
@@ -687,10 +736,13 @@ export default function App() {
     const limits = getLaundryLimits(activeTier);
     if (laundries.length >= limits.maxBranches) {
       toast.warning(
-        limits.tier === 'basic'
+        limits.tier === 'newcomer'
+          ? 'Paket Newcomer dibatasi 1 Cabang Outlet. Tingkatkan ke Paket Pro untuk mengelola hingga 3 cabang.'
+          : limits.tier === 'basic'
           ? 'Paket Basic dibatasi 1 Cabang Outlet. Tingkatkan ke Paket Pro untuk mengelola hingga 3 cabang.'
           : 'Batas maksimal 3 cabang telah tercapai untuk Paket Pro (kebijakan keamanan & anti-bot).'
       );
+      handleOpenUpgradeModal('Mengelola Multi-Cabang Outlet');
       return;
     }
 
@@ -734,6 +786,12 @@ export default function App() {
   const handleAddKasir = (nama: string, email: string, pass: string, laundryId: string) => {
     const limits = getLaundryLimits(activeTier);
 
+    if (limits.tier === 'newcomer' || limits.maxCashiers <= 0) {
+      toast.warning('Paket Newcomer dibatasi 1 Owner dan tidak mendukung akun kasir tambahan.');
+      handleOpenUpgradeModal('Paket Newcomer tidak mendukung akun kasir tambahan (0 kasir)');
+      return;
+    }
+
     // Cek batas per outlet: 1 admin per outlet
     const branchAdmins = staffList.filter(
       (s) => s.laundryId === laundryId && (s.role === 'admin' || s.role === 'karyawan')
@@ -751,6 +809,7 @@ export default function App() {
           ? 'Paket Basic dibatasi 1 akun kasir. Upgrade ke Paket Pro untuk menambah cabang dan kasir.'
           : 'Batas maksimal 3 admin telah tercapai untuk Paket Pro (1 admin per outlet untuk maks. 3 cabang).'
       );
+      handleOpenUpgradeModal('Menambah akun kasir tambahan');
       return;
     }
 
@@ -1061,6 +1120,8 @@ export default function App() {
             pengeluaranList={pengeluaranList}
             isMobile={isEffectiveMobile}
             deviceInfo={device}
+            currentTier={activeTier}
+            onOpenUpgradeModal={handleOpenUpgradeModal}
             onOpenNewTransaksi={handleRequestNewTransaksi}
             onOpenLimitModal={() => setIsLimitModalOpen(true)}
             onOpenDetailTransaksi={(id) => {

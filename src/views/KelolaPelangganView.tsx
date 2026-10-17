@@ -1,15 +1,18 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Plus, Search, Phone, MapPin, Edit3, Trash2, Award, UserPlus, X } from 'lucide-react';
+import { ArrowLeft, Plus, Search, Phone, MapPin, Edit3, Trash2, Award, UserPlus, X, Lock } from 'lucide-react';
 import { Pelanggan, SettingsData } from '../types';
 import { useToast, useConfirm } from '../components/NotificationContext';
+import { isProTier, getLaundryLimits } from '../utils/subscription';
 
 interface KelolaPelangganViewProps {
   onBack: () => void;
   pelangganList: Pelanggan[];
   settings: SettingsData;
   activeLaundryId: string;
+  currentTier?: string | null;
   onSavePelanggan: (pelanggan: Pelanggan) => void;
   onDeletePelanggan: (pelangganId: string) => void;
+  onOpenUpgradeModal?: (reason?: string) => void;
 }
 
 export const KelolaPelangganView: React.FC<KelolaPelangganViewProps> = ({
@@ -17,8 +20,10 @@ export const KelolaPelangganView: React.FC<KelolaPelangganViewProps> = ({
   pelangganList,
   settings,
   activeLaundryId,
+  currentTier,
   onSavePelanggan,
   onDeletePelanggan,
+  onOpenUpgradeModal,
 }) => {
   const toast = useToast();
   const { confirm } = useConfirm();
@@ -33,7 +38,16 @@ export const KelolaPelangganView: React.FC<KelolaPelangganViewProps> = ({
   const [alamatLengkap, setAlamatLengkap] = useState('');
   const [catatani, setCatatani] = useState('');
 
+  const isPro = isProTier(currentTier);
+  const limits = getLaundryLimits(currentTier);
+  const isCustomerLimitReached = pelangganList.length >= limits.maxCustomers;
+
   const openAddModal = () => {
+    if (isCustomerLimitReached) {
+      toast.warning(`Batas ${limits.maxCustomers} data pelanggan untuk ${limits.label} telah tercapai.`);
+      onOpenUpgradeModal?.(`Batas ${limits.maxCustomers} data pelanggan untuk ${limits.label} telah tercapai. Tingkatkan paket untuk menyimpan data pelanggan tanpa batas.`);
+      return;
+    }
     setEditingPelanggan(null);
     setNama('');
     setTelepon('62');
@@ -56,6 +70,12 @@ export const KelolaPelangganView: React.FC<KelolaPelangganViewProps> = ({
   const handleSave = () => {
     if (!nama.trim()) {
       toast.warning('Nama pelanggan tidak boleh kosong.');
+      return;
+    }
+
+    if (!editingPelanggan && isCustomerLimitReached) {
+      toast.warning(`Batas ${limits.maxCustomers} pelanggan tercapai di ${limits.label}.`);
+      onOpenUpgradeModal?.(`Batas ${limits.maxCustomers} pelanggan untuk ${limits.label} telah tercapai.`);
       return;
     }
 
@@ -92,14 +112,27 @@ export const KelolaPelangganView: React.FC<KelolaPelangganViewProps> = ({
           <button onClick={onBack} className="p-1 -ml-1 rounded-full hover:bg-white/10 transition">
             <ArrowLeft className="w-5 h-5 text-white" />
           </button>
-          <h1 className="font-bold text-base tracking-wide">Kelola Data Pelanggan</h1>
+          <div>
+            <h1 className="font-bold text-sm tracking-wide">Kelola Pelanggan</h1>
+            <div className="text-[10px] text-rose-200">
+              {limits.tier === 'newcomer'
+                ? `${pelangganList.length}/${limits.maxCustomers} Pelanggan (Newcomer)`
+                : limits.tier === 'basic'
+                ? `${pelangganList.length}/${limits.maxCustomers} Pelanggan (Basic)`
+                : `${pelangganList.length} Pelanggan (Pro)`}
+            </div>
+          </div>
         </div>
         <button
           onClick={openAddModal}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-bold text-xs transition"
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-xs transition cursor-pointer ${
+            isCustomerLimitReached
+              ? 'bg-amber-400 text-slate-950 hover:bg-amber-300'
+              : 'bg-white/20 hover:bg-white/30 text-white'
+          }`}
         >
-          <Plus className="w-4 h-4" />
-          <span>Tambah</span>
+          {isCustomerLimitReached ? <Lock className="w-3.5 h-3.5" /> : <Plus className="w-4 h-4" />}
+          <span>{isCustomerLimitReached ? 'Batas Penuh' : 'Tambah'}</span>
         </button>
       </header>
 

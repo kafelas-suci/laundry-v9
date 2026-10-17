@@ -21,14 +21,18 @@ import {
 import { Layanan } from '../types';
 import { formatRupiah } from '../utils/formatters';
 import { useToast, useConfirm } from '../components/NotificationContext';
+import { isProTier, getLaundryLimits } from '../utils/subscription';
+import { Lock } from 'lucide-react';
 
 interface KelolaLayananViewProps {
   onBack: () => void;
   layananList: Layanan[];
   activeLaundryId: string;
+  currentTier?: string | null;
   onSaveLayanan: (layanan: Layanan) => void;
   onDeleteLayanan: (layananId: string) => void;
   onReorderLayanan: (reorderedList: Layanan[]) => void;
+  onOpenUpgradeModal?: (reason?: string) => void;
 }
 
 // Preset standard services that owners frequently use
@@ -48,9 +52,11 @@ export const KelolaLayananView: React.FC<KelolaLayananViewProps> = ({
   onBack,
   layananList,
   activeLaundryId,
+  currentTier,
   onSaveLayanan,
   onDeleteLayanan,
   onReorderLayanan,
+  onOpenUpgradeModal,
 }) => {
   const toast = useToast();
   const { confirm } = useConfirm();
@@ -58,6 +64,10 @@ export const KelolaLayananView: React.FC<KelolaLayananViewProps> = ({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<'all' | 'kg' | 'satuan' | 'beban'>('all');
+
+  const isPro = isProTier(currentTier);
+  const limits = getLaundryLimits(currentTier);
+  const isLimitReached = layananList.length >= limits.maxServices;
 
   // Form states
   const [nama, setNama] = useState('');
@@ -85,6 +95,11 @@ export const KelolaLayananView: React.FC<KelolaLayananViewProps> = ({
   }, [layananList, searchQuery, activeFilter]);
 
   const openAddModal = () => {
+    if (isLimitReached) {
+      toast.warning(`Batas ${limits.maxServices} jenis layanan untuk ${limits.label} telah tercapai.`);
+      onOpenUpgradeModal?.(`${limits.label} dibatasi maksimal ${limits.maxServices} jenis layanan. Tingkatkan paket langganan untuk menambah jenis layanan tanpa batas.`);
+      return;
+    }
     setEditingLayanan(null);
     setNama('');
     setHarga(7000);
@@ -128,6 +143,12 @@ export const KelolaLayananView: React.FC<KelolaLayananViewProps> = ({
       return;
     }
 
+    if (!editingLayanan && isLimitReached) {
+      toast.warning(`Batas ${limits.maxServices} jenis layanan tercapai di ${limits.label}.`);
+      onOpenUpgradeModal?.(`${limits.label} dibatasi maksimal ${limits.maxServices} jenis layanan. Tingkatkan paket untuk menambah jenis layanan tanpa batas.`);
+      return;
+    }
+
     const payload: Layanan = {
       id: editingLayanan ? editingLayanan.id : `lay-${Date.now()}`,
       laundryId: activeLaundryId,
@@ -165,6 +186,12 @@ export const KelolaLayananView: React.FC<KelolaLayananViewProps> = ({
   };
 
   const handleResetToStandard = async () => {
+    if (layananList.length + PRESET_STANDAR_LAUNDRY.length > limits.maxServices) {
+      toast.warning(`${limits.label} dibatasi maksimal ${limits.maxServices} jenis layanan.`);
+      onOpenUpgradeModal?.(`${limits.label} dibatasi maksimal ${limits.maxServices} jenis layanan. Tingkatkan paket untuk mengimpor seluruh paket standar.`);
+      return;
+    }
+
     const ok = await confirm({
       title: 'Tambah Paket Standar',
       message: 'Tambahkan 9 paket layanan standar laundry lengkap (Cuci Setrika, Bedcover, Sepatu, dll.)?',
@@ -180,7 +207,7 @@ export const KelolaLayananView: React.FC<KelolaLayananViewProps> = ({
         };
         onSaveLayanan(item);
       });
-      toast.success('9 Paket layanan standar berhasil ditambahkan!');
+      toast.success('Paket layanan standar berhasil ditambahkan!');
     }
   };
 
@@ -204,17 +231,25 @@ export const KelolaLayananView: React.FC<KelolaLayananViewProps> = ({
           <div>
             <h1 className="font-black text-base tracking-tight leading-tight">Kelola Daftar Harga</h1>
             <p className="text-[11px] text-white/80 font-medium">
-              {layananList.length} Layanan Aktif di Kasir
+              {limits.tier === 'newcomer'
+                ? `${layananList.length}/${limits.maxServices} Layanan Aktif (Newcomer)`
+                : limits.tier === 'basic'
+                ? `${layananList.length}/${limits.maxServices} Layanan Aktif (Basic)`
+                : `${layananList.length} Layanan Aktif (Pro)`}
             </p>
           </div>
         </div>
 
         <button
           onClick={openAddModal}
-          className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white text-[#800000] hover:bg-amber-50 font-bold text-xs shadow-md transition active:scale-95"
+          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl font-bold text-xs shadow-md transition active:scale-95 cursor-pointer ${
+            isLimitReached
+              ? 'bg-amber-400 text-slate-950 hover:bg-amber-300'
+              : 'bg-white text-[#800000] hover:bg-amber-50'
+          }`}
         >
-          <Plus className="w-4 h-4 stroke-[3]" />
-          <span>Tambah Layanan</span>
+          {isLimitReached ? <Lock className="w-4 h-4" /> : <Plus className="w-4 h-4 stroke-[3]" />}
+          <span>{isLimitReached ? `Batas ${limits.maxServices} Penuh` : 'Tambah Layanan'}</span>
         </button>
       </header>
 

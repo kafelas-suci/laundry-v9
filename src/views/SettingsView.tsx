@@ -23,10 +23,10 @@ import {
 } from 'lucide-react';
 import { SettingsData, User, Laundry } from '../types';
 import { PWAInstallButton } from '../components/PWAInstallButton';
-import { formatDateIndo } from '../utils/formatters';
+import { formatDateIndo, formatRupiah } from '../utils/formatters';
 import { StorageService, defaultOwnerUser } from '../utils/storage';
 import { useToast } from '../components/NotificationContext';
-import { isProTier, normalizeTier } from '../utils/subscription';
+import { isProTier, normalizeTier, getLaundryLimits } from '../utils/subscription';
 import {
   getSavedBluetoothPrinter,
   disconnectBluetoothPrinter,
@@ -218,123 +218,82 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
       {/* 2. MAIN SCROLL CONTAINER */}
       <main className="flex-1 p-3.5 sm:p-5 space-y-4 overflow-y-auto max-w-xl md:max-w-2xl mx-auto w-full">
-        {/* Brand Profile & Subscription Banner */}
-        <div className="bg-gradient-to-br from-[#800000] to-[#590000] text-white rounded-2xl p-4 shadow-sm space-y-3.5">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="text-base sm:text-lg font-black truncate">{activeLaundry.namaLaundry}</span>
-                <span className={`px-2 py-0.5 rounded-full border text-[10px] font-bold flex items-center gap-1 shrink-0 ${
-                  sisaHari > 0
-                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400/30'
-                    : 'bg-rose-500/30 text-rose-200 border-rose-400/30'
-                }`}>
-                  <ShieldCheck className="w-3 h-3 text-emerald-300" />
-                  {sisaHari > 0 ? 'Aktif' : 'Habis'}
-                </span>
-              </div>
-              <p className="text-xs text-white/80 mt-0.5 truncate">
-                {currentUser.role === 'owner' ? 'Owner' : 'Kasir'}: {currentUser.displayName || 'Pengguna'} • {activeLaundry.nomorTelepon || settings.phoneNumber || 'Tanpa No. HP'}
-              </p>
-            </div>
-            {isOwner && (
-              <button
-                type="button"
-                onClick={() => {
-                  setEditDisplayName(currentUser.displayName || '');
-                  setEditNomorTelepon(currentUser.nomorTelepon || '');
-                  setShowEditOwnerModal(true);
-                }}
-                className="px-3 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 border border-white/30 text-white font-bold text-xs shrink-0 transition active:scale-95 cursor-pointer"
-              >
-                Edit Profil
-              </button>
-            )}
-          </div>
+        {/* KARTU RINGKAS PROFIL OWNER, SALDO & KELOLA LANGGANAN */}
+        {(() => {
+          const limits = getLaundryLimits(currentTier || currentUser.subscriptionType);
+          const isNewcomer = limits.tier === 'newcomer';
+          const isPro = limits.tier === 'pro';
 
-        
-        </div>
-
-        {/* KARTU RINCIAN SISA MASA AKTIF LANGGANAN */}
-        <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-slate-900 font-bold text-xs">
-              <Sparkles className="w-4 h-4 text-amber-500" />
-              <span>Status Paket & Hak Akses</span>
-            </div>
-            <span
-              className={`px-2.5 py-0.5 rounded-full border text-[11px] font-black uppercase tracking-wide flex items-center gap-1 ${
-                isProTier(currentTier || currentUser.subscriptionType)
-                  ? 'bg-amber-50 text-amber-900 border-amber-300'
-                  : 'bg-slate-100 text-slate-700 border-slate-300'
-              }`}
-            >
-              {isProTier(currentTier || currentUser.subscriptionType) ? (
-                <>
-                  <Crown className="w-3 h-3 text-amber-600" />
-                  <span>Paket Pro</span>
-                </>
-              ) : (
-                <span>Paket Basic</span>
-              )}
-            </span>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2.5">
-            <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex flex-col justify-between">
-              <div>
-                <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">
-                  Sisa Langganan
-                </span>
-                <div className="text-xl font-black text-[#800000] mt-0.5 font-mono tabular-nums">
-                  {sisaHari} <span className="text-xs font-bold text-slate-600">Hari</span>
+          return (
+            <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-4 space-y-3.5">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-11 h-11 rounded-2xl bg-[#800000]/10 border border-[#800000]/20 flex items-center justify-center text-[#800000] font-black text-base shrink-0">
+                    {(currentUser.displayName || 'O').charAt(0).toUpperCase()}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h2 className="font-black text-sm text-slate-900 truncate">
+                        {currentUser.displayName || 'Owner Laundry'}
+                      </h2>
+                      <span
+                        className={`px-2 py-0.5 rounded-full border text-[10px] font-bold flex items-center gap-1 shrink-0 ${
+                          isPro
+                            ? 'bg-amber-50 text-amber-900 border-amber-300'
+                            : isNewcomer
+                            ? 'bg-emerald-50 text-emerald-900 border-emerald-300'
+                            : 'bg-sky-50 text-sky-900 border-sky-300'
+                        }`}
+                      >
+                        {limits.label}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-0.5 truncate">
+                      {currentUser.role === 'owner' ? 'Owner Utama' : 'Kasir Cabang'} • {currentUser.emailOrPhone || currentUser.nomorTelepon || activeLaundry.namaLaundry}
+                    </p>
+                  </div>
                 </div>
-              </div>
-              <div className="text-[10px] text-slate-500 mt-1 flex items-center gap-1">
-                <Clock className="w-3 h-3 text-slate-400" />
-                <span>{sisaHari > 5 ? 'Masa aktif normal' : sisaHari > 0 ? 'Mendekati habis' : 'Kedaluwarsa'}</span>
-              </div>
-            </div>
 
-            <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex flex-col justify-between">
-              <div>
-                <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">
-                  Fitur Unggulan
-                </span>
-                <div className="text-xs font-bold text-slate-800 mt-1 leading-snug">
-                  {isProTier(currentTier || currentUser.subscriptionType)
-                    ? 'Maks. 3 Cabang & Excel/PDF'
-                    : '1 Cabang & POS Kasir'}
+                {isOwner && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditDisplayName(currentUser.displayName || '');
+                      setEditNomorTelepon(currentUser.nomorTelepon || '');
+                      setShowEditOwnerModal(true);
+                    }}
+                    className="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs shrink-0 transition active:scale-95 cursor-pointer"
+                  >
+                    Edit Profil
+                  </button>
+                )}
+              </div>
+
+              {/* Saldo Owner & Tombol Perpanjang (Kelola Langganan) */}
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-3">
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                    Saldo Dompet Owner
+                  </span>
+                  <span className="text-base sm:text-lg font-black text-[#800000] font-mono tabular-nums">
+                    {formatRupiah(currentUser.walletBalance || 0)}
+                  </span>
                 </div>
-              </div>
-              <div className="text-[10px] text-slate-400 mt-1">
-                {isProTier(currentTier || currentUser.subscriptionType) ? 'Kapasitas 1.500 nota/bln' : 'Batas 300 nota/bln'}
+
+                {isOwner && (
+                  <button
+                    type="button"
+                    onClick={onOpenKelolaOwner}
+                    className="py-2 px-3.5 rounded-xl bg-[#800000] hover:bg-[#660000] text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition active:scale-95 cursor-pointer shrink-0"
+                  >
+                    <CreditCard className="w-3.5 h-3.5" />
+                    <span>Perpanjang (Kelola Langganan)</span>
+                  </button>
+                )}
               </div>
             </div>
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-2 pt-1">
-            <button
-              type="button"
-              onClick={() => onOpenUpgradeModal?.()}
-              className="flex-1 py-2.5 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 shadow-xs transition active:scale-98 cursor-pointer"
-            >
-              <Crown className="w-3.5 h-3.5 text-slate-950" />
-              <span>Bandingkan Paket Basic vs Pro</span>
-            </button>
-
-            {isOwner && (
-              <button
-                type="button"
-                onClick={onOpenKelolaOwner}
-                className="py-2.5 px-3 rounded-xl bg-[#800000] hover:bg-[#660000] text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition active:scale-98 cursor-pointer shrink-0"
-              >
-                <CreditCard className="w-3.5 h-3.5" />
-                <span>Perpanjang</span>
-              </button>
-            )}
-          </div>
-        </div>
+          );
+        })()}
 
         {/* SECTION 1: MANAJEMEN OUTLET & KASIR (Owner Only) */}
         {isOwner && (

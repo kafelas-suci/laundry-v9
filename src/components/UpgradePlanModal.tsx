@@ -7,15 +7,14 @@ import {
   Building2,
   Users,
   FileSpreadsheet,
-  Printer,
   TrendingUp,
-  Image as ImageIcon,
   Receipt,
   MessageCircle,
   Sparkles,
   ArrowRight,
   ShieldCheck,
   ShieldAlert,
+  Gift,
 } from 'lucide-react';
 import { LaundryTier, LAUNDRY_TIER_CONFIG, normalizeTier } from '../utils/subscription';
 import { formatRupiah } from '../utils/formatters';
@@ -38,90 +37,113 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
   if (!isOpen) return null;
 
   const activeTier = normalizeTier(currentTier);
+  const newcomerConfig = LAUNDRY_TIER_CONFIG.newcomer;
   const basicConfig = LAUNDRY_TIER_CONFIG.basic;
   const proConfig = LAUNDRY_TIER_CONFIG.pro;
 
-  const handleContactWhatsApp = () => {
+  const handleContactWhatsApp = (targetTier: string = 'Paket Pro') => {
     const text = encodeURIComponent(
-      `Halo Tim Kafelas Laundry, saya tertarik untuk aktivasi *Paket Pro (Rp 57.000/bln)* untuk laundry saya (Hingga 3 Cabang Outlet & 3 Admin). Mohon informasi aktivasi lisensi resminya. Terima kasih!`
+      `Halo Tim Kafelas Laundry, saya tertarik untuk aktivasi *${targetTier}* untuk laundry saya. Mohon informasi aktivasi lisensi resminya. Terima kasih!`
     );
     window.open(`https://api.whatsapp.com/send?phone=6285659781477&text=${text}`, '_blank');
   };
 
   const comparisonRows = [
     {
-      feature: 'Jumlah Cabang Outlet',
-      desc: 'Pengelolaan multi-outlet terintegrasi',
-      icon: Building2,
-      basic: '1 Cabang Utama',
-      pro: 'Hingga 3 Cabang Outlet',
+      feature: 'Biaya Langganan',
+      desc: 'Investasi operasional software',
+      icon: Gift,
+      newcomer: 'Gratis (Rp 0)',
+      basic: 'Rp 27.000 / bln',
+      pro: 'Rp 57.000 / bln',
       highlightPro: true,
     },
     {
-      feature: 'Akun Admin Kasir',
-      desc: '1 admin kasir per cabang outlet',
-      icon: Users,
-      basic: '1 Admin Kasir (1 Outlet)',
-      pro: '1 Admin/Outlet (Maks. 3)',
-      highlightPro: true,
-    },
-    {
-      feature: 'Akun Owner per Outlet',
-      desc: 'Kepemilikan legal & pembukuan terpusat',
+      feature: 'Akun Owner Outlet',
+      desc: 'Kepemilikan dan kontrol penuh bisnis',
       icon: ShieldCheck,
-      basic: '1 Akun Owner',
-      pro: '1 Akun Owner',
+      newcomer: '1 Owner Mandiri',
+      basic: '1 Owner Mandiri',
+      pro: '1 Owner/Outlet (Maks. 3)',
       highlightPro: false,
     },
     {
-      feature: 'Penugasan Staf Cucian',
-      desc: 'Delegasi kru cuci, setrika, & packing',
-      icon: Sparkles,
-      basic: 'Otomatis Kasir',
-      pro: 'Tugaskan per Cucian',
+      feature: 'Akun Kasir (Login)',
+      desc: 'Akses staf kasir per cabang',
+      icon: Users,
+      newcomer: 'Tidak Ada Kasir (Terkunci)',
+      basic: '1 Kasir Mandiri',
+      pro: '1 Kasir/Outlet (Maks. 3)',
       highlightPro: true,
+      lockedInNewcomer: true,
     },
     {
-      feature: 'Ekspor Pembukuan Excel (.xlsx)',
-      desc: 'Unduh seluruh database rekap transaksi',
-      icon: FileSpreadsheet,
-      basic: 'Terkunci',
-      pro: 'Unduh Spreadsheet Penuh',
+      feature: 'Staf Operasional',
+      desc: 'Penugasan cucian (cuci/setrika/packing)',
+      icon: Sparkles,
+      newcomer: 'Tidak Ada Staf (Terkunci)',
+      basic: 'Tidak Ada Staf (Terkunci)',
+      pro: 'Penugasan Staf Lengkap',
       highlightPro: true,
+      lockedInNewcomer: true,
       lockedInBasic: true,
     },
     {
-      feature: 'Cetak Dokumen PDF Resmi A4',
-      desc: 'Laporan keuangan kop surat siap audit',
-      icon: Printer,
-      basic: 'Terkunci',
-      pro: 'Cetak & Unduh PDF Resmi',
+      feature: 'Data Pelanggan',
+      desc: 'Buku kontak pelanggan & riwayat',
+      icon: Users,
+      newcomer: 'Maks. 50 Pelanggan',
+      basic: 'Hingga 500 Pelanggan',
+      pro: 'Pelanggan Kapasitas Besar',
       highlightPro: true,
+    },
+    {
+      feature: 'Nota Transaksi per Bulan',
+      desc: 'Kapasitas input pesanan cucian baru',
+      icon: Receipt,
+      newcomer: '50 Transaksi / Bulan',
+      basic: '300 Transaksi / Bulan',
+      pro: '1.500 Transaksi / Bulan',
+      highlightPro: true,
+    },
+    {
+      feature: 'Jumlah Jenis Layanan',
+      desc: 'Katalog harga kiloan & satuan',
+      icon: Building2,
+      newcomer: 'Maks. 5 Layanan',
+      basic: 'Hingga 30 Layanan',
+      pro: 'Layanan Kapasitas Penuh',
+      highlightPro: true,
+    },
+    {
+      feature: 'Laporan Pro (Excel & PDF)',
+      desc: 'Ekspor .xlsx & cetak PDF resmi A4 siap audit',
+      icon: FileSpreadsheet,
+      newcomer: 'Terkunci',
+      basic: 'Terkunci',
+      pro: 'Excel & PDF Resmi A4',
+      highlightPro: true,
+      lockedInNewcomer: true,
       lockedInBasic: true,
     },
     {
       feature: 'Analisis Komparasi Pertumbuhan',
       desc: 'Grafik evaluasi MoM & YoY laba omzet',
       icon: TrendingUp,
+      newcomer: 'Terkunci',
       basic: 'Terkunci',
       pro: 'Grafik Historis Lengkap',
       highlightPro: true,
+      lockedInNewcomer: true,
       lockedInBasic: true,
     },
     {
-      feature: 'Logo & TTD di Struk Thermal',
-      desc: 'Branding visual di printer Bluetooth',
-      icon: ImageIcon,
-      basic: 'Teks Struk Standar',
-      pro: 'Cetak Logo & TTD Fisik',
-      highlightPro: true,
-    },
-    {
-      feature: 'Kapasitas Nota Transaksi',
-      desc: 'Batas wajar terproteksi anti-bot',
-      icon: Receipt,
-      basic: '300 Nota / Bulan',
-      pro: '1.500 Nota / Bulan',
+      feature: 'Jumlah Cabang Outlet',
+      desc: 'Ekspansi jaringan multi-outlet',
+      icon: Building2,
+      newcomer: '1 Cabang Utama',
+      basic: '1 Cabang Utama',
+      pro: 'Hingga 3 Cabang Outlet',
       highlightPro: true,
     },
   ];
@@ -132,7 +154,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-2xl bg-slate-900 border border-slate-700/80 rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] text-slate-100"
+        className="relative w-full max-w-4xl bg-slate-900 border border-slate-700/80 rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] text-slate-100"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Top Header */}
@@ -148,7 +170,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                 <span className="text-slate-300">Kafelas Laundry</span>
               </div>
               <h2 className="text-base sm:text-lg font-black tracking-tight text-white mt-0.5">
-                Paket Basic & Paket Pro Resmi
+                Paket Newcomer, Basic & Pro Resmi
               </h2>
             </div>
           </div>
@@ -167,7 +189,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
           <div className="bg-amber-950/60 border-b border-amber-500/30 px-4 py-2.5 text-xs text-amber-200 flex items-center gap-2 shrink-0">
             <Lock className="w-4 h-4 text-amber-400 shrink-0" />
             <div className="min-w-0">
-              <span className="font-bold">Fitur Khusus Paket Pro:</span> {triggerReason}. Tingkatkan paket untuk langsung membuka fitur ini.
+              <span className="font-bold">Batas / Fitur Terkunci:</span> {triggerReason}. Tingkatkan paket untuk langsung membuka fitur ini.
             </div>
           </div>
         )}
@@ -176,33 +198,57 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
         <div className="bg-slate-950/80 border-b border-slate-800 px-4 py-2 text-[11px] text-slate-400 flex items-center gap-2 shrink-0">
           <ShieldAlert className="w-3.5 h-3.5 text-amber-400 shrink-0" />
           <span>
-            <strong>Kebijakan Proteksi Anti-Bot:</strong> Kuota terukur (1 owner & 1 admin per outlet, maks. 3 cabang) diterapkan untuk menjamin stabilitas server dan mencegah otomasi bot liar.
+            <strong>Kebijakan Proteksi Anti-Bot:</strong> Kuota terukur (1 owner per outlet, batas kuota transaksi & pelanggan) diterapkan untuk menjamin stabilitas server dan performa aplikasi.
           </span>
         </div>
 
         {/* Scrollable Content */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5">
           {/* Active Simulation Switcher */}
-          <div className="bg-slate-800/90 border border-slate-700 rounded-2xl p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="bg-slate-800/90 border border-slate-700 rounded-2xl p-3 sm:p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
             <div>
               <div className="text-xs font-bold text-slate-200">
-                Mode Simulasi Paket Saat Ini:{' '}
-                <span className={activeTier === 'pro' ? 'text-amber-400 font-black' : 'text-slate-200 font-black'}>
-                  {activeTier === 'pro' ? 'Paket Pro' : 'Paket Basic'}
+                Mode Simulasi Paket Aktif:{' '}
+                <span
+                  className={
+                    activeTier === 'pro'
+                      ? 'text-amber-400 font-black'
+                      : activeTier === 'basic'
+                      ? 'text-sky-300 font-black'
+                      : 'text-emerald-400 font-black'
+                  }
+                >
+                  {activeTier === 'pro'
+                    ? 'Paket Pro'
+                    : activeTier === 'basic'
+                    ? 'Paket Basic'
+                    : 'Paket Newcomer (Gratis)'}
                 </span>
               </div>
               <p className="text-[11px] text-slate-400 mt-0.5">
-                Anda dapat beralih antara Basic dan Pro untuk menguji langsung batasan dan hak akses fitur.
+                Beralih antar paket untuk menguji batasan kuota (50 transaksi, 5 layanan, kasir & laporan).
               </p>
             </div>
 
             <div className="flex items-center gap-1.5 p-1 bg-slate-900 rounded-xl border border-slate-700/80 shrink-0">
               <button
                 type="button"
+                onClick={() => onSwitchTier?.('newcomer')}
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 ${
+                  activeTier === 'newcomer'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Gift className="w-3 h-3" />
+                <span>Newcomer</span>
+              </button>
+              <button
+                type="button"
                 onClick={() => onSwitchTier?.('basic')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
                   activeTier === 'basic'
-                    ? 'bg-slate-700 text-white shadow-xs'
+                    ? 'bg-sky-600 text-white shadow-xs'
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
@@ -211,7 +257,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
               <button
                 type="button"
                 onClick={() => onSwitchTier?.('pro')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer flex items-center gap-1 ${
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-black transition cursor-pointer flex items-center gap-1 ${
                   activeTier === 'pro'
                     ? 'bg-amber-500 text-slate-950 shadow-xs'
                     : 'text-slate-400 hover:text-slate-200'
@@ -223,13 +269,66 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
             </div>
           </div>
 
-          {/* Tier Overview Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+          {/* Tier Overview Cards - 3 Columns */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+            {/* Card Newcomer */}
+            <div
+              className={`rounded-2xl border p-4 flex flex-col justify-between transition ${
+                activeTier === 'newcomer'
+                  ? 'bg-slate-800/90 border-emerald-500 shadow-md ring-1 ring-emerald-500'
+                  : 'bg-slate-800/40 border-slate-700/60 opacity-80 hover:opacity-100'
+              }`}
+            >
+              <div>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1">
+                    <Gift className="w-3.5 h-3.5 text-emerald-400" />
+                    <h3 className="text-sm font-bold text-slate-200">{newcomerConfig.label}</h3>
+                  </div>
+                  {activeTier === 'newcomer' && (
+                    <span className="text-[10px] font-bold text-emerald-300 bg-emerald-500/20 px-2 py-0.5 rounded-md">
+                      Aktif Sekarang
+                    </span>
+                  )}
+                </div>
+                <div className="mt-2 text-xl font-black text-emerald-400 font-mono tabular-nums">
+                  Gratis
+                  <span className="text-xs font-normal text-slate-400 ml-1">/ selamanya</span>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                  {newcomerConfig.tagline}
+                </p>
+
+                <div className="mt-3.5 pt-3.5 border-t border-slate-700/60 space-y-1.5">
+                  {newcomerConfig.highlights.map((item, idx) => (
+                    <div key={idx} className="flex items-start gap-1.5 text-xs text-slate-300">
+                      <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                      <span className="text-[11px] leading-tight">{item}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="mt-4 pt-3 border-t border-slate-700/60">
+                <button
+                  type="button"
+                  onClick={() => onSwitchTier?.('newcomer')}
+                  className={`w-full py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center cursor-pointer ${
+                    activeTier === 'newcomer'
+                      ? 'bg-slate-700 text-slate-300 cursor-default'
+                      : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs'
+                  }`}
+                >
+                  {activeTier === 'newcomer' ? 'Sedang Digunakan' : 'Pilih Newcomer (Gratis)'}
+                </button>
+              </div>
+            </div>
+
             {/* Card Basic */}
             <div
-              className={`rounded-2xl border p-4.5 flex flex-col justify-between transition ${
+              className={`rounded-2xl border p-4 flex flex-col justify-between transition ${
                 activeTier === 'basic'
-                  ? 'bg-slate-800/90 border-slate-500 shadow-md ring-1 ring-slate-500'
+                  ? 'bg-slate-800/90 border-sky-500 shadow-md ring-1 ring-sky-500'
                   : 'bg-slate-800/40 border-slate-700/60 opacity-80 hover:opacity-100'
               }`}
             >
@@ -237,7 +336,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                 <div className="flex items-center justify-between">
                   <h3 className="text-sm font-bold text-slate-200">{basicConfig.label}</h3>
                   {activeTier === 'basic' && (
-                    <span className="text-[10px] font-bold text-slate-300 bg-slate-700/80 px-2 py-0.5 rounded-md">
+                    <span className="text-[10px] font-bold text-sky-300 bg-sky-500/20 px-2 py-0.5 rounded-md">
                       Aktif Sekarang
                     </span>
                   )}
@@ -250,26 +349,36 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                   {basicConfig.tagline}
                 </p>
 
-                <div className="mt-3.5 pt-3.5 border-t border-slate-700/60 space-y-2">
+                <div className="mt-3.5 pt-3.5 border-t border-slate-700/60 space-y-1.5">
                   {basicConfig.highlights.map((item, idx) => (
-                    <div key={idx} className="flex items-start gap-2 text-xs text-slate-300">
-                      <Check className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
-                      <span>{item}</span>
+                    <div key={idx} className="flex items-start gap-1.5 text-xs text-slate-300">
+                      <Check className="w-3.5 h-3.5 text-sky-400 shrink-0 mt-0.5" />
+                      <span className="text-[11px] leading-tight">{item}</span>
                     </div>
                   ))}
                 </div>
               </div>
 
-              <div className="mt-4 pt-3 border-t border-slate-700/60 text-center">
-                <span className="text-[11px] text-slate-400 font-semibold">
-                  1 Cabang Outlet · 1 Admin Kasir · 300 Nota/bln
-                </span>
+              <div className="mt-4 pt-3 border-t border-slate-700/60">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onSwitchTier?.('basic');
+                  }}
+                  className={`w-full py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center cursor-pointer ${
+                    activeTier === 'basic'
+                      ? 'bg-slate-700 text-slate-300 cursor-default'
+                      : 'bg-sky-600 hover:bg-sky-500 text-white shadow-xs'
+                  }`}
+                >
+                  {activeTier === 'basic' ? 'Sedang Digunakan' : 'Pilih Paket Basic'}
+                </button>
               </div>
             </div>
 
             {/* Card Pro */}
             <div
-              className={`rounded-2xl border p-4.5 flex flex-col justify-between relative overflow-hidden transition ${
+              className={`rounded-2xl border p-4 flex flex-col justify-between relative overflow-hidden transition ${
                 activeTier === 'pro'
                   ? 'bg-gradient-to-b from-[#800000]/30 to-slate-800/90 border-amber-500/80 shadow-lg ring-1 ring-amber-500'
                   : 'bg-gradient-to-b from-[#800000]/15 to-slate-800/60 border-amber-500/40 hover:border-amber-400'
@@ -279,7 +388,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
                     <h3 className="text-sm font-black text-white">{proConfig.label}</h3>
-                    <span className="text-[10px] font-black text-amber-300 bg-amber-500/20 border border-amber-400/30 px-2 py-0.5 rounded-md uppercase tracking-wider">
+                    <span className="text-[9px] font-black text-amber-300 bg-amber-500/20 border border-amber-400/30 px-1.5 py-0.5 rounded uppercase tracking-wider">
                       Maks. 3 Cabang
                     </span>
                   </div>
@@ -298,11 +407,11 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                   {proConfig.tagline}
                 </p>
 
-                <div className="mt-3.5 pt-3.5 border-t border-slate-700/60 space-y-2">
+                <div className="mt-3.5 pt-3.5 border-t border-slate-700/60 space-y-1.5">
                   {proConfig.highlights.map((item, idx) => (
-                    <div key={idx} className="flex items-start gap-2 text-xs text-slate-200">
+                    <div key={idx} className="flex items-start gap-1.5 text-xs text-slate-200">
                       <Check className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
-                      <span className="font-medium">{item}</span>
+                      <span className="font-medium text-[11px] leading-tight">{item}</span>
                     </div>
                   ))}
                 </div>
@@ -311,11 +420,11 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
               <div className="mt-4 pt-3 border-t border-slate-700/60">
                 <button
                   type="button"
-                  onClick={handleContactWhatsApp}
-                  className="w-full py-2.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-98 text-slate-950 font-black text-xs flex items-center justify-center gap-2 shadow-md transition cursor-pointer"
+                  onClick={() => handleContactWhatsApp('Paket Pro')}
+                  className="w-full py-2 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-98 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 shadow-md transition cursor-pointer"
                 >
-                  <MessageCircle className="w-4 h-4 text-slate-950" />
-                  <span>Aktivasi Paket Pro ({formatRupiah(proConfig.priceMonthly)}/bln)</span>
+                  <MessageCircle className="w-3.5 h-3.5 text-slate-950" />
+                  <span>Aktivasi Pro ({formatRupiah(proConfig.priceMonthly)}/bln)</span>
                 </button>
               </div>
             </div>
@@ -331,9 +440,10 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
             <div className="bg-slate-800/80 border border-slate-700 rounded-2xl overflow-hidden divide-y divide-slate-700/60 text-xs">
               {/* Table Header */}
               <div className="grid grid-cols-12 p-3 bg-slate-950/60 text-slate-400 font-bold uppercase tracking-wider text-[10px]">
-                <div className="col-span-6 sm:col-span-5">Fitur & Kebijakan</div>
-                <div className="col-span-3 sm:col-span-3 text-center">Paket Basic ({formatRupiah(basicConfig.priceMonthly)})</div>
-                <div className="col-span-3 sm:col-span-4 text-center text-amber-300 font-black">Paket Pro ({formatRupiah(proConfig.priceMonthly)})</div>
+                <div className="col-span-5 sm:col-span-4">Fitur & Batasan</div>
+                <div className="col-span-2 sm:col-span-2 text-center text-emerald-400 font-bold">Newcomer (Rp 0)</div>
+                <div className="col-span-2 sm:col-span-3 text-center text-sky-300 font-bold">Basic ({formatRupiah(basicConfig.priceMonthly)})</div>
+                <div className="col-span-3 sm:col-span-3 text-center text-amber-300 font-black">Pro ({formatRupiah(proConfig.priceMonthly)})</div>
               </div>
 
               {/* Table Rows */}
@@ -342,34 +452,48 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                 return (
                   <div
                     key={idx}
-                    className="grid grid-cols-12 p-3 items-center hover:bg-slate-700/30 transition"
+                    className="grid grid-cols-12 p-2.5 sm:p-3 items-center hover:bg-slate-700/30 transition"
                   >
-                    <div className="col-span-6 sm:col-span-5 flex items-center gap-2.5 min-w-0 pr-2">
-                      <div className="w-7 h-7 rounded-lg bg-slate-700/60 text-slate-300 flex items-center justify-center shrink-0">
-                        <IconComponent className="w-3.5 h-3.5" />
+                    <div className="col-span-5 sm:col-span-4 flex items-center gap-2 min-w-0 pr-2">
+                      <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-slate-700/60 text-slate-300 flex items-center justify-center shrink-0">
+                        <IconComponent className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                       </div>
                       <div className="min-w-0">
-                        <div className="font-bold text-slate-200 truncate">{row.feature}</div>
+                        <div className="font-bold text-slate-200 truncate text-[11px] sm:text-xs">{row.feature}</div>
                         <div className="text-[10px] text-slate-400 truncate hidden sm:block">
                           {row.desc}
                         </div>
                       </div>
                     </div>
 
-                    <div className="col-span-3 sm:col-span-3 text-center text-slate-300 text-[11px]">
-                      {row.lockedInBasic ? (
-                        <span className="inline-flex items-center gap-1 text-slate-400">
+                    {/* Newcomer col */}
+                    <div className="col-span-2 sm:col-span-2 text-center text-slate-300 text-[10px] sm:text-[11px]">
+                      {row.lockedInNewcomer ? (
+                        <span className="inline-flex items-center gap-0.5 text-slate-500">
                           <Lock className="w-3 h-3 text-slate-500" />
-                          <span>Terkunci</span>
+                          <span className="hidden sm:inline">Kunci</span>
+                        </span>
+                      ) : (
+                        <span>{row.newcomer}</span>
+                      )}
+                    </div>
+
+                    {/* Basic col */}
+                    <div className="col-span-2 sm:col-span-3 text-center text-slate-300 text-[10px] sm:text-[11px]">
+                      {row.lockedInBasic ? (
+                        <span className="inline-flex items-center gap-0.5 text-slate-500">
+                          <Lock className="w-3 h-3 text-slate-500" />
+                          <span className="hidden sm:inline">Kunci</span>
                         </span>
                       ) : (
                         <span>{row.basic}</span>
                       )}
                     </div>
 
-                    <div className="col-span-3 sm:col-span-4 text-center font-bold text-amber-300 text-[11px]">
-                      <span className="inline-flex items-center gap-1">
-                        <Check className="w-3 h-3 text-amber-400" />
+                    {/* Pro col */}
+                    <div className="col-span-3 sm:col-span-3 text-center font-bold text-amber-300 text-[10px] sm:text-[11px]">
+                      <span className="inline-flex items-center gap-1 justify-center">
+                        <Check className="w-3 h-3 text-amber-400 shrink-0" />
                         <span>{row.pro}</span>
                       </span>
                     </div>
@@ -397,7 +521,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
             </button>
             <button
               type="button"
-              onClick={handleContactWhatsApp}
+              onClick={() => handleContactWhatsApp('Paket Pro')}
               className="flex-1 sm:flex-none px-5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-xs shadow-md transition cursor-pointer flex items-center justify-center gap-1.5"
             >
               <span>Hubungi Admin WhatsApp</span>

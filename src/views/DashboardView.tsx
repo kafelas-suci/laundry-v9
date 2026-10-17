@@ -30,6 +30,7 @@ import {
 import { Transaksi, SettingsData, User, Laundry, Pengeluaran } from '../types';
 import { formatRupiah, formatShortDate, formatShortTime } from '../utils/formatters';
 import { PWAInstallButton } from '../components/PWAInstallButton';
+import { getLaundryLimits } from '../utils/subscription';
 
 export type DashboardFilterStatus = 'semua' | 'selesai' | 'baru_masuk' | 'sedang_dikerjakan';
 
@@ -46,6 +47,8 @@ interface DashboardViewProps {
     isPhone: boolean;
     os: string;
   };
+  currentTier?: string | null;
+  onOpenUpgradeModal?: (reason?: string) => void;
   onOpenNewTransaksi: () => void;
   onOpenLimitModal?: () => void;
   onOpenDetailTransaksi: (transaksiId: string) => void;
@@ -74,6 +77,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   pengeluaranList = [],
   isMobile = false,
   deviceInfo,
+  currentTier,
+  onOpenUpgradeModal,
   onOpenNewTransaksi,
   onOpenLimitModal,
   onOpenDetailTransaksi,
@@ -247,11 +252,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     }).format(new Date(subscriptionEnd));
   }, [subscriptionEnd]);
 
-  const paketNama = useMemo(() => {
-    const raw = (currentUser.subscriptionType || '').toLowerCase();
-    if (raw.includes('basic') || raw.includes('standar') || raw.includes('gratis') || raw.includes('free')) return 'Paket Basic';
-    return 'Pro';
-  }, [currentUser.subscriptionType]);
+  const limits = useMemo(() => {
+    return getLaundryLimits(currentTier || currentUser.subscriptionType);
+  }, [currentTier, currentUser.subscriptionType]);
+
+  const isNewcomer = limits.tier === 'newcomer';
+  const paketNama = limits.label;
 
   const formattedToday = new Intl.DateTimeFormat('id-ID', {
     weekday: 'long',
@@ -307,10 +313,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               {/* Badge Status & Sisa Hari Langganan PC */}
               <button
                 type="button"
-                onClick={onOpenKelolaOwner}
-                title={`Paket: ${paketNama} • Sisa ${sisaHari} Hari (s/d ${formatTanggalKadaluarsa}). Klik untuk kelola / perpanjang.`}
+                onClick={() => onOpenUpgradeModal ? onOpenUpgradeModal() : onOpenKelolaOwner()}
+                title={
+                  isNewcomer
+                    ? `Paket: ${paketNama} • Gratis Selamanya. Klik untuk kelola / lihat perbandingan paket.`
+                    : `Paket: ${paketNama} • Sisa ${sisaHari} Hari (s/d ${formatTanggalKadaluarsa}). Klik untuk kelola / perpanjang.`
+                }
                 className={`px-3 py-1.5 rounded-xl border flex items-center gap-2 transition active:scale-95 shadow-2xs cursor-pointer ${
-                  isExpired
+                  isNewcomer
+                    ? 'bg-emerald-50/90 border-emerald-200 text-emerald-950 hover:border-emerald-300'
+                    : isExpired
                     ? 'bg-red-50 border-red-300 text-red-900 hover:bg-red-100'
                     : isExpiringSoon
                     ? 'bg-amber-50 border-amber-300 text-amber-900 hover:bg-amber-100 ring-2 ring-amber-300/60'
@@ -319,7 +331,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               >
                 <div
                   className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 shadow-2xs ${
-                    isExpired
+                    isNewcomer
+                      ? 'bg-emerald-600 text-white'
+                      : isExpired
                       ? 'bg-red-600 text-white'
                       : isExpiringSoon
                       ? 'bg-amber-500 text-white animate-pulse'
@@ -333,18 +347,20 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     <span className="font-extrabold text-xs text-slate-900">{paketNama}</span>
                     <span
                       className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${
-                        isExpired
+                        isNewcomer
+                          ? 'bg-emerald-200 text-emerald-950'
+                          : isExpired
                           ? 'bg-red-200 text-red-900'
                           : isExpiringSoon
                           ? 'bg-amber-200 text-amber-950'
                           : 'bg-amber-200/90 text-amber-950'
                       }`}
                     >
-                      {isExpired ? 'Habis' : `${sisaHari} Hari Lagi`}
+                      {isNewcomer ? 'Gratis' : isExpired ? 'Habis' : `${sisaHari} Hari Lagi`}
                     </span>
                   </div>
                   <p className="text-[10px] text-slate-500 mt-0.5 font-medium">
-                    {isExpired ? 'Klik untuk perpanjang' : `s/d ${formatTanggalKadaluarsa}`}
+                    {isNewcomer ? 'Tanpa biaya bulanan' : isExpired ? 'Klik untuk perpanjang' : `s/d ${formatTanggalKadaluarsa}`}
                   </p>
                 </div>
               </button>
@@ -985,8 +1001,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
                 {/* Nama Laundry & Switcher Cabang */}
                 <button
-                  onClick={laundries.length > 1 ? onOpenSwitchBranch : onOpenKelolaOwner}
-                  title={`Paket: ${paketNama} (${sisaHari} hari lagi). Klik untuk kelola.`}
+                  onClick={() => onOpenUpgradeModal ? onOpenUpgradeModal() : (laundries.length > 1 ? onOpenSwitchBranch() : onOpenKelolaOwner())}
+                  title={`Paket: ${paketNama} (${isNewcomer ? 'Gratis' : `${sisaHari} hari lagi`}). Klik untuk kelola.`}
                   className="flex flex-col items-start px-2 py-1 rounded-xl hover:bg-white/10 active:scale-98 transition max-w-[190px]"
                 >
                   <div className="flex items-center gap-1">
@@ -998,7 +1014,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     )}
                   </div>
                   <span className="text-[10px] font-semibold text-amber-300 tracking-tight leading-none mt-0.5">
-                    {paketNama} • {sisaHari}h
+                    {paketNama} • {isNewcomer ? 'Gratis' : `${sisaHari}h`}
                   </span>
                 </button>
               </div>

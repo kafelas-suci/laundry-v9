@@ -15,12 +15,13 @@ import {
   Sparkles,
   Lock,
   UserCheck,
-  ShieldAlert
+  ShieldAlert,
+  Crown,
 } from 'lucide-react';
 import { User, Laundry, SubscriptionHistory } from '../types';
 import { formatRupiah, formatDateIndo } from '../utils/formatters';
 import { useToast, useConfirm } from '../components/NotificationContext';
-import { isProTier } from '../utils/subscription';
+import { isProTier, normalizeTier, getLaundryLimits } from '../utils/subscription';
 
 interface KelolaOwnerViewProps {
   onBack: () => void;
@@ -77,7 +78,10 @@ export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
   // Editing branch
   const [editingLaundry, setEditingLaundry] = useState<Laundry | null>(null);
 
-  const isPro = isProTier(currentUser.subscriptionType);
+  const currentLimits = getLaundryLimits(currentUser.subscriptionType);
+  const isNewcomer = currentLimits.tier === 'newcomer';
+  const isBasic = currentLimits.tier === 'basic';
+  const isPro = currentLimits.tier === 'pro';
   const HARGA_BASIC_BULANAN = 27000;
   const HARGA_PRO_BULANAN = 57000;
 
@@ -165,7 +169,13 @@ export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
               {/* Header Masa Aktif */}
               <div className="bg-[#800000] px-3.5 py-2 text-center text-xs font-bold flex items-center justify-center gap-1.5 shadow-inner">
                 <Clock className="w-3.5 h-3.5" />
-                <span>Masa Aktif: {sisaHari > 0 ? `Aktif (${sisaHari} Hari Tersisa)` : 'Kedaluwarsa'}</span>
+                <span>
+                  {isNewcomer
+                    ? 'Masa Aktif: Paket Newcomer (Gratis Selamanya)'
+                    : sisaHari > 0
+                    ? `Masa Aktif: Aktif (${sisaHari} Hari Tersisa)`
+                    : 'Kedaluwarsa'}
+                </span>
               </div>
 
               {/* Saldo Akun & Tombol Top Up */}
@@ -186,18 +196,43 @@ export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
 
               {/* Perpanjangan Options */}
               <div className="p-3 space-y-2">
+                {/* Paket Newcomer (Gratis) */}
+                <div className="flex items-center justify-between p-3 rounded-xl bg-slate-800/90 border border-slate-700 hover:border-slate-600 transition text-xs shadow-2xs">
+                  <div className="pr-2">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-bold text-emerald-400">Paket Newcomer (Gratis)</span>
+                      {isNewcomer && (
+                        <span className="text-[9px] bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 px-2 py-0.5 rounded-full font-bold">
+                          Aktif
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-[10px] text-slate-400 mt-0.5">Rp 0 · 1 Owner (Tanpa Kasir) · 50 Pelanggan & 50 Nota/bln · 5 Layanan</div>
+                  </div>
+                  {isNewcomer ? (
+                    <span className="text-[11px] font-bold text-emerald-400 px-2.5 py-1">Aktif</span>
+                  ) : (
+                    <button
+                      onClick={() => onOpenUpgradeModal?.()}
+                      className="px-3 py-1.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-bold text-[11px] transition shadow-2xs active:scale-95 shrink-0 cursor-pointer"
+                    >
+                      Pilih
+                    </button>
+                  )}
+                </div>
+
                 {/* Paket Bulanan Basic */}
                 <div className="flex items-center justify-between p-3 rounded-xl bg-slate-800/90 border border-slate-700 hover:border-slate-600 transition text-xs shadow-2xs">
                   <div className="pr-2">
                     <div className="flex items-center gap-1.5">
                       <span className="font-bold text-white">Paket Basic (30 Hari)</span>
-                      {!isPro && <span className="text-[9px] bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full font-bold">Aktif</span>}
+                      {isBasic && <span className="text-[9px] bg-sky-500/20 text-sky-300 border border-sky-400/30 px-2 py-0.5 rounded-full font-bold">Aktif</span>}
                     </div>
-                    <div className="text-[10px] text-slate-400 mt-0.5">{formatRupiah(HARGA_BASIC_BULANAN)} · 1 Cabang & 1 Kasir</div>
+                    <div className="text-[10px] text-slate-400 mt-0.5">{formatRupiah(HARGA_BASIC_BULANAN)} · 1 Cabang & 1 Kasir Mandiri</div>
                   </div>
                   <button
                     onClick={() => handlePayBulanan('basic')}
-                    className="px-3.5 py-1.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-bold text-[11px] transition shadow-2xs active:scale-95 shrink-0 cursor-pointer"
+                    className="px-3.5 py-1.5 rounded-xl bg-sky-700 hover:bg-sky-600 text-white font-bold text-[11px] transition shadow-2xs active:scale-95 shrink-0 cursor-pointer"
                   >
                     Bayar
                   </button>
@@ -213,13 +248,25 @@ export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
                       </span>
                       {isPro && <span className="text-[9px] bg-amber-400/20 text-amber-300 border border-amber-300/40 px-2 py-0.5 rounded-full font-bold">Aktif</span>}
                     </div>
-                    <div className="text-[10px] text-amber-200/80 mt-0.5">{formatRupiah(HARGA_PRO_BULANAN)} · Hingga 3 Cabang & Staf Tanpa Login</div>
+                    <div className="text-[10px] text-amber-200/80 mt-0.5">{formatRupiah(HARGA_PRO_BULANAN)} · Hingga 3 Cabang, Kasir & Staf Tanpa Login</div>
                   </div>
                   <button
                     onClick={() => handlePayBulanan('pro')}
                     className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-[11px] transition shadow-md active:scale-95 shrink-0 cursor-pointer"
                   >
                     Bayar
+                  </button>
+                </div>
+
+                {/* Tombol Bandingkan Paket */}
+                <div className="pt-1.5">
+                  <button
+                    type="button"
+                    onClick={() => onOpenUpgradeModal?.()}
+                    className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 shadow-md transition active:scale-98 cursor-pointer"
+                  >
+                    <Crown className="w-3.5 h-3.5 text-slate-950" />
+                    <span>Bandingkan Detail Paket (Newcomer vs Basic vs Pro)</span>
                   </button>
                 </div>
               </div>

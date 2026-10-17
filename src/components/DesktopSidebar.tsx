@@ -21,7 +21,7 @@ import {
   Crown,
 } from 'lucide-react';
 import { User, Laundry, Transaksi } from '../types';
-import { isProTier } from '../utils/subscription';
+import { isProTier, getLaundryLimits } from '../utils/subscription';
 
 export type NavViewType =
   | 'splash'
@@ -86,14 +86,14 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
   const archivedCount = branchTrx.filter((t) => t.status === 'Diambil').length;
 
   // Subscription calculation
+  const limits = getLaundryLimits(currentTier || currentUser.subscriptionType);
+  const isNewcomer = limits.tier === 'newcomer';
   const subNow = Date.now();
   const subEnd = currentUser.subscriptionEndDate || (subNow + 7 * 24 * 60 * 60 * 1000);
   const subDiffMs = subEnd - subNow;
   const subSisaHari = Math.max(0, Math.ceil(subDiffMs / (1000 * 60 * 60 * 24)));
-  const subIsExpired = subDiffMs <= 0;
-  const subPaketNama = isProTier(currentTier || currentUser.subscriptionType)
-    ? 'Paket Pro'
-    : 'Paket Basic';
+  const subIsExpired = !isNewcomer && subDiffMs <= 0;
+  const subPaketNama = limits.label;
 
   const navGroups = [
     {
@@ -376,7 +376,11 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
                 onSelectView('kelola_owner');
               }
             }}
-            title={`Paket Langganan: ${subPaketNama} • Sisa ${subSisaHari} Hari. Klik untuk lihat detail & komparasi paket.`}
+            title={
+              isNewcomer
+                ? `Paket Langganan: ${subPaketNama} • Gratis Selamanya. Klik untuk lihat detail & komparasi paket.`
+                : `Paket Langganan: ${subPaketNama} • Sisa ${subSisaHari} Hari. Klik untuk lihat detail & komparasi paket.`
+            }
             className="mb-2.5 p-2 rounded-xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/90 shadow-2xs cursor-pointer hover:border-amber-300 transition active:scale-98"
           >
             <div className="flex items-center justify-between">
@@ -386,10 +390,14 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
               </span>
               <span
                 className={`text-[10px] font-black px-1.5 py-0.5 rounded-full ${
-                  subIsExpired ? 'bg-red-200 text-red-900' : 'bg-amber-200 text-amber-950'
+                  isNewcomer
+                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-300/60'
+                    : subIsExpired
+                    ? 'bg-red-200 text-red-900'
+                    : 'bg-amber-200 text-amber-950'
                 }`}
               >
-                {subIsExpired ? 'Habis' : `${subSisaHari} Hari`}
+                {isNewcomer ? 'Gratis' : subIsExpired ? 'Habis' : `${subSisaHari} Hari`}
               </span>
             </div>
           </div>

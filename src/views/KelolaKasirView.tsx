@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { ArrowLeft, Plus, Trash2, X, Lock, Building2, User as UserIcon, ShieldCheck, Users } from 'lucide-react';
 import { User, Laundry, OperationalStaff } from '../types';
 import { useToast, useConfirm } from '../components/NotificationContext';
-import { isProTier } from '../utils/subscription';
+import { isProTier, getLaundryLimits } from '../utils/subscription';
 
 interface KelolaKasirViewProps {
   onBack: () => void;
@@ -58,7 +58,14 @@ export const KelolaKasirView: React.FC<KelolaKasirViewProps> = ({
       return;
     }
 
-    if (!isProTier(currentTier) && cashiers.length >= 1) {
+    const limits = getLaundryLimits(currentTier);
+    if (limits.tier === 'newcomer' || limits.maxCashiers <= 0) {
+      toast.warning('Paket Newcomer dibatasi 1 Owner dan tidak mendukung akun kasir tambahan.');
+      onOpenUpgradeModal?.('Paket Newcomer dibatasi 1 Owner dan tidak mendukung kasir. Tingkatkan ke Paket Basic atau Pro untuk menambah kasir.');
+      return;
+    }
+
+    if (limits.tier === 'basic' && cashiers.length >= 1) {
       onOpenUpgradeModal?.('Menambah akun kasir baru (Paket Basic dibatasi 1 Kasir)');
       return;
     }
@@ -116,7 +123,9 @@ export const KelolaKasirView: React.FC<KelolaKasirViewProps> = ({
     toast.success(`Staf '${opStaffName}' berhasil ditambahkan!`);
   };
 
-  const isAtLimit = !isProTier(currentTier) ? cashiers.length >= 1 : cashiers.length >= 3;
+  const limits = getLaundryLimits(currentTier);
+  const isNewcomer = limits.tier === 'newcomer';
+  const isAtLimit = isNewcomer || (!isProTier(currentTier) ? cashiers.length >= 1 : cashiers.length >= 3);
 
   return (
     <div className="flex flex-col min-h-screen bg-slate-100 text-slate-800 pb-16">
@@ -149,14 +158,42 @@ export const KelolaKasirView: React.FC<KelolaKasirViewProps> = ({
                   <span className="text-xs font-bold text-slate-700 uppercase tracking-wide">Akun Kasir (Login)</span>
                 </div>
                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
-                  isProTier(currentTier) ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600'
+                  isProTier(currentTier)
+                    ? 'bg-amber-100 text-amber-800'
+                    : isNewcomer
+                    ? 'bg-slate-100 text-slate-500'
+                    : 'bg-slate-100 text-slate-600'
                 }`}>
-                  {isProTier(currentTier) ? `${cashiers.length}/3 Pro` : `${cashiers.length}/1 Basic`}
+                  {isProTier(currentTier)
+                    ? `${cashiers.length}/3 Pro`
+                    : isNewcomer
+                    ? '0/0 Newcomer'
+                    : `${cashiers.length}/1 Basic`}
                 </span>
               </div>
 
-              {/* Form Tambah Kasir Inline (Gaya serupa dengan Staf Tanpa Login) */}
-              {isAtLimit ? (
+              {/* Form Tambah Kasir Inline / Lock Notice */}
+              {isNewcomer ? (
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-slate-800 font-bold text-xs">
+                      <Lock className="w-3.5 h-3.5 text-slate-500" />
+                      <span>Akun Kasir Dinonaktifkan</span>
+                    </div>
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 bg-slate-200 text-slate-700 rounded">Newcomer</span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 leading-relaxed">
+                    Paket Newcomer (Gratis) dibatasi hanya untuk 1 Owner dan tidak ada akun kasir tambahan. Operasional kasir dijalankan langsung oleh Owner.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => onOpenUpgradeModal?.('Menambah Akun Kasir')}
+                    className="w-full py-1.5 px-3 bg-[#800000] hover:bg-[#660000] text-white rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                  >
+                    <span>Tingkatkan ke Basic (1 Kasir) / Pro (3 Kasir)</span>
+                  </button>
+                </div>
+              ) : isAtLimit ? (
                 <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between gap-2">
                   <p className="text-[11px] text-amber-900">Batas maksimal kasir akun login telah tercapai.</p>
                   <Lock className="w-4 h-4 text-amber-700 shrink-0" />
