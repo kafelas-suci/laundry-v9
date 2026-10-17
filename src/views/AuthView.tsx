@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Lock, Mail, User, Phone, Building2, Eye, EyeOff, ShieldCheck, X, Loader2, AlertCircle, Sparkles, Crown, Receipt, ArrowRight } from 'lucide-react';
+import { Lock, Mail, User, Phone, Building2, Eye, EyeOff, ShieldCheck, X, Loader2, AlertCircle, Sparkles, Crown, Receipt, ArrowRight, Download, Smartphone, Laptop, Apple, CheckCircle2 } from 'lucide-react';
 import {
   signInWithPopup,
   signInWithEmailAndPassword,
@@ -10,6 +10,8 @@ import { auth, googleProvider } from '../firebase';
 import { FirebaseSyncService } from '../utils/firebaseSync';
 import { User as UserType } from '../types';
 import { useToast } from '../components/NotificationContext';
+import { usePWAInstall } from '../hooks/usePWAInstall';
+import { InstallGuideModal } from '../components/InstallGuideModal';
 
 interface AuthViewProps {
   onLoginSuccess: (user: UserType) => void;
@@ -27,10 +29,12 @@ export const AuthView: React.FC<AuthViewProps> = ({
   initialSignUp = false,
 }) => {
   const toast = useToast();
+  const { isInstallable, isInstalled, install, isIOS, isAndroid } = usePWAInstall();
   const [isSignUp, setIsSignUp] = useState(initialSignUp);
   const [showPassword, setShowPassword] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
   const [showDemoRoleModal, setShowDemoRoleModal] = useState(false);
+  const [showInstallModal, setShowInstallModal] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
@@ -200,12 +204,13 @@ export const AuthView: React.FC<AuthViewProps> = ({
       <div className="w-full max-w-md mx-auto my-auto py-8">
         {/* Card Header */}
         <div className="text-center space-y-2 mb-6">
-     
+          
+         
           <h1 className="text-2xl font-black tracking-wide text-white">Assalamu'alaikum</h1>
           <p className="text-xs text-slate-400">
             {isSignUp
               ? 'Daftarkan bisnis laundry Anda untuk manajemen terintegrasi'
-              : 'Silakan masuk ke sistem kasir & operasional laundry'}
+              : 'Silakan masuk'}
           </p>
         </div>
 
@@ -442,6 +447,58 @@ export const AuthView: React.FC<AuthViewProps> = ({
             )}
           </div>
 
+          
+          {/* Pasang Aplikasi / Cara Instal di Semua Device */}
+          <div className="pt-2 border-t border-slate-700/80 mt-2 space-y-2.5">
+            
+           
+
+              {/* Action buttons */}
+              <div className="pt-1 flex flex-col sm:flex-row gap-2">
+                {isInstallable && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const success = await install();
+                      if (!success) {
+                        setShowInstallModal(true);
+                      }
+                    }}
+                    className="flex-1 py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md transition active:scale-95 cursor-pointer"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Pasang Sekarang (1-Klik)</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setShowInstallModal(true)}
+                  className={`flex-1 py-2.5 px-3 rounded-xl ${
+                    isInstallable
+                      ? 'bg-slate-800 hover:bg-slate-750 text-slate-200 border border-slate-600'
+                      : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                  } font-bold text-xs flex items-center justify-center gap-1.5 shadow-md transition active:scale-95 cursor-pointer`}
+                >
+                  <Smartphone className="w-3.5 h-3.5 text-emerald-300" />
+                  <span>Petunjuk Instalasi Semua Device</span>
+                </button>
+            </div>
+          </div>
+
+
+        
+
+        </div>
+      </div>
+
+      {/* Footer Branding matching Android XML */}
+      <footer className="text-center space-y-1.5 pb-2">
+        <p className="text-[11px] text-slate-400 max-w-sm mx-auto">
+          Terima kasih telah mempercayakan kami menjadi teman bisnis anda
+        </p>
+           <div className="inline-block px-4 py-1.5 rounded-full bg-[#800000] text-white text-xs font-bold tracking-wide">
+          Jazakumullah Ahsanal Jaza
+        </div>
           {/* Uji Coba Calon Pengguna / Interactive Demo Mode */}
           <div className="pt-2 border-t border-slate-700/80 mt-2 space-y-2.5">
             <div className="p-3.5 rounded-2xl bg-linear-to-b from-amber-500/15 to-amber-900/10 border border-amber-500/30 text-left space-y-2">
@@ -478,18 +535,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
               </div>
             </div>
           </div>
-
-        </div>
-      </div>
-
-      {/* Footer Branding matching Android XML */}
-      <footer className="text-center space-y-1.5 pb-2">
-        <p className="text-[11px] text-slate-400 max-w-sm mx-auto">
-          Terima kasih telah mempercayakan kami menjadi teman bisnis anda
-        </p>
-        <div className="inline-block px-4 py-1.5 rounded-full bg-[#800000] text-white text-xs font-bold tracking-wide">
-          Jazakumullah Ahsanal Jaza
-        </div>
+     
       </footer>
 
       {/* Terms and Conditions Modal */}
@@ -534,6 +580,12 @@ export const AuthView: React.FC<AuthViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* Modal Panduan Instalasi Semua Perangkat (Android, iOS, PC) */}
+      <InstallGuideModal
+        isOpen={showInstallModal}
+        onClose={() => setShowInstallModal(false)}
+      />
     </div>
   );
 };

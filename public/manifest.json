@@ -1,7 +1,7 @@
 {
   "id": "/",
-  "name": "Kafelas Laundry POS",
-  "short_name": "KafelasLaundry",
+  "name": "Kafelas Laundry",
+  "short_name": "Kafelas Laundry",
   "description": "Aplikasi Manajemen Operasional, Kasir, dan Keuangan Kafelas Laundry",
   "start_url": "/",
   "scope": "/",

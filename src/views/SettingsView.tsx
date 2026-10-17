@@ -451,29 +451,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </div>
         </div>
 
-        {/* SECTION 5: INSTALASI APLIKASI */}
-        <div className="space-y-1.5">
-          <div className="text-[11px] font-black text-slate-500 uppercase tracking-wider px-1">
-            Instalasi & Aplikasi
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-            <PWAInstallButton variant="standalone" className="w-full !rounded-2xl" />
-            <button
-              type="button"
-              onClick={onOpenApkModal}
-              className="p-3 rounded-2xl bg-white border border-slate-200/90 hover:bg-slate-50 shadow-2xs text-xs font-bold text-slate-800 transition flex items-center justify-between"
-            >
-              <div className="flex items-center gap-2">
-                <Smartphone className="w-4 h-4 text-amber-500" />
-                <span>Panduan APK / TWA</span>
-              </div>
-              <ChevronRight className="w-4 h-4 text-slate-400" />
-            </button>
-          </div>
-        </div>
+   
 
         {/* SECTION 6: KELUAR DARI AKUN (LOGOUT) */}
-        <div className="pt-2">
+        <div className="pt-0">
           <button
             type="button"
             onClick={() => setShowLogoutConfirmModal(true)}

@@ -1133,6 +1133,7 @@ export default function App() {
             transaksiList={transaksiList}
             pengeluaranList={pengeluaranList}
             activeLaundryId={activeLaundryId}
+            laundryName={activeLaundry?.namaLaundry || settings.headerStruk || "Kafelas Laundry"}
           />
         )}
 
