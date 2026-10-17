@@ -110,7 +110,7 @@ export const SignatureAndLogoModal: React.FC<SignatureAndLogoModalProps> = ({
             persenBersih
           );
           if (hasilRaw) {
-            kompresGambarKeBase64(hasilRaw, { maxDim: 300, kualitas: 0.82 }).then((comp) => {
+            kompresGambarKeBase64(hasilRaw, { maxDim: 300, kualitas: 0.82 }).then((comp: { base64: string; ukuranKb: number }) => {
               setTtdUrl(comp.base64);
               setTtdKb(comp.ukuranKb);
               setIsProcessingTtd(false);

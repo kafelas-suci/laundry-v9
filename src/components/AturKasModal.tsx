@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, PlusCircle, MinusCircle, Wallet } from 'lucide-react';
 import { JenisPengeluaran, JenisPemasukan, Pengeluaran, ArusKas } from '../types';
 import { formatRupiah } from '../utils/formatters';
+import { useToast } from './NotificationContext';
 
 interface AturKasModalProps {
   isOpen: boolean;
@@ -22,6 +23,7 @@ export const AturKasModal: React.FC<AturKasModalProps> = ({
   onSavePengeluaran,
   onSavePemasukan,
 }) => {
+  const toast = useToast();
   const [tipe, setTipe] = useState<'pengeluaran' | 'pemasukan'>('pengeluaran');
   const [keterangan, setKeterangan] = useState('');
   const [hargaSatuan, setHargaSatuan] = useState<number>(0);
@@ -36,11 +38,11 @@ export const AturKasModal: React.FC<AturKasModalProps> = ({
 
   const handleSave = () => {
     if (!keterangan.trim()) {
-      alert('Keterangan kas harus diisi.');
+      toast.warning('Keterangan kas harus diisi.');
       return;
     }
     if (hargaSatuan <= 0 || qty <= 0) {
-      alert('Harga dan jumlah (qty) harus lebih besar dari 0.');
+      toast.warning('Harga dan jumlah (qty) harus lebih besar dari 0.');
       return;
     }
 

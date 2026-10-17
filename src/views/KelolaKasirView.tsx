@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ArrowLeft, Plus, Trash2, UserCheck, X } from 'lucide-react';
 import { User, Laundry } from '../types';
+import { useToast, useConfirm } from '../components/NotificationContext';
 
 interface KelolaKasirViewProps {
   onBack: () => void;
@@ -17,6 +18,8 @@ export const KelolaKasirView: React.FC<KelolaKasirViewProps> = ({
   onAddKasir,
   onDeleteKasir,
 }) => {
+  const toast = useToast();
+  const { confirm } = useConfirm();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [nama, setNama] = useState('');
   const [email, setEmail] = useState('');
@@ -27,11 +30,11 @@ export const KelolaKasirView: React.FC<KelolaKasirViewProps> = ({
 
   const handleSave = () => {
     if (!nama.trim() || !email.trim() || !password.trim()) {
-      alert('Semua data wajib diisi.');
+      toast.warning('Semua data kasir wajib diisi.');
       return;
     }
     if (password.length < 6) {
-      alert('Password minimal 6 karakter.');
+      toast.warning('Password minimal 6 karakter.');
       return;
     }
 
@@ -48,7 +51,7 @@ export const KelolaKasirView: React.FC<KelolaKasirViewProps> = ({
     });
 
     if (isDuplicate) {
-      alert(`Email atau No. WhatsApp '${email}' sudah digunakan oleh akun lain. Silakan masukkan Email atau No. WhatsApp kasir yang berbeda.`);
+      toast.error(`Email atau No. WhatsApp '${email}' sudah digunakan oleh akun lain. Silakan masukkan Email atau No. WhatsApp kasir yang berbeda.`);
       return;
     }
 
@@ -57,7 +60,7 @@ export const KelolaKasirView: React.FC<KelolaKasirViewProps> = ({
     setNama('');
     setEmail('');
     setPassword('');
-    alert(`Akun kasir '${nama}' berhasil dibuat!`);
+    toast.success(`Akun kasir '${nama}' berhasil dibuat!`);
   };
 
   return (
@@ -101,12 +104,19 @@ export const KelolaKasirView: React.FC<KelolaKasirViewProps> = ({
                 </div>
 
                 <button
-                  onClick={() => {
-                    if (confirm(`Hapus akun kasir '${admin.displayName}'? Akun tidak akan bisa login lagi.`)) {
+                  onClick={async () => {
+                    const ok = await confirm({
+                      title: 'Hapus Kasir',
+                      message: `Hapus akun kasir '${admin.displayName}'? Akun tidak akan bisa login lagi.`,
+                      confirmText: 'Ya, Hapus Akun',
+                      isDestructive: true,
+                    });
+                    if (ok) {
                       onDeleteKasir(admin.uid);
+                      toast.success(`Akun kasir '${admin.displayName}' berhasil dihapus.`);
                     }
                   }}
-                  className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition"
+                  className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition cursor-pointer"
                   title="Hapus Kasir"
                 >
                   <Trash2 className="w-4 h-4" />

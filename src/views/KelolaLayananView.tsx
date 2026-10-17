@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { Layanan } from '../types';
 import { formatRupiah } from '../utils/formatters';
+import { useToast, useConfirm } from '../components/NotificationContext';
 
 interface KelolaLayananViewProps {
   onBack: () => void;
@@ -51,6 +52,8 @@ export const KelolaLayananView: React.FC<KelolaLayananViewProps> = ({
   onDeleteLayanan,
   onReorderLayanan,
 }) => {
+  const toast = useToast();
+  const { confirm } = useConfirm();
   const [editingLayanan, setEditingLayanan] = useState<Layanan | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -117,11 +120,11 @@ export const KelolaLayananView: React.FC<KelolaLayananViewProps> = ({
 
   const handleSave = () => {
     if (!nama.trim()) {
-      alert('Nama layanan wajib diisi.');
+      toast.warning('Nama layanan wajib diisi.');
       return;
     }
     if (harga <= 0) {
-      alert('Harga harus lebih dari Rp 0.');
+      toast.warning('Harga harus lebih dari Rp 0.');
       return;
     }
 
@@ -139,6 +142,7 @@ export const KelolaLayananView: React.FC<KelolaLayananViewProps> = ({
 
     onSaveLayanan(payload);
     setIsModalOpen(false);
+    toast.success(editingLayanan ? 'Layanan berhasil diperbarui!' : 'Layanan baru berhasil ditambahkan!');
   };
 
   const handleToggleBeban = (lay: Layanan) => {
@@ -160,12 +164,13 @@ export const KelolaLayananView: React.FC<KelolaLayananViewProps> = ({
     onReorderLayanan(reordered);
   };
 
-  const handleResetToStandard = () => {
-    if (
-      confirm(
-        'Tambahkan 9 paket layanan standar laundry lengkap (Cuci Setrika, Bedcover, Sepatu, dll.)?'
-      )
-    ) {
+  const handleResetToStandard = async () => {
+    const ok = await confirm({
+      title: 'Tambah Paket Standar',
+      message: 'Tambahkan 9 paket layanan standar laundry lengkap (Cuci Setrika, Bedcover, Sepatu, dll.)?',
+      confirmText: 'Ya, Tambahkan',
+    });
+    if (ok) {
       PRESET_STANDAR_LAUNDRY.forEach((preset, idx) => {
         const item: Layanan = {
           ...preset,
@@ -175,6 +180,7 @@ export const KelolaLayananView: React.FC<KelolaLayananViewProps> = ({
         };
         onSaveLayanan(item);
       });
+      toast.success('9 Paket layanan standar berhasil ditambahkan!');
     }
   };
 
@@ -406,12 +412,19 @@ export const KelolaLayananView: React.FC<KelolaLayananViewProps> = ({
       </button>
 
       <button
-        onClick={() => {
-          if (confirm(`Yakin ingin menghapus layanan '${lay.nama}'?`)) {
+        onClick={async () => {
+          const ok = await confirm({
+            title: 'Hapus Layanan',
+            message: `Yakin ingin menghapus layanan '${lay.nama}'?`,
+            confirmText: 'Ya, Hapus',
+            isDestructive: true,
+          });
+          if (ok) {
             onDeleteLayanan(lay.id);
+            toast.success(`Layanan '${lay.nama}' berhasil dihapus.`);
           }
         }}
-        className="p-1.5 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 border border-slate-200 bg-white shadow-2xs transition active:scale-95 flex items-center justify-center"
+        className="p-1.5 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 border border-slate-200 bg-white shadow-2xs transition active:scale-95 flex items-center justify-center cursor-pointer"
         title="Hapus Layanan"
       >
         <Trash2 className="w-3.5 h-3.5" />

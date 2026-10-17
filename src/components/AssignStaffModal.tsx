@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, UserCheck, User as UserIcon, Check } from 'lucide-react';
 import { User, Transaksi } from '../types';
+import { useToast } from './NotificationContext';
 
 interface AssignStaffModalProps {
   isOpen: boolean;
@@ -19,6 +20,7 @@ export const AssignStaffModal: React.FC<AssignStaffModalProps> = ({
   transaksi,
   onAssign,
 }) => {
+  const toast = useToast();
   const loginUserName = currentUser?.displayName || 'Kasir';
   const [selectedStaff, setSelectedStaff] = useState<string>(loginUserName);
 
@@ -37,10 +39,11 @@ export const AssignStaffModal: React.FC<AssignStaffModalProps> = ({
 
   const handleSave = () => {
     if (!selectedStaff.trim()) {
-      alert('Pilih siapa yang mengerjakan pesanan terlebih dahulu.');
+      toast.warning('Pilih siapa yang mengerjakan pesanan terlebih dahulu.');
       return;
     }
     onAssign(selectedStaff.trim());
+    toast.success(`Pesanan ditugaskan ke ${selectedStaff.trim()}.`);
     onClose();
   };
 

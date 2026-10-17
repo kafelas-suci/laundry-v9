@@ -4,6 +4,7 @@ import { Transaksi, SettingsData, Pelanggan, User } from '../types';
 import { formatRupiah, formatDateIndo } from '../utils/formatters';
 import { ReceiptModal } from '../components/ReceiptModal';
 import { ShareReceiptModal } from '../components/ShareReceiptModal';
+import { useToast, useConfirm } from '../components/NotificationContext';
 
 interface DetailTransaksiViewProps {
   onBack: () => void;
@@ -26,6 +27,8 @@ export const DetailTransaksiView: React.FC<DetailTransaksiViewProps> = ({
   onDelete,
   onAmbil,
 }) => {
+  const toast = useToast();
+  const { confirm } = useConfirm();
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [showConfirmAmbil, setShowConfirmAmbil] = useState(false);
@@ -61,13 +64,20 @@ export const DetailTransaksiView: React.FC<DetailTransaksiViewProps> = ({
       window.open(`https://api.whatsapp.com/send?phone=${customerPhoneClean}&text=${encodeURIComponent(msg)}`, '_blank');
     } else {
       navigator.clipboard.writeText(msg);
-      alert('Teks nota berhasil disalin ke clipboard! Nomor WhatsApp pelanggan belum tersimpan.');
+      toast.success('Teks nota berhasil disalin ke clipboard! (Nomor WhatsApp pelanggan belum tersimpan)');
     }
   };
 
-  const handleDeleteConfirm = () => {
-    if (confirm(`Anda yakin ingin menghapus transaksi '${transaksi.nomorTransaksi}'? Tindakan ini tidak dapat dibatalkan.`)) {
+  const handleDeleteConfirm = async () => {
+    const ok = await confirm({
+      title: 'Hapus Transaksi',
+      message: `Anda yakin ingin menghapus transaksi '${transaksi.nomorTransaksi}'? Tindakan ini tidak dapat dibatalkan.`,
+      confirmText: 'Ya, Hapus Transaksi',
+      isDestructive: true,
+    });
+    if (ok) {
       onDelete(transaksi.id);
+      toast.success(`Transaksi '${transaksi.nomorTransaksi}' berhasil dihapus.`);
       onBack();
     }
   };

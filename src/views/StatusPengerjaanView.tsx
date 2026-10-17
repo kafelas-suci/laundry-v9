@@ -16,6 +16,7 @@ import {
 import { Transaksi, Layanan, User, SettingsData } from '../types';
 import { formatShortDate, formatShortTime, formatRupiah } from '../utils/formatters';
 import { AssignStaffModal } from '../components/AssignStaffModal';
+import { useToast, useConfirm } from '../components/NotificationContext';
 
 interface StatusPengerjaanViewProps {
   onBack: () => void;
@@ -44,6 +45,8 @@ export const StatusPengerjaanView: React.FC<StatusPengerjaanViewProps> = ({
   onAmbilTransaksi,
   onAmbilBanyakTransaksi,
 }) => {
+  const toast = useToast();
+  const { confirm } = useConfirm();
   const [selectedTrxForStaff, setSelectedTrxForStaff] = useState<Transaksi | null>(null);
   const [statusFilter, setStatusFilter] = useState<'semua' | 'selesai' | 'baru_masuk' | 'sedang_dikerjakan'>('semua');
   const [showConfirmBulkAmbil, setShowConfirmBulkAmbil] = useState(false);
@@ -165,12 +168,19 @@ export const StatusPengerjaanView: React.FC<StatusPengerjaanViewProps> = ({
       onUpdateTransaksi(updated);
 
       if (settings.waNotificationEnabled && trx.nomorTelepon) {
-        if (confirm(`Pekerjaan selesai! Ingin kirim notifikasi WhatsApp ke ${trx.namaPelanggan}?`)) {
-          const sisa = Math.max(0, trx.totalHarga - trx.jumlahDp);
-          const msg = `Halo Kak *${trx.namaPelanggan}*,\nCucian Anda (Nota *${trx.nomorTransaksi}*) sudah *SELESAI* dan siap diambil di ${settings.headerStruk}.\nSisa Tagihan: ${formatRupiah(sisa)}\nTerima kasih!`;
-          const phone = trx.nomorTelepon.replace(/[^0-9]/g, '').replace(/^0/, '62');
-          window.open(`https://api.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(msg)}`, '_blank');
-        }
+        confirm({
+          title: 'Kirim Notifikasi WhatsApp',
+          message: `Pekerjaan selesai! Ingin buka WhatsApp dan kirim notifikasi siap ambil ke ${trx.namaPelanggan}?`,
+          confirmText: 'Buka WhatsApp',
+          cancelText: 'Nanti Saja',
+        }).then((ok) => {
+          if (ok) {
+            const sisa = Math.max(0, trx.totalHarga - trx.jumlahDp);
+            const msg = `Halo Kak *${trx.namaPelanggan}*,\nCucian Anda (Nota *${trx.nomorTransaksi}*) sudah *SELESAI* dan siap diambil di ${settings.headerStruk}.\nSisa Tagihan: ${formatRupiah(sisa)}\nTerima kasih!`;
+            const phone = (trx.nomorTelepon || '').replace(/[^0-9]/g, '').replace(/^0/, '62');
+            window.open(`https://api.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(msg)}`, '_blank');
+          }
+        });
       }
     }
   };
@@ -456,7 +466,7 @@ export const StatusPengerjaanView: React.FC<StatusPengerjaanViewProps> = ({
                   const completedList = activeOrders.filter((t) => t.status === 'Selesai');
                   onAmbilBanyakTransaksi?.(completedList);
                   setShowConfirmBulkAmbil(false);
-                  alert(`${completedList.length} pesanan berhasil ditandai Diambil dan dipindahkan ke Arsip!`);
+                  toast.success(`${completedList.length} pesanan berhasil ditandai Diambil dan dipindahkan ke Arsip!`);
                 }}
                 className="py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 font-black text-xs text-white shadow-md transition active:scale-95 flex items-center justify-center gap-1.5"
               >

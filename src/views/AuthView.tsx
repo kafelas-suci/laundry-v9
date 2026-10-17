@@ -9,6 +9,7 @@ import {
 import { auth, googleProvider } from '../firebase';
 import { FirebaseSyncService } from '../utils/firebaseSync';
 import { User as UserType } from '../types';
+import { useToast } from '../components/NotificationContext';
 
 interface AuthViewProps {
   onLoginSuccess: (user: UserType) => void;
@@ -25,6 +26,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
   onStartDemo,
   initialSignUp = false,
 }) => {
+  const toast = useToast();
   const [isSignUp, setIsSignUp] = useState(initialSignUp);
   const [showPassword, setShowPassword] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
@@ -149,7 +151,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
         phoneNumber: telepon.trim(),
         namaLaundry: namaLaundry.trim(),
       });
-      alert('Pendaftaran berhasil! Akun Anda aktif di Firebase.');
+      toast.success('Pendaftaran berhasil! Akun Anda aktif di Firebase.');
       onLoginSuccess(userProfile);
     } catch (err: any) {
       console.error('Sign up error:', err);
@@ -282,7 +284,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
         required
         value={email}
         onChange={(e) => setEmail(e.target.value)}
-        placeholder={isSignUp ? 'contoh@gmail.com' : '08123456789 atau email@gmail.com'}
+        placeholder={isSignUp ? 'contoh@gmail.com' : 'email@gmail.com'}
         className="w-full pl-10 pr-4 py-3.5 bg-slate-900 border border-slate-700 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-[#800000]"
       />
       <Mail className="w-5 h-5 text-slate-400 absolute left-3.5 top-3.5" />
@@ -412,14 +414,41 @@ export const AuthView: React.FC<AuthViewProps> = ({
               <span>{isSignUp ? 'Daftar dengan Google' : 'Masuk dengan Google'}</span>
             </button>
           </div>
+          
+          {/* Toggle Login / SignUp */}
+          <div className="text-center pt-2 text-xs text-slate-400">
+            {isSignUp ? (
+              <span>
+                Sudah punya akun?{' '}
+                <button
+                  type="button"
+                  onClick={() => setIsSignUp(false)}
+                  className="text-red-400 font-bold hover:underline"
+                >
+                  Login di sini
+                </button>
+              </span>
+            ) : (
+              <span>
+                Belum punya akun?{' '}
+                <button
+                  type="button"
+                  onClick={() => setIsSignUp(true)}
+                  className="text-red-400 font-bold hover:underline"
+                >
+                  Daftar di sini ( Gratis 7 hari )
+                </button>
+              </span>
+            )}
+          </div>
 
           {/* Uji Coba Calon Pengguna / Interactive Demo Mode */}
-          <div className="pt-3 border-t border-slate-700/80 mt-2 space-y-2.5">
+          <div className="pt-2 border-t border-slate-700/80 mt-2 space-y-2.5">
             <div className="p-3.5 rounded-2xl bg-linear-to-b from-amber-500/15 to-amber-900/10 border border-amber-500/30 text-left space-y-2">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5 font-black text-xs text-amber-300">
                   <Sparkles className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
-                  <span>Coba Gratis Mode Demo (Trial)</span>
+                  <span>Coba Gratis Mode Demo</span>
                 </div>
                 <span className="text-[10px] bg-amber-400/20 text-amber-200 border border-amber-400/40 px-2 py-0.5 rounded-full font-bold">
                   Tanpa Daftar
@@ -446,51 +475,10 @@ export const AuthView: React.FC<AuthViewProps> = ({
                   <span>Demo Owner</span>
                 </button>
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (onStartDemo) {
-                      onStartDemo('karyawan');
-                    } else {
-                      onLoginSuccess(staffList[0] || ownerUser);
-                    }
-                  }}
-                  className="p-2.5 rounded-xl bg-slate-700 hover:bg-slate-600 border border-slate-600 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer"
-                  title="Simulasi sebagai Kasir Laundry (Input Nota & Status Cuci)"
-                >
-                  <Receipt className="w-3.5 h-3.5 text-amber-300" />
-                  <span>Demo Kasir</span>
-                </button>
               </div>
             </div>
           </div>
 
-          {/* Toggle Login / SignUp */}
-          <div className="text-center pt-2 text-xs text-slate-400">
-            {isSignUp ? (
-              <span>
-                Sudah punya akun?{' '}
-                <button
-                  type="button"
-                  onClick={() => setIsSignUp(false)}
-                  className="text-red-400 font-bold hover:underline"
-                >
-                  Login di sini
-                </button>
-              </span>
-            ) : (
-              <span>
-                Belum punya akun?{' '}
-                <button
-                  type="button"
-                  onClick={() => setIsSignUp(true)}
-                  className="text-red-400 font-bold hover:underline"
-                >
-                  Daftar di sini
-                </button>
-              </span>
-            )}
-          </div>
         </div>
       </div>
 

@@ -55,6 +55,7 @@ import {
 } from './utils/demoService';
 import { useDeviceDetect } from './hooks/useDeviceDetect';
 import { Lock } from 'lucide-react';
+import { useToast } from './components/NotificationContext';
 
 type ViewType =
   | 'splash'
@@ -73,6 +74,7 @@ type ViewType =
   | 'settings';
 
 export default function App() {
+  const toast = useToast();
   // Application State
   const [activeView, setActiveView] = useState<ViewType>('splash');
   const [isDemoMode, setIsDemoMode] = useState<boolean>(() =>
@@ -580,7 +582,7 @@ export default function App() {
 
   const handleProceedCreateNewFromLimit = () => {
     if (activeUncollectedTrx.length >= 400) {
-      alert(
+      toast.warning(
         'Transaksi aktif telah mencapai batas maksimal (400 pesanan). Harap arsipkan pesanan terlebih dahulu sebelum membuat transaksi baru.'
       );
       return;
@@ -768,14 +770,14 @@ export default function App() {
     if (!isDemoMode) {
       FirebaseSyncService.savePengeluaran(newPeng).catch(console.error);
     }
-    alert('Pengeluaran berhasil dicatat!');
+    toast.success('Pengeluaran berhasil dicatat!');
   };
 
   const handleSavePemasukan = (pem: ArusKas) => {
     const updated = [pem, ...manualCashLogs];
     setManualCashLogs(updated);
     StorageService.set('manual_cash_logs', updated);
-    alert('Pemasukan manual berhasil dicatat!');
+    toast.success('Pemasukan manual berhasil dicatat!');
   };
 
   // Demo Mode Handlers for Prospective Trial Users

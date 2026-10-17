@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Sparkles, RotateCcw, UserPlus, LogOut, Info, ShieldCheck, ChevronDown } from 'lucide-react';
 import { User } from '../types';
+import { useConfirm, useToast } from './NotificationContext';
 
 interface DemoBannerProps {
   currentUser: User;
@@ -17,18 +18,27 @@ export const DemoBanner: React.FC<DemoBannerProps> = ({
   onExitDemo,
   onSwitchDemoRole,
 }) => {
+  const toast = useToast();
+  const { confirm } = useConfirm();
   const [showRoleMenu, setShowRoleMenu] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
 
   const isOwner = currentUser.role === 'owner';
 
-  const handleReset = () => {
-    if (confirm('Kembalikan data demo ke contoh awal? Semua transaksi uji coba yang baru Anda tambahkan akan di-reset.')) {
+  const handleReset = async () => {
+    const ok = await confirm({
+      title: 'Reset Data Demo',
+      message: 'Kembalikan data demo ke contoh awal? Semua transaksi uji coba yang baru Anda tambahkan akan di-reset.',
+      confirmText: 'Ya, Reset Data Demo',
+      isDestructive: true,
+    });
+    if (ok) {
       setIsResetting(true);
       onResetDemoData();
+      toast.success('Data demo berhasil di-reset ke kondisi awal.');
       setTimeout(() => setIsResetting(false), 500);
     }
   };
 
-
+  return null;
 };

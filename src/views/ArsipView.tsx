@@ -3,6 +3,7 @@ import { ArrowLeft, ChevronLeft, ChevronRight, Search, Undo2, Archive, RefreshCw
 import { Transaksi } from '../types';
 import { formatRupiah, formatShortDate, formatShortTime } from '../utils/formatters';
 import { FirebaseSyncService } from '../utils/firebaseSync';
+import { useToast, useConfirm } from '../components/NotificationContext';
 
 interface ArsipViewProps {
   onBack: () => void;
@@ -19,6 +20,8 @@ export const ArsipView: React.FC<ArsipViewProps> = ({
   onOpenDetailTransaksi,
   onRestoreTransaksi,
 }) => {
+  const toast = useToast();
+  const { confirm } = useConfirm();
   const [selectedMonthOffset, setSelectedMonthOffset] = useState<number>(0);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [monthArchive, setMonthArchive] = useState<Transaksi[]>([]);
@@ -134,7 +137,7 @@ export const ArsipView: React.FC<ArsipViewProps> = ({
       const results = await FirebaseSyncService.searchArsip(activeLaundryId, searchQuery.trim());
       setCloudSearchResults(results);
       if (results.length === 0) {
-        alert(`Nota '${searchQuery}' tidak ditemukan di Cloud.`);
+        toast.warning(`Nota '${searchQuery}' tidak ditemukan di Cloud.`);
       }
     } finally {
       setIsSearchingCloud(false);
@@ -265,15 +268,21 @@ export const ArsipView: React.FC<ArsipViewProps> = ({
               {/* Restore Button */}
               <button
                 type="button"
-                onClick={(e) => {
+                onClick={async (e) => {
                   e.stopPropagation();
-                  if (confirm(`Kembalikan transaksi '${trx.nomorTransaksi}' ke antrean aktif?`)) {
+                  const ok = await confirm({
+                    title: 'Kembalikan Transaksi',
+                    message: `Kembalikan transaksi '${trx.nomorTransaksi}' ke antrean pengerjaan aktif?`,
+                    confirmText: 'Ya, Kembalikan',
+                  });
+                  if (ok) {
                     setMonthArchive((prev) => prev.filter((t) => t.id !== trx.id));
                     onRestoreTransaksi(trx);
+                    toast.success(`Transaksi '${trx.nomorTransaksi}' berhasil dikembalikan ke antrean aktif.`);
                   }
                 }}
                 title="Kembalikan ke antrean aktif"
-                className="p-2 rounded-xl text-slate-400 hover:text-[#800000] hover:bg-rose-50 transition"
+                className="p-2 rounded-xl text-slate-400 hover:text-[#800000] hover:bg-rose-50 transition cursor-pointer"
               >
                 <Undo2 className="w-4 h-4" />
               </button>

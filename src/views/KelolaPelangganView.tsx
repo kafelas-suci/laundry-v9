@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ArrowLeft, Plus, Search, Phone, MapPin, Edit3, Trash2, Award, UserPlus, X } from 'lucide-react';
 import { Pelanggan, SettingsData } from '../types';
+import { useToast, useConfirm } from '../components/NotificationContext';
 
 interface KelolaPelangganViewProps {
   onBack: () => void;
@@ -19,6 +20,8 @@ export const KelolaPelangganView: React.FC<KelolaPelangganViewProps> = ({
   onSavePelanggan,
   onDeletePelanggan,
 }) => {
+  const toast = useToast();
+  const { confirm } = useConfirm();
   const [searchQuery, setSearchQuery] = useState('');
   const [editingPelanggan, setEditingPelanggan] = useState<Pelanggan | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -52,7 +55,7 @@ export const KelolaPelangganView: React.FC<KelolaPelangganViewProps> = ({
 
   const handleSave = () => {
     if (!nama.trim()) {
-      alert('Nama pelanggan tidak boleh kosong.');
+      toast.warning('Nama pelanggan tidak boleh kosong.');
       return;
     }
 
@@ -171,12 +174,19 @@ export const KelolaPelangganView: React.FC<KelolaPelangganViewProps> = ({
             <Edit3 className="w-4 h-4" />
           </button>
           <button
-            onClick={() => {
-              if (confirm(`Hapus pelanggan '${p.nama}'?`)) {
+            onClick={async () => {
+              const ok = await confirm({
+                title: 'Hapus Pelanggan',
+                message: `Yakin ingin menghapus data pelanggan '${p.nama}'?`,
+                confirmText: 'Ya, Hapus',
+                isDestructive: true,
+              });
+              if (ok) {
                 onDeletePelanggan(p.id);
+                toast.success(`Pelanggan '${p.nama}' berhasil dihapus.`);
               }
             }}
-            className="p-2.5 rounded-xl text-slate-500 hover:text-red-600 hover:bg-red-50 border border-slate-200 bg-slate-50 shadow-inner transition active:scale-95 flex items-center justify-center"
+            className="p-2.5 rounded-xl text-slate-500 hover:text-red-600 hover:bg-red-50 border border-slate-200 bg-slate-50 shadow-inner transition active:scale-95 flex items-center justify-center cursor-pointer"
             title="Hapus Pelanggan"
           >
             <Trash2 className="w-4 h-4" />

@@ -1,0 +1,6 @@
+{
+  "summary": "Implementasi Sistem Toast Notifikasi Modern & Modal Konfirmasi Kustom selesai:\n1. Menghilangkan seluruh window.alert dan window.confirm bawaan browser ('Alamat web menyatakan...') di semua view transaksi, kasir, pelanggan, layanan, owner, settings, buku kas, arsip, dan status pengerjaan.\n2. Membuat NotificationContext global dengan:\n   - Toast mengambang di atas tengah layar (top-center), berdurasi auto-dismiss 3 detik dengan indikator garis waktu mikro dan tombol silang (X).\n   - Ikon dan styling tematik: Sukses (hijau emerald), Peringatan/Validasi (amber kuning), Error (merah marun #800000), Info (biru).\n   - Modal Konfirmasi kustom berbasis Promise (async/await) dengan backdrop blur dan pilihan tombol aksi (Batal vs Ya, Hapus / Ya, Lanjutkan).\n3. Kode terverifikasi lulus linter (tsc --noEmit) dan kompilasi build sukses 100%.",
+  "updatedAt": "2026-10-17T00:49:14.928663875Z",
+  "requestFeedback": true,
+  "userFacing": true
+}

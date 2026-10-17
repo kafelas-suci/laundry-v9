@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { User, Laundry, SubscriptionHistory } from '../types';
 import { formatRupiah, formatDateIndo } from '../utils/formatters';
+import { useToast, useConfirm } from '../components/NotificationContext';
 
 interface KelolaOwnerViewProps {
   onBack: () => void;
@@ -55,6 +56,8 @@ export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
   onExtendSubscription,
   onUpdateOwnerProfile,
 }) => {
+  const toast = useToast();
+  const { confirm } = useConfirm();
   const [showBranches, setShowBranches] = useState(true);
   const [harianDays, setHarianDays] = useState('7');
   const [showTopUpModal, setShowTopUpModal] = useState(false);
@@ -95,43 +98,53 @@ export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
     Math.ceil(((currentUser.subscriptionEndDate || Date.now()) - Date.now()) / (1000 * 60 * 60 * 24))
   );
 
-  const handlePayBulanan = () => {
+  const handlePayBulanan = async () => {
     if (currentUser.walletBalance < totalBiayaBulanan) {
-      alert(`Saldo dompet tidak mencukupi (${formatRupiah(totalBiayaBulanan)}). Silakan isi saldo terlebih dahulu.`);
+      toast.warning(`Saldo dompet tidak mencukupi (${formatRupiah(totalBiayaBulanan)}). Silakan isi saldo terlebih dahulu.`);
       setShowTopUpModal(true);
       return;
     }
-    if (confirm(`Beli Paket Bulanan 30 Hari seharga ${formatRupiah(totalBiayaBulanan)}? Saldo dompet akan dipotong.`)) {
+    const ok = await confirm({
+      title: 'Beli Paket Bulanan',
+      message: `Beli Paket Bulanan 30 Hari seharga ${formatRupiah(totalBiayaBulanan)}? Saldo dompet akan dipotong.`,
+      confirmText: 'Beli Sekarang',
+    });
+    if (ok) {
       onExtendSubscription(`Paket Bulanan (${jumlahCabang} Cabang)`, totalBiayaBulanan, 30);
-      alert('Perpanjangan langganan 30 hari berhasil!');
+      toast.success('Perpanjangan langganan 30 hari berhasil!');
     }
   };
 
-  const handlePayHarian = () => {
+  const handlePayHarian = async () => {
     const days = parseInt(harianDays, 10);
     if (isNaN(days) || days <= 0) {
-      alert('Masukkan jumlah hari yang valid.');
+      toast.warning('Masukkan jumlah hari yang valid.');
       return;
     }
     const cost = hargaHarianPerHari * days;
     if (currentUser.walletBalance < cost) {
-      alert(`Saldo dompet tidak mencukupi (${formatRupiah(cost)}). Silakan isi saldo terlebih dahulu.`);
+      toast.warning(`Saldo dompet tidak mencukupi (${formatRupiah(cost)}). Silakan isi saldo terlebih dahulu.`);
       setShowTopUpModal(true);
       return;
     }
-    if (confirm(`Beli Paket Harian ${days} Hari seharga ${formatRupiah(cost)}? Saldo dompet akan dipotong.`)) {
+    const ok = await confirm({
+      title: 'Beli Paket Harian',
+      message: `Beli Paket Harian ${days} Hari seharga ${formatRupiah(cost)}? Saldo dompet akan dipotong.`,
+      confirmText: 'Beli Sekarang',
+    });
+    if (ok) {
       onExtendSubscription(`Paket Harian ${days} Hari (${jumlahCabang} Cabang)`, cost, days);
-      alert(`Perpanjangan langganan ${days} hari berhasil!`);
+      toast.success(`Perpanjangan langganan ${days} hari berhasil!`);
     }
   };
 
   const handleAddBranchSubmit = () => {
     if (!newBranchName.trim()) {
-      alert('Nama cabang laundry wajib diisi.');
+      toast.warning('Nama cabang laundry wajib diisi.');
       return;
     }
     if (laundries.length >= 3) {
-      alert('Maksimal batas cabang untuk akun ini adalah 3 cabang.');
+      toast.warning('Maksimal batas cabang untuk akun ini adalah 3 cabang.');
       return;
     }
 
@@ -140,7 +153,7 @@ export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
     setNewBranchName('');
     setNewBranchAddress('');
     setNewBranchPhone('');
-    alert(`Cabang '${newBranchName}' berhasil ditambahkan!`);
+    toast.success(`Cabang '${newBranchName}' berhasil ditambahkan!`);
   };
 
   return (
@@ -338,12 +351,19 @@ export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
                       </button>
                       {laundries.length > 1 && (
                         <button
-                          onClick={() => {
-                            if (confirm(`Hapus cabang '${lnd.namaLaundry}'?`)) {
+                          onClick={async () => {
+                            const ok = await confirm({
+                              title: 'Hapus Cabang',
+                              message: `Yakin ingin menghapus cabang '${lnd.namaLaundry}'? Data layanan dan transaksi pada cabang ini akan terpengaruh.`,
+                              confirmText: 'Ya, Hapus Cabang',
+                              isDestructive: true,
+                            });
+                            if (ok) {
                               onDeleteLaundry(lnd.id);
+                              toast.success(`Cabang '${lnd.namaLaundry}' berhasil dihapus.`);
                             }
                           }}
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50"
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 cursor-pointer"
                           title="Hapus Cabang"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -593,13 +613,13 @@ export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
                       onClick={() => {
                         const nominalFinal = customTopUp ? parseInt(customTopUp, 10) || selectedNominal : selectedNominal;
                         if (nominalFinal <= 0) {
-                          alert('Nominal harus lebih dari 0.');
+                          toast.warning('Nominal harus lebih dari 0.');
                           return;
                         }
                         onTopUpWallet(nominalFinal);
                         setShowTopUpModal(false);
                         setCustomTopUp('');
-                        alert(`✅ (Mode Uji Coba) Saldo ${formatRupiah(nominalFinal)} berhasil ditambahkan ke akun Anda!`);
+                        toast.success(`Saldo ${formatRupiah(nominalFinal)} berhasil ditambahkan ke akun Anda!`);
                       }}
                       className="w-full py-2 px-3 rounded-lg bg-slate-800 hover:bg-slate-900 text-white font-bold text-[11px] transition active:scale-95"
                     >
@@ -768,9 +788,9 @@ export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
                   onClick={() => {
                     onUpdateLaundry(editingLaundry);
                     setEditingLaundry(null);
-                    alert('Data cabang berhasil disimpan!');
+                    toast.success('Data cabang berhasil disimpan!');
                   }}
-                  className="flex-1 py-2.5 rounded-xl bg-[#800000] hover:bg-[#660000] text-white text-xs font-bold shadow-xs"
+                  className="flex-1 py-2.5 rounded-xl bg-[#800000] hover:bg-[#660000] text-white text-xs font-bold shadow-xs cursor-pointer"
                 >
                   Simpan
                 </button>
@@ -909,7 +929,7 @@ export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
                   type="button"
                   onClick={() => {
                     if (!editDisplayName.trim()) {
-                      alert('Nama Owner tidak boleh kosong.');
+                      toast.warning('Nama Owner tidak boleh kosong.');
                       return;
                     }
                     if (onUpdateOwnerProfile) {
@@ -919,9 +939,9 @@ export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
                       });
                     }
                     setShowEditOwnerModal(false);
-                    alert('✅ Nama dan nomor owner berhasil diperbarui!');
+                    toast.success('Nama dan nomor owner berhasil diperbarui!');
                   }}
-                  className="flex-1 py-2.5 rounded-xl bg-[#800000] hover:bg-[#660000] text-white text-xs font-bold shadow-xs transition active:scale-95"
+                  className="flex-1 py-2.5 rounded-xl bg-[#800000] hover:bg-[#660000] text-white text-xs font-bold shadow-xs transition active:scale-95 cursor-pointer"
                 >
                   Simpan
                 </button>

@@ -23,6 +23,7 @@ import { SettingsData, User, Laundry } from '../types';
 import { PWAInstallButton } from '../components/PWAInstallButton';
 import { formatDateIndo } from '../utils/formatters';
 import { StorageService, defaultOwnerUser } from '../utils/storage';
+import { useToast } from '../components/NotificationContext';
 import {
   getSavedBluetoothPrinter,
   disconnectBluetoothPrinter,
@@ -56,6 +57,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onOpenApkModal,
   onLogout,
 }) => {
+  const toast = useToast();
   const isOwner = currentUser.role === 'owner';
 
   // Perhitungan Sisa Masa Aktif Langganan
@@ -95,7 +97,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const handleDisconnectBluetooth = () => {
     disconnectBluetoothPrinter();
     setSavedBtPrinter(null);
-    alert('Sandingan printer Bluetooth berhasil diputus!');
+    toast.success('Sandingan printer Bluetooth berhasil diputus!');
   };
 
   const handlePairBluetooth = async () => {
@@ -107,9 +109,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         ...settings,
         printerName: res.printerName,
       });
-      alert(res.message);
+      toast.success(res.message);
     } else if (res.message && !res.message.includes('dibatalkan')) {
-      alert(res.message);
+      toast.warning(res.message);
     }
   };
 
@@ -132,12 +134,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       logoPath,
     });
     setShowInfoStrukModal(false);
-    alert('Informasi struk berhasil disimpan!');
+    toast.success('Informasi struk berhasil disimpan!');
   };
 
   const handleSavePrinter = () => {
     if (!printerName.trim()) {
-      alert('Nama printer tidak boleh kosong.');
+      toast.warning('Nama printer tidak boleh kosong.');
       return;
     }
     onUpdateSettings({
@@ -145,7 +147,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       printerName: printerName.trim(),
     });
     setShowPrinterModal(false);
-    alert('Pengaturan printer berhasil disimpan!');
+    toast.success('Pengaturan printer berhasil disimpan!');
   };
 
   const handleSaveFeatureSettings = () => {
@@ -159,7 +161,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       poinSystemEnabled: false,
     });
     setShowFeatureSettingsModal(false);
-    alert('Pengaturan fitur aplikasi berhasil disimpan!');
+    toast.success('Pengaturan fitur aplikasi berhasil disimpan!');
   };
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
