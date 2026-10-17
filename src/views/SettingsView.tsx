@@ -18,12 +18,15 @@ import {
   Calendar,
   CreditCard,
   Clock,
+  Crown,
+  Lock,
 } from 'lucide-react';
 import { SettingsData, User, Laundry } from '../types';
 import { PWAInstallButton } from '../components/PWAInstallButton';
 import { formatDateIndo } from '../utils/formatters';
 import { StorageService, defaultOwnerUser } from '../utils/storage';
 import { useToast } from '../components/NotificationContext';
+import { isProTier, normalizeTier } from '../utils/subscription';
 import {
   getSavedBluetoothPrinter,
   disconnectBluetoothPrinter,
@@ -35,12 +38,14 @@ interface SettingsViewProps {
   settings: SettingsData;
   currentUser: User;
   activeLaundry: Laundry;
+  currentTier?: string | null;
   onUpdateSettings: (newSettings: SettingsData) => void;
   onOpenKelolaPelanggan: () => void;
   onOpenKelolaLayanan: () => void;
   onOpenKelolaOwner: () => void;
   onOpenKelolaKasir: () => void;
   onOpenApkModal: () => void;
+  onOpenUpgradeModal?: (reason?: string) => void;
   onLogout: () => void;
 }
 
@@ -49,12 +54,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   settings,
   currentUser,
   activeLaundry,
+  currentTier,
   onUpdateSettings,
   onOpenKelolaPelanggan,
   onOpenKelolaLayanan,
   onOpenKelolaOwner,
   onOpenKelolaKasir,
   onOpenApkModal,
+  onOpenUpgradeModal,
   onLogout,
 }) => {
   const toast = useToast();
@@ -244,10 +251,23 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-slate-900 font-bold text-xs">
               <Sparkles className="w-4 h-4 text-amber-500" />
-              <span>Status Paket & Masa Aktif</span>
+              <span>Status Paket & Hak Akses</span>
             </div>
-            <span className="px-2 py-0.5 rounded-full bg-rose-50 text-[#800000] border border-rose-200 text-[10px] font-bold capitalize">
-              {currentUser.subscriptionType || 'Paket Bulanan'}
+            <span
+              className={`px-2.5 py-0.5 rounded-full border text-[11px] font-black uppercase tracking-wide flex items-center gap-1 ${
+                isProTier(currentTier || currentUser.subscriptionType)
+                  ? 'bg-amber-50 text-amber-900 border-amber-300'
+                  : 'bg-slate-100 text-slate-700 border-slate-300'
+              }`}
+            >
+              {isProTier(currentTier || currentUser.subscriptionType) ? (
+                <>
+                  <Crown className="w-3 h-3 text-amber-600" />
+                  <span>Paket Pro</span>
+                </>
+              ) : (
+                <span>Paket Basic</span>
+              )}
             </span>
           </div>
 
@@ -257,7 +277,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">
                   Sisa Langganan
                 </span>
-                <div className="text-xl font-black text-[#800000] mt-0.5">
+                <div className="text-xl font-black text-[#800000] mt-0.5 font-mono tabular-nums">
                   {sisaHari} <span className="text-xs font-bold text-slate-600">Hari</span>
                 </div>
               </div>
@@ -270,32 +290,41 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex flex-col justify-between">
               <div>
                 <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">
-                  Berlaku Sampai
+                  Fitur Unggulan
                 </span>
                 <div className="text-xs font-bold text-slate-800 mt-1 leading-snug">
-                  {tanggalBerakhirStr}
+                  {isProTier(currentTier || currentUser.subscriptionType)
+                    ? 'Maks. 3 Cabang & Excel/PDF'
+                    : '1 Cabang & POS Kasir'}
                 </div>
               </div>
               <div className="text-[10px] text-slate-400 mt-1">
-                Pukul 23:59 WIB
+                {isProTier(currentTier || currentUser.subscriptionType) ? 'Kapasitas 1.500 nota/bln' : 'Batas 300 nota/bln'}
               </div>
             </div>
           </div>
 
-          {isOwner ? (
+          <div className="flex flex-col sm:flex-row gap-2 pt-1">
             <button
               type="button"
-              onClick={onOpenKelolaOwner}
-              className="w-full py-2.5 px-3 rounded-xl bg-[#800000] hover:bg-[#660000] text-white font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition active:scale-98 cursor-pointer"
+              onClick={() => onOpenUpgradeModal?.()}
+              className="flex-1 py-2.5 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 shadow-xs transition active:scale-98 cursor-pointer"
             >
-              <CreditCard className="w-3.5 h-3.5" />
-              <span>Perpanjang / Kelola Paket Langganan</span>
+              <Crown className="w-3.5 h-3.5 text-slate-950" />
+              <span>Bandingkan Paket Basic vs Pro</span>
             </button>
-          ) : (
-            <div className="text-[11px] text-slate-500 bg-slate-50 p-2.5 rounded-xl border border-slate-200/80 text-center">
-              Perpanjangan masa aktif hanya dapat dilakukan oleh akun Owner.
-            </div>
-          )}
+
+            {isOwner && (
+              <button
+                type="button"
+                onClick={onOpenKelolaOwner}
+                className="py-2.5 px-3 rounded-xl bg-[#800000] hover:bg-[#660000] text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition active:scale-98 cursor-pointer shrink-0"
+              >
+                <CreditCard className="w-3.5 h-3.5" />
+                <span>Perpanjang</span>
+              </button>
+            )}
+          </div>
         </div>
 
         {/* SECTION 1: MANAJEMEN OUTLET & KASIR (Owner Only) */}

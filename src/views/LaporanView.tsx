@@ -17,6 +17,8 @@ import {
   AlertCircle,
   HelpCircle,
   Download,
+  Lock,
+  Crown,
 } from 'lucide-react';
 import { Transaksi, Pengeluaran, SettingsData } from '../types';
 import { formatRupiah, formatShortDate, formatReceiptDate } from '../utils/formatters';
@@ -26,6 +28,7 @@ import { exportLaporanToExcel, LaporanSummaryExportData } from '../utils/excelEx
 import { generateLaporanPdf, LaporanPdfData } from '../utils/pdfExport';
 import { ReportPdfModal } from '../components/ReportPdfModal';
 import { useToast } from '../components/NotificationContext';
+import { isProTier } from '../utils/subscription';
 
 interface LaporanViewProps {
   onBack: () => void;
@@ -33,6 +36,8 @@ interface LaporanViewProps {
   pengeluaranList: Pengeluaran[];
   activeLaundryId: string;
   laundryName?: string;
+  currentTier?: string | null;
+  onOpenUpgradeModal?: (reason?: string) => void;
 }
 
 export const LaporanView: React.FC<LaporanViewProps> = ({
@@ -41,6 +46,8 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
   pengeluaranList,
   activeLaundryId,
   laundryName,
+  currentTier,
+  onOpenUpgradeModal,
 }) => {
   const toast = useToast();
   const currentYear = new Date().getFullYear();
@@ -347,6 +354,11 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
 
   // Handler Ekspor Excel (.xlsx)
   const handleExportExcel = () => {
+    if (!isProTier(currentTier)) {
+      onOpenUpgradeModal?.('Ekspor Pembukuan Lengkap ke Excel Spreadsheet (.xlsx)');
+      return;
+    }
+
     try {
       const exportPayload: LaporanSummaryExportData = {
         laundryName: effectiveLaundryName,
@@ -425,6 +437,11 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
 
   // 1-Click Direct Download PDF File
   const handleDownloadPDF = () => {
+    if (!isProTier(currentTier)) {
+      onOpenUpgradeModal?.('Cetak & Unduh Dokumen Laporan Keuangan Resmi A4 (.pdf)');
+      return;
+    }
+
     try {
       const fileName = generateLaporanPdf(pdfPayload);
       toast.success(`Berkas PDF ${fileName} berhasil diunduh ke HP/PC!`);
@@ -437,6 +454,11 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
 
   // Open Preview & Print Modal
   const handleOpenPdfModal = () => {
+    if (!isProTier(currentTier)) {
+      onOpenUpgradeModal?.('Pratinjau & Cetak Dokumen Laporan Keuangan Resmi A4');
+      return;
+    }
+
     setShowPdfModal(true);
   };
 
@@ -467,31 +489,57 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
           <button
             type="button"
             onClick={handleExportExcel}
-            className="px-2.5 sm:px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition active:scale-95 cursor-pointer"
-            title="Unduh Spreadsheet Excel (.xlsx)"
+            className={`px-2.5 sm:px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-sm transition active:scale-95 cursor-pointer ${
+              !isProTier(currentTier)
+                ? 'bg-emerald-700/80 hover:bg-emerald-600 text-white'
+                : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+            }`}
+            title={!isProTier(currentTier) ? 'Terkunci di Paket Basic (Klik untuk upgrade)' : 'Unduh Spreadsheet Excel (.xlsx)'}
           >
-            <FileSpreadsheet className="w-4 h-4 text-emerald-200" />
+            {!isProTier(currentTier) ? (
+              <Lock className="w-3.5 h-3.5 text-emerald-200" />
+            ) : (
+              <FileSpreadsheet className="w-4 h-4 text-emerald-200" />
+            )}
             <span className="hidden sm:inline">Excel</span>
+            {!isProTier(currentTier) && <span className="text-[10px] text-emerald-200 font-black">PRO</span>}
           </button>
 
           <button
             type="button"
             onClick={handleDownloadPDF}
-            className="px-2.5 sm:px-3 py-1.5 rounded-xl bg-red-700 hover:bg-red-600 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition active:scale-95 cursor-pointer"
-            title="Unduh Berkas PDF (.pdf) Langsung"
+            className={`px-2.5 sm:px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-sm transition active:scale-95 cursor-pointer ${
+              !isProTier(currentTier)
+                ? 'bg-red-800/80 hover:bg-red-700 text-white'
+                : 'bg-red-700 hover:bg-red-600 text-white'
+            }`}
+            title={!isProTier(currentTier) ? 'Terkunci di Paket Basic (Klik untuk upgrade)' : 'Unduh Berkas PDF (.pdf) Langsung'}
           >
-            <Download className="w-4 h-4 text-red-200" />
+            {!isProTier(currentTier) ? (
+              <Lock className="w-3.5 h-3.5 text-red-200" />
+            ) : (
+              <Download className="w-4 h-4 text-red-200" />
+            )}
             <span className="hidden sm:inline">Unduh PDF</span>
             <span className="sm:hidden">PDF</span>
+            {!isProTier(currentTier) && <span className="text-[10px] text-red-200 font-black">PRO</span>}
           </button>
 
           <button
             type="button"
             onClick={handleOpenPdfModal}
-            className="px-2.5 sm:px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition active:scale-95 cursor-pointer"
-            title="Pratinjau Dokumen & Cetak Kertas"
+            className={`px-2.5 sm:px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-sm transition active:scale-95 cursor-pointer ${
+              !isProTier(currentTier)
+                ? 'bg-slate-800/80 hover:bg-slate-700 text-slate-200'
+                : 'bg-slate-800 hover:bg-slate-700 text-white'
+            }`}
+            title={!isProTier(currentTier) ? 'Terkunci di Paket Basic (Klik untuk upgrade)' : 'Pratinjau Dokumen & Cetak Kertas'}
           >
-            <Printer className="w-4 h-4 text-amber-300" />
+            {!isProTier(currentTier) ? (
+              <Lock className="w-3.5 h-3.5 text-amber-300" />
+            ) : (
+              <Printer className="w-4 h-4 text-amber-300" />
+            )}
             <span className="hidden md:inline">Cetak / Pratinjau</span>
             <span className="md:hidden">Cetak</span>
           </button>
@@ -551,15 +599,25 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
 
             <button
               type="button"
-              onClick={() => setActiveTab('komparasi')}
+              onClick={() => {
+                if (!isProTier(currentTier)) {
+                  onOpenUpgradeModal?.('Analisis Komparasi Pertumbuhan Historis (MoM & YoY)');
+                  return;
+                }
+                setActiveTab('komparasi');
+              }}
               className={`py-2 px-3 rounded-lg flex items-center justify-center gap-1.5 transition cursor-pointer ${
                 activeTab === 'komparasi'
                   ? 'bg-[#800000] text-white shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              <TrendingUp className="w-3.5 h-3.5 text-amber-400" />
-              <span>Analisis Komparasi Pro</span>
+              {!isProTier(currentTier) ? (
+                <Lock className="w-3.5 h-3.5 text-amber-500" />
+              ) : (
+                <TrendingUp className="w-3.5 h-3.5 text-amber-400" />
+              )}
+              <span>Analisis Komparasi {!isProTier(currentTier) ? '(Pro)' : 'Pro'}</span>
             </button>
           </div>
         </div>

@@ -1,14 +1,17 @@
 import React from 'react';
-import { X, Building2, Check } from 'lucide-react';
+import { X, Building2, Check, Lock, Crown } from 'lucide-react';
 import { Laundry } from '../types';
+import { isProTier } from '../utils/subscription';
 
 interface SwitchBranchModalProps {
   isOpen: boolean;
   onClose: () => void;
   laundries: Laundry[];
   activeLaundryId: string;
+  currentTier?: string | null;
   onSelectBranch: (laundryId: string) => void;
   onManageBranches: () => void;
+  onOpenUpgradeModal?: (reason?: string) => void;
 }
 
 export const SwitchBranchModal: React.FC<SwitchBranchModalProps> = ({
@@ -16,8 +19,10 @@ export const SwitchBranchModal: React.FC<SwitchBranchModalProps> = ({
   onClose,
   laundries,
   activeLaundryId,
+  currentTier,
   onSelectBranch,
   onManageBranches,
+  onOpenUpgradeModal,
 }) => {
   if (!isOpen) return null;
 
@@ -71,16 +76,35 @@ export const SwitchBranchModal: React.FC<SwitchBranchModalProps> = ({
             })}
           </div>
 
-          <div className="pt-2 border-t border-slate-100 flex gap-2">
+          <div className="pt-2 border-t border-slate-100 flex flex-col gap-2">
             <button
               onClick={() => {
                 onClose();
                 onManageBranches();
               }}
-              className="w-full py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 transition"
+              className="w-full py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 transition cursor-pointer flex items-center justify-center gap-1.5"
             >
-              Kelola Semua Cabang (+ Cabang Baru)
+              <span>Kelola Semua Cabang</span>
+              {isProTier(currentTier) ? (
+                <span className="text-[10px] text-emerald-700 font-extrabold">(Hingga 3 Cabang · Pro)</span>
+              ) : (
+                <span className="text-[10px] text-slate-500 font-normal">(1 Cabang · Basic)</span>
+              )}
             </button>
+
+            {!isProTier(currentTier) && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenUpgradeModal?.('Membuka fitur Multi-Cabang (Hingga 3 Cabang Outlet)');
+                }}
+                className="w-full py-2 rounded-xl bg-amber-50 border border-amber-300 hover:bg-amber-100 text-amber-950 text-[11px] font-bold flex items-center justify-center gap-1.5 transition cursor-pointer"
+              >
+                <Crown className="w-3.5 h-3.5 text-amber-600" />
+                <span>Buka Multi-Cabang dengan Paket Pro</span>
+              </button>
+            )}
           </div>
         </div>
       </div>

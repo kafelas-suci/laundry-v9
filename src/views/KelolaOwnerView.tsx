@@ -26,6 +26,7 @@ import {
 import { User, Laundry, SubscriptionHistory } from '../types';
 import { formatRupiah, formatDateIndo } from '../utils/formatters';
 import { useToast, useConfirm } from '../components/NotificationContext';
+import { isProTier, getLaundryLimits } from '../utils/subscription';
 
 interface KelolaOwnerViewProps {
   onBack: () => void;
@@ -40,6 +41,7 @@ interface KelolaOwnerViewProps {
   onTopUpWallet: (nominal: number) => void;
   onExtendSubscription: (packageName: string, cost: number, days: number) => void;
   onUpdateOwnerProfile?: (data: { displayName: string; nomorTelepon?: string | null }) => void;
+  onOpenUpgradeModal?: (reason?: string) => void;
 }
 
 export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
@@ -55,6 +57,7 @@ export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
   onTopUpWallet,
   onExtendSubscription,
   onUpdateOwnerProfile,
+  onOpenUpgradeModal,
 }) => {
   const toast = useToast();
   const { confirm } = useConfirm();
@@ -84,34 +87,37 @@ export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
   const jumlahCabang = laundries.length;
   const cabangTambahan = Math.max(0, jumlahCabang - 1);
 
-  // Pricing formula matching KelolaOwnerActivity.kt
-  const HARGA_DASAR_BULANAN = 27000;
-  const HARGA_CABANG_BULANAN = 20000;
-  const totalBiayaBulanan = HARGA_DASAR_BULANAN + cabangTambahan * HARGA_CABANG_BULANAN;
+  // Pricing formula: Basic Rp 27.000 (1 Cabang), Pro Rp 57.000 (Maks. 3 Cabang)
+  const isPro = isProTier(currentUser.subscriptionType);
+  const HARGA_BASIC_BULANAN = 27000;
+  const HARGA_PRO_BULANAN = 57000;
+  const totalBiayaBulanan = isPro ? HARGA_PRO_BULANAN : HARGA_BASIC_BULANAN;
 
   const HARGA_DASAR_HARIAN = 1000;
-  const HARGA_CABANG_HARIAN = 500;
-  const hargaHarianPerHari = HARGA_DASAR_HARIAN + cabangTambahan * HARGA_CABANG_HARIAN;
+  const hargaHarianPerHari = HARGA_DASAR_HARIAN;
 
   const sisaHari = Math.max(
     0,
     Math.ceil(((currentUser.subscriptionEndDate || Date.now()) - Date.now()) / (1000 * 60 * 60 * 24))
   );
 
-  const handlePayBulanan = async () => {
-    if (currentUser.walletBalance < totalBiayaBulanan) {
-      toast.warning(`Saldo dompet tidak mencukupi (${formatRupiah(totalBiayaBulanan)}). Silakan isi saldo terlebih dahulu.`);
+  const handlePayBulanan = async (tierToBuy: 'basic' | 'pro' = isPro ? 'pro' : 'basic') => {
+    const cost = tierToBuy === 'pro' ? HARGA_PRO_BULANAN : HARGA_BASIC_BULANAN;
+    const label = tierToBuy === 'pro' ? 'Paket Pro (Maks. 3 Cabang)' : 'Paket Basic (1 Cabang)';
+
+    if (currentUser.walletBalance < cost) {
+      toast.warning(`Saldo dompet tidak mencukupi (${formatRupiah(cost)}). Silakan isi saldo terlebih dahulu.`);
       setShowTopUpModal(true);
       return;
     }
     const ok = await confirm({
-      title: 'Beli Paket Bulanan',
-      message: `Beli Paket Bulanan 30 Hari seharga ${formatRupiah(totalBiayaBulanan)}? Saldo dompet akan dipotong.`,
+      title: `Beli ${label}`,
+      message: `Beli ${label} 30 Hari seharga ${formatRupiah(cost)}? Saldo dompet akan dipotong.`,
       confirmText: 'Beli Sekarang',
     });
     if (ok) {
-      onExtendSubscription(`Paket Bulanan (${jumlahCabang} Cabang)`, totalBiayaBulanan, 30);
-      toast.success('Perpanjangan langganan 30 hari berhasil!');
+      onExtendSubscription(`${label} 30 Hari`, cost, 30);
+      toast.success(`Langganan ${label} 30 hari berhasil diaktifkan!`);
     }
   };
 
@@ -143,8 +149,16 @@ export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
       toast.warning('Nama cabang laundry wajib diisi.');
       return;
     }
+
+    if (!isProTier(currentUser.subscriptionType) && laundries.length >= 1) {
+      setShowAddBranchModal(false);
+      onOpenUpgradeModal?.('Menambah cabang baru (Paket Basic dibatasi 1 Cabang Outlet). Upgrade ke Paket Pro untuk mengelola hingga 3 cabang.');
+      return;
+    }
+
     if (laundries.length >= 3) {
-      toast.warning('Maksimal batas cabang untuk akun ini adalah 3 cabang.');
+      setShowAddBranchModal(false);
+      toast.warning('Batas maksimal 3 cabang outlet telah tercapai untuk Paket Pro (kebijakan keamanan & anti-bot).');
       return;
     }
 
@@ -168,39 +182,51 @@ export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
 
       <main className="flex-1 p-3 md:p-6 space-y-3 md:space-y-4 overflow-y-auto max-w-xl md:max-w-3xl lg:max-w-4xl mx-auto w-full">
         {/* Owner Profile Banner Card */}
-        <div className="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="min-w-0">
-            <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
-              <UserCheck className="w-3.5 h-3.5 text-[#800000]" />
-              <span>Profil Pemilik / Owner</span>
-            </div>
-            <h2 className="text-base font-black text-slate-900 mt-0.5 truncate">
-              {currentUser.displayName}
-            </h2>
-            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600 mt-1">
-              <span className="flex items-center gap-1">
-                📞 <strong>{currentUser.nomorTelepon || 'Nomor HP belum diatur'}</strong>
-              </span>
-              <span className="text-slate-300">•</span>
-              <span className="inline-flex items-center gap-1 text-[11px] text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md font-medium">
-                <Lock className="w-3 h-3 text-slate-400" />
-                <span>Login: {currentUser.emailOrPhone || currentUser.nomorTelepon || '-'} (Terkunci)</span>
-              </span>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => {
-              setEditDisplayName(currentUser.displayName || '');
-              setEditNomorTelepon(currentUser.nomorTelepon || '');
-              setShowEditOwnerModal(true);
-            }}
-            className="flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#800000] hover:bg-[#660000] text-white font-bold text-xs shadow-xs transition active:scale-95 cursor-pointer shrink-0"
-          >
-            <Edit className="w-3.5 h-3.5" />
-            <span>Ganti Nama & Nomor</span>
-          </button>
-        </div>
+
+<div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm">
+  <div className="flex items-center justify-between gap-4">
+    {/* KIRI: Profil Owner */}
+    <div className="flex-1 min-w-0">
+  
+
+      <h2 className="mt-2 text-base sm:text-lg font-black text-slate-900 truncate">
+        {currentUser.displayName || '-'}
+      </h2>
+
+      <div className="mt-1.5 flex items-start gap-1.5 text-xs sm:text-sm text-slate-600">
+        <span className="shrink-0">📞</span>
+        <span className="break-words">
+          {currentUser.nomorTelepon || 'Nomor HP belum diatur'}
+        </span>
+      </div>
+    </div>
+
+    {/* KANAN: Tombol Edit dan Login Terkunci */}
+    <div className="flex flex-col items-end gap-2 shrink-0">
+      <button
+        type="button"
+        onClick={() => {
+          setEditDisplayName(currentUser.displayName || '');
+          setEditNomorTelepon(currentUser.nomorTelepon || '');
+          setShowEditOwnerModal(true);
+        }}
+        className="inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-[#800000] hover:bg-[#660000] text-white font-bold text-xs sm:text-sm shadow-sm transition active:scale-95 cursor-pointer"
+      >
+        <Edit className="w-3.5 h-3.5 shrink-0" />
+        <span className="whitespace-nowrap">Edit Profil</span>
+      </button>
+
+      <div className="flex items-center justify-end gap-1.5 max-w-full rounded-lg bg-slate-100 border border-slate-200 px-2 py-1.5 text-[10px] sm:text-xs text-slate-500">
+        <Lock className="w-3 h-3 shrink-0 text-slate-400" />
+        <span className="min-w-0 break-all text-right">
+          Login: {currentUser.emailOrPhone || currentUser.nomorTelepon || '-'}
+          <span className="font-semibold text-slate-600"> (Terkunci)</span>
+        </span>
+      </div>
+    </div>
+  </div>
+</div>
+
 
         {/* 1. WALLET & SUBSCRIPTION CARD (Matches wallet card in activity_kelola_owner.xml) */}
         <div className="bg-[#1e293b] text-white rounded-2xl shadow-md overflow-hidden border border-slate-700">
@@ -217,19 +243,7 @@ export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
               <span className="text-xl font-black text-white">{formatRupiah(currentUser.walletBalance)}</span>
             </div>
             <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setEditDisplayName(currentUser.displayName || '');
-                  setEditNomorTelepon(currentUser.nomorTelepon || '');
-                  setShowEditOwnerModal(true);
-                }}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-900 font-bold text-xs shadow-xs transition active:scale-95 cursor-pointer"
-                title="Kelola ganti nama dan nomor telepon owner"
-              >
-                <Edit className="w-3.5 h-3.5" />
-                <span>Ganti Nama/No</span>
-              </button>
+         
               <button
                 type="button"
                 onClick={() => setShowTopUpModal(true)}
@@ -243,47 +257,48 @@ export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
           </div>
 
           {/* Perpanjangan Options */}
-          <div className="p-1 space-y-3">
-         
-
-            {/* Bulanan */}
+          <div className="p-3 space-y-2.5">
+            {/* Paket Bulanan Basic */}
             <div className="flex items-center justify-between p-3 rounded-xl bg-slate-800/80 border border-slate-700">
-              <div>
-                <div className="font-bold text-xs text-white">Bulanan (30 Hari)</div>
-                <div className="text-[11px] text-slate-400">
-                  {formatRupiah(totalBiayaBulanan)} ({jumlahCabang} Cabang)
+              <div className="min-w-0 pr-2">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-bold text-xs text-white">Paket Basic (30 Hari)</span>
+                  {!isPro && <span className="text-[10px] bg-slate-700 text-slate-300 px-1.5 py-0.2 rounded font-semibold">Aktif</span>}
+                </div>
+                <div className="text-[11px] text-slate-400 mt-0.5">
+                  {formatRupiah(HARGA_BASIC_BULANAN)} · 1 Cabang Outlet & 1 Kasir
                 </div>
               </div>
               <button
-                onClick={handlePayBulanan}
-                className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition active:scale-95"
+                onClick={() => handlePayBulanan('basic')}
+                className="px-3.5 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-bold text-xs shadow-xs transition active:scale-95 shrink-0 cursor-pointer"
               >
-                Bayar
+                Bayar {formatRupiah(HARGA_BASIC_BULANAN)}
               </button>
             </div>
 
-            {/* Harian */}
-            <div className="flex items-center justify-between p-3 rounded-xl bg-slate-800/80 border border-slate-700 gap-2">
-              <div className="flex-1 min-w-0">
-                <div className="font-bold text-xs text-white">
-                  Harian ({formatRupiah(hargaHarianPerHari)}/hari)
+            {/* Paket Bulanan Pro */}
+            <div className="flex items-center justify-between p-3 rounded-xl bg-gradient-to-r from-amber-950/40 to-slate-800/90 border border-amber-500/40">
+              <div className="min-w-0 pr-2">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-black text-xs text-amber-300 flex items-center gap-1">
+                    <Sparkles className="w-3 h-3 text-amber-400" />
+                    <span>Paket Pro (30 Hari)</span>
+                  </span>
+                  {isPro && <span className="text-[10px] bg-amber-400/20 text-amber-300 border border-amber-300/40 px-1.5 py-0.2 rounded font-bold">Aktif</span>}
                 </div>
-                <div className="text-[11px] text-slate-400">Pilih durasi fleksibel</div>
+                <div className="text-[11px] text-amber-200/80 mt-0.5">
+                  {formatRupiah(HARGA_PRO_BULANAN)} · Hingga 3 Cabang, Excel/PDF & Analitik
+                </div>
               </div>
-              <input
-                type="number"
-                min="1"
-                value={harianDays}
-                onChange={(e) => setHarianDays(e.target.value)}
-                className="w-14 px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-600 text-xs text-center font-bold text-white"
-              />
               <button
-                onClick={handlePayHarian}
-                className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition active:scale-95 shrink-0"
+                onClick={() => handlePayBulanan('pro')}
+                className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs shadow-xs transition active:scale-95 shrink-0 cursor-pointer"
               >
-                Bayar
+                Bayar {formatRupiah(HARGA_PRO_BULANAN)}
               </button>
             </div>
+
           </div>
         </div>
 
@@ -292,18 +307,34 @@ export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
           <div className="bg-[#800000] text-white p-3.5 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Building2 className="w-4 h-4 text-white" />
-              <span className="font-bold text-xs">Daftar Cabang Laundry ({laundries.length}/3)</span>
+              <span className="font-bold text-xs">
+                Daftar Cabang Laundry ({laundries.length} {isPro ? '/ 3 Cabang · Paket Pro' : '/ 1 Cabang · Paket Basic'})
+              </span>
             </div>
             <div className="flex items-center gap-2">
               <button
-                onClick={() => setShowAddBranchModal(true)}
-                className="px-2.5 py-1 rounded-lg bg-white/20 hover:bg-white/30 text-white text-[11px] font-bold transition"
+                type="button"
+                onClick={() => {
+                  if (!isPro && laundries.length >= 1) {
+                    onOpenUpgradeModal?.('Menambah cabang baru (Paket Basic dibatasi 1 Cabang Outlet). Upgrade ke Paket Pro untuk mengelola hingga 3 cabang.');
+                    return;
+                  }
+                  if (laundries.length >= 3) {
+                    toast.warning('Batas maksimal 3 cabang outlet telah tercapai untuk Paket Pro (kebijakan keamanan & anti-bot).');
+                    return;
+                  }
+                  setShowAddBranchModal(true);
+                }}
+                className="px-2.5 py-1 rounded-lg bg-white/20 hover:bg-white/30 text-white text-[11px] font-bold transition flex items-center gap-1 cursor-pointer"
               >
-                + Cabang
+                {(!isPro && laundries.length >= 1) || laundries.length >= 3 ? (
+                  <Lock className="w-3 h-3 text-amber-300" />
+                ) : null}
+                <span>+ Cabang</span>
               </button>
               <button
                 onClick={() => setShowBranches(!showBranches)}
-                className="p-1 rounded-full hover:bg-white/20 transition"
+                className="p-1 rounded-full hover:bg-white/20 transition cursor-pointer"
               >
                 <ChevronDown className={`w-4 h-4 transition-transform ${showBranches ? 'rotate-180' : ''}`} />
               </button>

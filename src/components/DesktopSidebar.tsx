@@ -21,9 +21,10 @@ import {
   Crown,
 } from 'lucide-react';
 import { User, Laundry, Transaksi } from '../types';
+import { isProTier } from '../utils/subscription';
 
 export type NavViewType =
-  | ' splash'
+  | 'splash'
   | 'auth'
   | 'dashboard'
   | 'tambah_edit'
@@ -51,6 +52,8 @@ interface DesktopSidebarProps {
   transaksiList: Transaksi[];
   pelangganCount: number;
   layananCount: number;
+  currentTier?: string | null;
+  onOpenUpgradeModal?: (reason?: string) => void;
 }
 
 export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
@@ -66,6 +69,8 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
   transaksiList,
   pelangganCount,
   layananCount,
+  currentTier,
+  onOpenUpgradeModal,
 }) => {
   const [collapsed, setCollapsed] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -86,14 +91,9 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
   const subDiffMs = subEnd - subNow;
   const subSisaHari = Math.max(0, Math.ceil(subDiffMs / (1000 * 60 * 60 * 24)));
   const subIsExpired = subDiffMs <= 0;
-  const subPaketNama = (() => {
-    const raw = (currentUser.subscriptionType || '').toLowerCase();
-    if (raw.includes('trial') || raw.includes('uji') || raw.includes('coba')) return 'Trial Gratis (7 Hari)';
-    if (raw.includes('harian')) return 'Paket Harian';
-    if (raw.includes('bulanan')) return 'Paket Bulanan';
-    if (raw.includes('standar') || raw.includes('gratis') || raw.includes('free')) return 'Paket Standar';
-    return 'Paket Premium';
-  })();
+  const subPaketNama = isProTier(currentTier || currentUser.subscriptionType)
+    ? 'Paket Pro'
+    : 'Paket Basic';
 
   const navGroups = [
     {
@@ -364,8 +364,14 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
       <div className="p-3 border-t border-slate-200 bg-slate-50/70">
         {!collapsed && (
           <div
-            onClick={() => onSelectView('kelola_owner')}
-            title={`Paket Langganan: ${subPaketNama} • Sisa ${subSisaHari} Hari. Klik untuk kelola.`}
+            onClick={() => {
+              if (onOpenUpgradeModal) {
+                onOpenUpgradeModal();
+              } else {
+                onSelectView('kelola_owner');
+              }
+            }}
+            title={`Paket Langganan: ${subPaketNama} • Sisa ${subSisaHari} Hari. Klik untuk lihat detail & komparasi paket.`}
             className="mb-2.5 p-2 rounded-xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/90 shadow-2xs cursor-pointer hover:border-amber-300 transition active:scale-98"
           >
             <div className="flex items-center justify-between">

@@ -39,6 +39,8 @@ import { ApkPlaystoreModal } from './components/ApkPlaystoreModal';
 import { LimitTransaksiModal } from './components/LimitTransaksiModal';
 import { AssignStaffModal } from './components/AssignStaffModal';
 import { ReceiptModal } from './components/ReceiptModal';
+import { UpgradePlanModal } from './components/UpgradePlanModal';
+import { LaundryTier, normalizeTier, getLaundryLimits } from './utils/subscription';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { DesktopSidebar } from './components/DesktopSidebar';
 import { DemoBanner } from './components/DemoBanner';
@@ -159,6 +161,31 @@ export default function App() {
   const [trxForAssignStaff, setTrxForAssignStaff] = useState<Transaksi | null>(null);
   const [receiptModalTrx, setReceiptModalTrx] = useState<Transaksi | null>(null);
 
+  // Subscription Tier state (Basic vs Pro)
+  const [activeTier, setActiveTier] = useState<LaundryTier>(() => {
+    const saved = StorageService.get<string | null>('active_subscription_tier', null);
+    if (saved) return normalizeTier(saved);
+    return normalizeTier(currentUser?.subscriptionType);
+  });
+  const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
+  const [upgradeTriggerReason, setUpgradeTriggerReason] = useState<string | undefined>(undefined);
+
+  const handleOpenUpgradeModal = (reason?: string) => {
+    setUpgradeTriggerReason(reason);
+    setIsUpgradeModalOpen(true);
+  };
+
+  const handleSwitchTier = (newTier: LaundryTier) => {
+    setActiveTier(newTier);
+    StorageService.set('active_subscription_tier', newTier);
+    if (currentUser) {
+      const updatedUser = { ...currentUser, subscriptionType: newTier };
+      setCurrentUser(updatedUser);
+      StorageService.set('active_user', updatedUser);
+    }
+    toast.success(`Mode simulasi paket beralih ke ${newTier === 'pro' ? 'Paket Pro' : 'Paket Basic'}!`);
+  };
+
   // Toast & Double-Tap to Exit state saat berada di menu utama (Dashboard)
   const [exitToast, setExitToast] = useState(false);
   const lastBackTimeRef = useRef<number>(0);
@@ -171,6 +198,7 @@ export default function App() {
     isSwitchBranchOpen,
     isApkModalOpen,
     isLimitModalOpen,
+    isUpgradeModalOpen,
     hasTrxForAssignStaff: !!trxForAssignStaff,
     hasReceiptModalTrx: !!receiptModalTrx,
   });
@@ -182,6 +210,7 @@ export default function App() {
       isSwitchBranchOpen,
       isApkModalOpen,
       isLimitModalOpen,
+      isUpgradeModalOpen,
       hasTrxForAssignStaff: !!trxForAssignStaff,
       hasReceiptModalTrx: !!receiptModalTrx,
     };
@@ -191,6 +220,7 @@ export default function App() {
     isSwitchBranchOpen,
     isApkModalOpen,
     isLimitModalOpen,
+    isUpgradeModalOpen,
     trxForAssignStaff,
     receiptModalTrx,
   ]);
@@ -209,6 +239,11 @@ export default function App() {
       // 1. Jika ada popup modal terbuka, tutup modal tersebut terlebih dahulu
       if (state.hasReceiptModalTrx) {
         setReceiptModalTrx(null);
+        window.history.pushState({ view: state.activeView }, '');
+        return;
+      }
+      if (state.isUpgradeModalOpen) {
+        setIsUpgradeModalOpen(false);
         window.history.pushState({ view: state.activeView }, '');
         return;
       }
@@ -625,6 +660,16 @@ export default function App() {
     telepon?: string,
     copyFromId?: string
   ) => {
+    const limits = getLaundryLimits(activeTier);
+    if (laundries.length >= limits.maxBranches) {
+      toast.warning(
+        limits.tier === 'basic'
+          ? 'Paket Basic dibatasi 1 Cabang Outlet. Tingkatkan ke Paket Pro untuk mengelola hingga 3 cabang.'
+          : 'Batas maksimal 3 cabang telah tercapai untuk Paket Pro (kebijakan keamanan & anti-bot).'
+      );
+      return;
+    }
+
     const newLndId = `lnd-${Date.now()}`;
     const newLnd: Laundry = {
       id: newLndId,
@@ -663,6 +708,28 @@ export default function App() {
   };
 
   const handleAddKasir = (nama: string, email: string, pass: string, laundryId: string) => {
+    const limits = getLaundryLimits(activeTier);
+
+    // Cek batas per outlet: 1 admin per outlet
+    const branchAdmins = staffList.filter(
+      (s) => s.laundryId === laundryId && (s.role === 'admin' || s.role === 'karyawan')
+    );
+    if (branchAdmins.length >= limits.maxAdminPerOutlet) {
+      toast.warning('Cabang outlet ini sudah memiliki 1 admin kasir. Sistem membatasi 1 admin & 1 owner per outlet untuk keamanan dan proteksi bot.');
+      return;
+    }
+
+    // Cek total kasir berdasarkan paket
+    const totalCashiers = staffList.filter((s) => s.role === 'admin' || s.role === 'karyawan').length;
+    if (totalCashiers >= limits.maxCashiers) {
+      toast.warning(
+        limits.tier === 'basic'
+          ? 'Paket Basic dibatasi 1 akun kasir. Upgrade ke Paket Pro untuk menambah cabang dan kasir.'
+          : 'Batas maksimal 3 admin telah tercapai untuk Paket Pro (1 admin per outlet untuk maks. 3 cabang).'
+      );
+      return;
+    }
+
     const isPhone = !email.includes('@');
     const newKasir: User = {
       uid: `usr-${Date.now()}`,
@@ -916,6 +983,8 @@ export default function App() {
             transaksiList={transaksiList}
             pelangganCount={pelangganList.filter((p) => p.laundryId === activeLaundryId).length || pelangganList.length}
             layananCount={layananList.filter((l) => l.laundryId === activeLaundryId).length || layananList.length}
+            currentTier={activeTier}
+            onOpenUpgradeModal={handleOpenUpgradeModal}
           />
         )}
 
@@ -1110,6 +1179,8 @@ export default function App() {
             }}
             onAmbilTransaksi={handleAmbilTransaksi}
             onAmbilBanyakTransaksi={handleAmbilBanyakTransaksi}
+            currentTier={activeTier}
+            onOpenUpgradeModal={handleOpenUpgradeModal}
           />
         )}
 
@@ -1134,6 +1205,8 @@ export default function App() {
             pengeluaranList={pengeluaranList}
             activeLaundryId={activeLaundryId}
             laundryName={activeLaundry?.namaLaundry || settings.headerStruk || "Kafelas Laundry"}
+            currentTier={activeTier}
+            onOpenUpgradeModal={handleOpenUpgradeModal}
           />
         )}
 
@@ -1200,6 +1273,7 @@ export default function App() {
             onTopUpWallet={handleTopUpWallet}
             onExtendSubscription={handleExtendSubscription}
             onUpdateOwnerProfile={handleUpdateOwnerProfile}
+            onOpenUpgradeModal={handleOpenUpgradeModal}
           />
         )}
 
@@ -1208,8 +1282,10 @@ export default function App() {
             onBack={() => setActiveView('dashboard')}
             staffList={staffList}
             laundries={laundries}
+            currentTier={activeTier}
             onAddKasir={handleAddKasir}
             onDeleteKasir={handleDeleteKasir}
+            onOpenUpgradeModal={handleOpenUpgradeModal}
           />
         )}
 
@@ -1219,12 +1295,14 @@ export default function App() {
             settings={settings}
             currentUser={currentUser}
             activeLaundry={activeLaundry}
+            currentTier={activeTier}
             onUpdateSettings={updateSettings}
             onOpenKelolaPelanggan={() => setActiveView('kelola_pelanggan')}
             onOpenKelolaLayanan={() => setActiveView('kelola_layanan')}
             onOpenKelolaOwner={() => setActiveView('kelola_owner')}
             onOpenKelolaKasir={() => setActiveView('kelola_kasir')}
             onOpenApkModal={() => setIsApkModalOpen(true)}
+            onOpenUpgradeModal={handleOpenUpgradeModal}
             onLogout={handleLogoutUser}
           />
         )}
@@ -1246,8 +1324,19 @@ export default function App() {
           onClose={() => setIsSwitchBranchOpen(false)}
           laundries={laundries}
           activeLaundryId={activeLaundryId}
+          currentTier={activeTier}
           onSelectBranch={handleSelectBranch}
           onManageBranches={() => setActiveView('kelola_owner')}
+          onOpenUpgradeModal={handleOpenUpgradeModal}
+        />
+
+        {/* Modal Komparasi & Upgrade Paket Basic vs Pro */}
+        <UpgradePlanModal
+          isOpen={isUpgradeModalOpen}
+          onClose={() => setIsUpgradeModalOpen(false)}
+          currentTier={activeTier}
+          triggerReason={upgradeTriggerReason}
+          onSwitchTier={handleSwitchTier}
         />
 
         <ApkPlaystoreModal

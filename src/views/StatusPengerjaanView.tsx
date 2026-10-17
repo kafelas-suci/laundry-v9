@@ -17,6 +17,7 @@ import { Transaksi, Layanan, User, SettingsData } from '../types';
 import { formatShortDate, formatShortTime, formatRupiah } from '../utils/formatters';
 import { AssignStaffModal } from '../components/AssignStaffModal';
 import { useToast, useConfirm } from '../components/NotificationContext';
+import { isProTier } from '../utils/subscription';
 
 interface StatusPengerjaanViewProps {
   onBack: () => void;
@@ -26,10 +27,12 @@ interface StatusPengerjaanViewProps {
   currentUser?: User | null;
   settings: SettingsData;
   activeLaundryId: string;
+  currentTier?: string | null;
   onOpenDetail: (transaksiId: string) => void;
   onUpdateTransaksi: (updated: Transaksi) => void;
   onAmbilTransaksi?: (transaksi: Transaksi) => void;
   onAmbilBanyakTransaksi?: (transaksiList: Transaksi[]) => void;
+  onOpenUpgradeModal?: (reason?: string) => void;
 }
 
 export const StatusPengerjaanView: React.FC<StatusPengerjaanViewProps> = ({
@@ -40,10 +43,12 @@ export const StatusPengerjaanView: React.FC<StatusPengerjaanViewProps> = ({
   currentUser,
   settings,
   activeLaundryId,
+  currentTier,
   onOpenDetail,
   onUpdateTransaksi,
   onAmbilTransaksi,
   onAmbilBanyakTransaksi,
+  onOpenUpgradeModal,
 }) => {
   const toast = useToast();
   const { confirm } = useConfirm();
@@ -146,7 +151,7 @@ export const StatusPengerjaanView: React.FC<StatusPengerjaanViewProps> = ({
 
   const handleActionButtonClick = (trx: Transaksi) => {
     if (trx.status === 'Diterima') {
-      if (staffList.length > 0) {
+      if (isProTier(currentTier) && staffList.length > 0) {
         setSelectedTrxForStaff(trx);
       } else {
         // Direct transition: tulis nama user yang sedang login
@@ -157,6 +162,7 @@ export const StatusPengerjaanView: React.FC<StatusPengerjaanViewProps> = ({
           dikerjakanOleh: loginUserName,
         };
         onUpdateTransaksi(updated);
+        toast.success(`Pesanan ${trx.nomorTransaksi || trx.namaPelanggan} masuk ke tahap pengerjaan!`);
       }
     } else if (trx.status === 'Proses') {
       // Mark as finished
@@ -353,11 +359,11 @@ export const StatusPengerjaanView: React.FC<StatusPengerjaanViewProps> = ({
                       {trx.status === 'Diterima' ? (
                         <button
                           onClick={() => handleActionButtonClick(trx)}
-                          title="Tugaskan Staf"
+                          title={isProTier(currentTier) ? 'Tugaskan Staf (Pro)' : 'Mulai Proses Cucian'}
                           className="px-2 py-1 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold flex items-center gap-1 shadow-2xs active:scale-90 transition"
                         >
                           <UserCheck className="w-3 h-3" />
-                          <span>Tugaskan</span>
+                          <span>{isProTier(currentTier) ? 'Tugaskan' : 'Mulai'}</span>
                         </button>
                       ) : trx.status === 'Proses' ? (
                         <button

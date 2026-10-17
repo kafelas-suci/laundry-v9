@@ -1,0 +1,6 @@
+{
+  "summary": "Rencana Implementasi Arsitektur Paket Langganan Basic vs Pro untuk Kafelas Laundry:\n1. Struktur Paket:\n   - Paket Basic (Pemula/UMKM): 1 Cabang utama, 1 akun kasir, transaksi POS lengkap, cetak struk Bluetooth & WA standar, pembukuan arus kas harian.\n   - Paket Pro (Scale-Up/Multi-Cabang): Multi-cabang tanpa batas, multi-kasir & penugasan staf pengerjaan, ekspor Excel (XLSX), cetak PDF laporan resmi A4, grafik komparasi pertumbuhan bulanan/tahunan, serta logo & tanda tangan digital di struk thermal.\n2. Desain Antarmuka: Modal upgrade & komparasi paket yang elegan (60-30-10 palette, tabular numerals, tanpa pill sandwich), badge status paket di sidebar/profil, dan indikator gembok halus pada tombol fitur eksklusif Pro.\n3. Arsitektur Teknis: Service konfigurasi limit langganan laundry-native (SubscriptionLimits), guards pada aksi tambah cabang, tambah kasir, ekspor laporan, dan aktivasi logo struk, terintegrasi dengan Firestore & LocalStorage.",
+  "updatedAt": "2026-10-17T05:13:58.066638021Z",
+  "requestFeedback": true,
+  "userFacing": true
+}
