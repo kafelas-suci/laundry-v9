@@ -17,7 +17,7 @@ import { Transaksi, Layanan, User, SettingsData } from '../types';
 import { formatShortDate, formatShortTime, formatRupiah } from '../utils/formatters';
 import { AssignStaffModal } from '../components/AssignStaffModal';
 import { useToast, useConfirm } from '../components/NotificationContext';
-import { isProTier } from '../utils/subscription';
+import { isProTier, getLaundryLimits } from '../utils/subscription';
 
 interface StatusPengerjaanViewProps {
   onBack: () => void;
@@ -52,6 +52,8 @@ export const StatusPengerjaanView: React.FC<StatusPengerjaanViewProps> = ({
 }) => {
   const toast = useToast();
   const { confirm } = useConfirm();
+  const limits = getLaundryLimits(currentTier);
+  const canAssignStaff = limits.canAssignStaff;
   const [selectedTrxForStaff, setSelectedTrxForStaff] = useState<Transaksi | null>(null);
   const [statusFilter, setStatusFilter] = useState<'semua' | 'selesai' | 'baru_masuk' | 'sedang_dikerjakan'>('semua');
   const [showConfirmBulkAmbil, setShowConfirmBulkAmbil] = useState(false);
@@ -151,7 +153,7 @@ export const StatusPengerjaanView: React.FC<StatusPengerjaanViewProps> = ({
 
   const handleActionButtonClick = (trx: Transaksi) => {
     if (trx.status === 'Diterima') {
-      if (isProTier(currentTier) && staffList.length > 0) {
+      if (canAssignStaff) {
         setSelectedTrxForStaff(trx);
       } else {
         // Direct transition: tulis nama user yang sedang login
@@ -359,11 +361,11 @@ export const StatusPengerjaanView: React.FC<StatusPengerjaanViewProps> = ({
                       {trx.status === 'Diterima' ? (
                         <button
                           onClick={() => handleActionButtonClick(trx)}
-                          title={isProTier(currentTier) ? 'Tugaskan Staf (Pro)' : 'Mulai Proses Cucian'}
+                          title={canAssignStaff ? 'Tugaskan Staf' : 'Mulai Proses Cucian'}
                           className="px-2 py-1 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold flex items-center gap-1 shadow-2xs active:scale-90 transition"
                         >
                           <UserCheck className="w-3 h-3" />
-                          <span>{isProTier(currentTier) ? 'Tugaskan' : 'Mulai'}</span>
+                          <span>{canAssignStaff ? 'Tugaskan' : 'Mulai'}</span>
                         </button>
                       ) : trx.status === 'Proses' ? (
                         <button

@@ -1,4 +1,4 @@
-export type LaundryTier = 'newcomer' | 'basic' | 'pro';
+export type LaundryTier = 'newcomer' | 'basic';
 
 export interface LaundrySubscriptionLimits {
   tier: LaundryTier;
@@ -6,21 +6,24 @@ export interface LaundrySubscriptionLimits {
   tagline: string;
   badgeText: string;
   priceMonthly: number;
-  maxBranches: number;            // Newcomer: 1, Basic: 1, Pro: 3
-  maxCashiers: number;            // Newcomer: 0, Basic: 1, Pro: 3
-  maxAdminPerOutlet: number;      // Newcomer: 0, Basic: 1, Pro: 1
+  maxBranches: number;            // 1 Cabang utama (bisa tambah Rp 25.000/cabang)
+  pricePerExtraBranch?: number;   // Rp 25.000 per cabang tambahan
+  maxCashiers: number;            // Newcomer: 0, Basic: 1
+  maxAdminPerOutlet: number;      // 1
   maxOwnerPerOutlet: number;      // 1
-  maxCustomers: number;           // Newcomer: 50, Basic: 500, Pro: 5000
-  maxMonthlyTransactions: number; // Newcomer: 50, Basic: 300, Pro: 1500
-  maxServices: number;            // Newcomer: 5, Basic: 30, Pro: 100
-  canAssignStaff: boolean;        // Newcomer: false, Basic: false, Pro: true
-  canExportExcel: boolean;        // Newcomer: false, Basic: false, Pro: true
-  canExportOfficialPdf: boolean;  // Newcomer: false, Basic: false, Pro: true
-  canViewComparisonGrowth: boolean;// Newcomer: false, Basic: false, Pro: true
-  canUseCustomLogoOnReceipt: boolean; // Newcomer: false, Basic: false, Pro: true
-  canUseSignatureOnReceipt: boolean;  // Newcomer: false, Basic: false, Pro: true
+  maxCustomers: number;           // Newcomer: 50, Basic: 1000
+  maxMonthlyTransactions: number; // Newcomer: 50, Basic: 300
+  maxServices: number;            // Newcomer: 5, Basic: 50
+  canAssignStaff: boolean;        // Newcomer: false, Basic: true
+  canExportExcel: boolean;        // Newcomer: false, Basic: true
+  canExportOfficialPdf: boolean;  // Newcomer: false, Basic: true
+  canViewComparisonGrowth: boolean;// Newcomer: false, Basic: true
+  canUseCustomLogoOnReceipt: boolean; // Newcomer: false, Basic: true
+  canUseSignatureOnReceipt: boolean;  // Newcomer: false, Basic: true
   highlights: string[];
 }
+
+export const EXTRA_BRANCH_PRICE = 25000;
 
 export const LAUNDRY_TIER_CONFIG: Record<LaundryTier, LaundrySubscriptionLimits> = {
   newcomer: {
@@ -30,6 +33,7 @@ export const LAUNDRY_TIER_CONFIG: Record<LaundryTier, LaundrySubscriptionLimits>
     badgeText: 'Paket Newcomer (Gratis)',
     priceMonthly: 0,
     maxBranches: 1,
+    pricePerExtraBranch: 25000,
     maxCashiers: 0,
     maxAdminPerOutlet: 0,
     maxOwnerPerOutlet: 1,
@@ -50,52 +54,23 @@ export const LAUNDRY_TIER_CONFIG: Record<LaundryTier, LaundrySubscriptionLimits>
       'Maksimal 5 Jenis Layanan Cucian',
       'Cetak Struk Thermal Standar & Bagikan WhatsApp',
       'Pencatatan Buku Kas Pemasukan & Pengeluaran',
-      'Fitur Staf & Laporan Pro Terkunci',
+      'Fitur Lengkap Kasir & Laporan di Paket Basic',
     ],
   },
   basic: {
     tier: 'basic',
     label: 'Paket Basic',
-    tagline: 'Solusi handal untuk 1 outlet laundry & operasional kasir mandiri',
+    tagline: 'Solusi handal lengkap operasional kasir, staf & pembukuan laporan',
     badgeText: 'Paket Basic',
     priceMonthly: 27000,
     maxBranches: 1,
+    pricePerExtraBranch: 25000,
     maxCashiers: 1,
     maxAdminPerOutlet: 1,
     maxOwnerPerOutlet: 1,
-    maxCustomers: 500,
+    maxCustomers: 1000,
     maxMonthlyTransactions: 300,
-    maxServices: 30,
-    canAssignStaff: false,
-    canExportExcel: false,
-    canExportOfficialPdf: false,
-    canViewComparisonGrowth: false,
-    canUseCustomLogoOnReceipt: false,
-    canUseSignatureOnReceipt: false,
-    highlights: [
-      '1 Cabang Outlet Utama',
-      '1 Admin Kasir & 1 Owner per Outlet',
-      'Hingga 500 Data Pelanggan',
-      'Hingga 300 Nota Transaksi per Bulan',
-      'Hingga 30 Jenis Layanan Cucian',
-      'Cetak Struk Thermal Standar & Bagikan WhatsApp',
-      'Pencatatan Buku Arus Kas Masuk & Keluar',
-      'Fitur Staf & Laporan Pro Terkunci',
-    ],
-  },
-  pro: {
-    tier: 'pro',
-    label: 'Paket Pro',
-    tagline: 'Multi-cabang hingga 3 outlet, audit Excel/PDF & analitik omzet bisnis',
-    badgeText: 'Paket Pro',
-    priceMonthly: 57000,
-    maxBranches: 3,
-    maxCashiers: 3,
-    maxAdminPerOutlet: 1,
-    maxOwnerPerOutlet: 1,
-    maxCustomers: 5000,
-    maxMonthlyTransactions: 1500,
-    maxServices: 100,
+    maxServices: 50,
     canAssignStaff: true,
     canExportExcel: true,
     canExportOfficialPdf: true,
@@ -103,21 +78,22 @@ export const LAUNDRY_TIER_CONFIG: Record<LaundryTier, LaundrySubscriptionLimits>
     canUseCustomLogoOnReceipt: true,
     canUseSignatureOnReceipt: true,
     highlights: [
-      'Dukungan Multi-Cabang (Hingga Maksimal 3 Cabang Outlet)',
-      '1 Admin Kasir per Outlet (Maksimal 3 Admin untuk 3 Cabang)',
-      'Pelanggan & Layanan Kapasitas Besar',
-      'Kapasitas hingga 1.500 nota transaksi per bulan',
+      '1 Cabang Outlet Utama (Bisa Tambah Cabang Rp 25.000/cabang)',
+      '1 Admin Kasir & 1 Owner per Outlet',
+      'Hingga 1.000 Data Pelanggan',
+      'Hingga 300 Nota Transaksi per Bulan',
+      'Hingga 50 Jenis Layanan Cucian',
       'Penugasan Staf Pengerjaan Cucian (Cuci, Setrika, Packing)',
       'Ekspor Pembukuan Lengkap ke Excel Spreadsheet (.xlsx)',
       'Cetak Dokumen Laporan Keuangan Resmi A4 Siap Audit (.pdf)',
-      'Grafik Analisis Komparasi Omzet & Laba (MoM & YoY)',
-      'Kustomisasi Logo & Tanda Tangan Resmi di Struk Thermal',
+      'Grafik Analisis Komparasi Pertumbuhan Omzet & Laba (MoM & YoY)',
+      'Kustomisasi Logo Toko & Tanda Tangan Resmi di Struk Thermal',
     ],
   },
 };
 
 /**
- * Normalisasi string tier menjadi 'newcomer' | 'basic' | 'pro'
+ * Normalisasi string tier menjadi 'newcomer' | 'basic'
  */
 export function normalizeTier(rawTier?: string | null): LaundryTier {
   if (!rawTier) return 'basic';
@@ -131,13 +107,7 @@ export function normalizeTier(rawTier?: string | null): LaundryTier {
   ) {
     return 'newcomer';
   }
-  if (clean === 'basic' || clean === 'standar') {
-    return 'basic';
-  }
-  if (clean === 'pro' || clean === 'premium' || clean === 'ultimate') {
-    return 'pro';
-  }
-  return 'newcomer';
+  return 'basic';
 }
 
 /**
@@ -149,10 +119,10 @@ export function getLaundryLimits(rawTier?: string | null): LaundrySubscriptionLi
 }
 
 /**
- * Pengecekan apakah user berstatus Pro
+ * Pengecekan apakah user berstatus Pro (Deprecated / Dinonaktifkan)
  */
-export function isProTier(rawTier?: string | null): boolean {
-  return normalizeTier(rawTier) === 'pro';
+export function isProTier(_rawTier?: string | null): boolean {
+  return false;
 }
 
 /**
@@ -163,29 +133,22 @@ export function isNewcomerTier(rawTier?: string | null): boolean {
 }
 
 /**
- * Cek apakah user boleh menambah cabang baru
+ * Cek apakah user boleh menambah cabang baru (bisa menambah dengan membayar Rp 25.000 per cabang)
  */
-export function canAddBranch(currentBranchCount: number, rawTier?: string | null): { allowed: boolean; reason?: string } {
+export function canAddBranch(
+  currentBranchCount: number,
+  rawTier?: string | null
+): { allowed: boolean; requiresPayment?: boolean; cost?: number; reason?: string } {
   const limits = getLaundryLimits(rawTier);
-  if (limits.tier === 'newcomer' && currentBranchCount >= 1) {
-    return {
-      allowed: false,
-      reason: 'Paket Newcomer dibatasi maksimal 1 cabang outlet. Tingkatkan ke Paket Pro untuk mengelola hingga 3 cabang.',
-    };
-  }
-  if (limits.tier === 'basic' && currentBranchCount >= 1) {
-    return {
-      allowed: false,
-      reason: 'Paket Basic dibatasi maksimal 1 cabang outlet. Tingkatkan ke Paket Pro untuk mengelola hingga 3 cabang.',
-    };
-  }
-  if (currentBranchCount >= limits.maxBranches) {
-    return {
-      allowed: false,
-      reason: `Maksimal kuota ${limits.maxBranches} cabang outlet telah tercapai untuk Paket Pro (kebijakan keamanan & anti-bot).`,
-    };
-  }
-  return { allowed: true };
+  const requiresPayment = currentBranchCount >= limits.maxBranches;
+  return {
+    allowed: true,
+    requiresPayment,
+    cost: EXTRA_BRANCH_PRICE,
+    reason: requiresPayment
+      ? `Cabang tambahan diaktifkan dengan biaya Rp ${EXTRA_BRANCH_PRICE.toLocaleString('id-ID')} per cabang.`
+      : undefined,
+  };
 }
 
 /**
@@ -201,34 +164,18 @@ export function canAddCashierToBranch(
   if (limits.tier === 'newcomer' || limits.maxCashiers <= 0) {
     return {
       allowed: false,
-      reason: 'Paket Newcomer (Gratis) hanya boleh 1 Owner dan tidak ada kasir. Operasional dikelola langsung oleh Owner. Tingkatkan ke Paket Basic atau Pro untuk membuat akun kasir.',
-    };
-  }
-  
-  // Total cashiers count
-  const totalCashiers = staffList.filter((s) => s.role === 'admin' || s.role === 'karyawan').length;
-  if (limits.tier === 'basic' && totalCashiers >= 1) {
-    return {
-      allowed: false,
-      reason: 'Paket Basic dibatasi maksimal 1 akun kasir. Tingkatkan ke Paket Pro untuk menambah cabang dan kasir.',
+      reason: 'Paket Newcomer (Gratis) hanya boleh 1 Owner dan tidak ada kasir. Tingkatkan ke Paket Basic untuk membuat akun kasir.',
     };
   }
 
-  if (totalCashiers >= limits.maxCashiers) {
-    return {
-      allowed: false,
-      reason: `Batas kuota total ${limits.maxCashiers} admin telah tercapai (1 admin per outlet untuk maksimal 3 cabang).`,
-    };
-  }
-
-  // Per-outlet cashiers count
+  // Per-outlet cashiers count: 1 admin per outlet
   const branchCashiers = staffList.filter(
     (s) => s.laundryId === branchId && (s.role === 'admin' || s.role === 'karyawan')
   );
   if (branchCashiers.length >= limits.maxAdminPerOutlet) {
     return {
       allowed: false,
-      reason: 'Cabang outlet ini sudah memiliki 1 admin kasir. Sistem membatasi 1 admin & 1 owner per outlet untuk keamanan dan proteksi bot.',
+      reason: 'Cabang outlet ini sudah memiliki 1 admin kasir. Sistem membatasi 1 admin & 1 owner per outlet untuk keamanan operasional.',
     };
   }
 
@@ -244,7 +191,7 @@ export function canAddCustomer(currentCustomerCount: number, rawTier?: string | 
     return {
       allowed: false,
       reason: limits.tier === 'newcomer'
-        ? 'Batas maksimal 50 data pelanggan untuk Paket Newcomer (Gratis) telah tercapai. Tingkatkan ke Paket Basic atau Pro untuk menambah lebih banyak pelanggan.'
+        ? 'Batas maksimal 50 data pelanggan untuk Paket Newcomer (Gratis) telah tercapai. Tingkatkan ke Paket Basic untuk kapasitas hingga 1.000 pelanggan.'
         : `Batas maksimal ${limits.maxCustomers} pelanggan telah tercapai untuk ${limits.label}.`,
     };
   }
@@ -260,7 +207,7 @@ export function canAddService(currentServiceCount: number, rawTier?: string | nu
     return {
       allowed: false,
       reason: limits.tier === 'newcomer'
-        ? 'Paket Newcomer (Gratis) dibatasi maksimal 5 jenis layanan. Tingkatkan ke Paket Basic atau Pro untuk menambah jenis layanan lainnya.'
+        ? 'Paket Newcomer (Gratis) dibatasi maksimal 5 jenis layanan. Tingkatkan ke Paket Basic untuk kapasitas hingga 50 jenis layanan.'
         : `Batas maksimal ${limits.maxServices} layanan telah tercapai untuk ${limits.label}.`,
     };
   }
@@ -275,7 +222,7 @@ export function canAddMonthlyTransaction(monthlyTransactionCount: number, rawTie
   if (monthlyTransactionCount >= limits.maxMonthlyTransactions) {
     return {
       allowed: false,
-      reason: `Kuota ${limits.maxMonthlyTransactions} transaksi per bulan untuk ${limits.label} telah tercapai. Tingkatkan paket langganan untuk melanjutkan pembuatan nota baru.`,
+      reason: `Kuota ${limits.maxMonthlyTransactions} transaksi per bulan untuk ${limits.label} telah tercapai. Silakan perpanjang atau kelola langganan untuk melanjutkan pembuatan nota baru.`,
     };
   }
   return { allowed: true };
@@ -309,7 +256,7 @@ export const SUBSCRIPTION_CONFIG: Record<string, SubscriptionLimits> = {
     maxDailyActions: 0,
     maxDailyVisits: 10,
   },
-  pro: {
+  basic: {
     maxSchedulesPerMonth: 500,
     maxAdmins: 3,
     maxCrew: 0,

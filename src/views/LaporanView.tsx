@@ -28,7 +28,7 @@ import { exportLaporanToExcel, LaporanSummaryExportData } from '../utils/excelEx
 import { generateLaporanPdf, LaporanPdfData } from '../utils/pdfExport';
 import { ReportPdfModal } from '../components/ReportPdfModal';
 import { useToast } from '../components/NotificationContext';
-import { isProTier } from '../utils/subscription';
+import { getLaundryLimits } from '../utils/subscription';
 
 interface LaporanViewProps {
   onBack: () => void;
@@ -52,6 +52,11 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
   const toast = useToast();
   const currentYear = new Date().getFullYear();
   const currentMonth = new Date().getMonth();
+
+  const limits = getLaundryLimits(currentTier);
+  const canExcel = limits.canExportExcel;
+  const canPdf = limits.canExportOfficialPdf;
+  const canGrowth = limits.canViewComparisonGrowth;
 
   const [activeTab, setActiveTab] = useState<'ringkasan' | 'komparasi'>('ringkasan');
   const [selectedMonth, setSelectedMonth] = useState<number>(currentMonth); // 0-11, or -1 for All
@@ -354,7 +359,7 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
 
   // Handler Ekspor Excel (.xlsx)
   const handleExportExcel = () => {
-    if (!isProTier(currentTier)) {
+    if (!canExcel) {
       onOpenUpgradeModal?.('Ekspor Pembukuan Lengkap ke Excel Spreadsheet (.xlsx)');
       return;
     }
@@ -437,7 +442,7 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
 
   // 1-Click Direct Download PDF File
   const handleDownloadPDF = () => {
-    if (!isProTier(currentTier)) {
+    if (!canPdf) {
       onOpenUpgradeModal?.('Cetak & Unduh Dokumen Laporan Keuangan Resmi A4 (.pdf)');
       return;
     }
@@ -454,7 +459,7 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
 
   // Open Preview & Print Modal
   const handleOpenPdfModal = () => {
-    if (!isProTier(currentTier)) {
+    if (!canPdf) {
       onOpenUpgradeModal?.('Pratinjau & Cetak Dokumen Laporan Keuangan Resmi A4');
       return;
     }
@@ -490,52 +495,52 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
             type="button"
             onClick={handleExportExcel}
             className={`px-2.5 sm:px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-sm transition active:scale-95 cursor-pointer ${
-              !isProTier(currentTier)
+              !canExcel
                 ? 'bg-emerald-700/80 hover:bg-emerald-600 text-white'
                 : 'bg-emerald-600 hover:bg-emerald-500 text-white'
             }`}
-            title={!isProTier(currentTier) ? 'Terkunci di Paket Basic (Klik untuk upgrade)' : 'Unduh Spreadsheet Excel (.xlsx)'}
+            title={!canExcel ? 'Terkunci di Paket Newcomer (Klik untuk upgrade)' : 'Unduh Spreadsheet Excel (.xlsx)'}
           >
-            {!isProTier(currentTier) ? (
+            {!canExcel ? (
               <Lock className="w-3.5 h-3.5 text-emerald-200" />
             ) : (
               <FileSpreadsheet className="w-4 h-4 text-emerald-200" />
             )}
             <span className="hidden sm:inline">Excel</span>
-            {!isProTier(currentTier) && <span className="text-[10px] text-emerald-200 font-black">PRO</span>}
+            {!canExcel && <span className="text-[10px] text-emerald-200 font-black">BASIC</span>}
           </button>
 
           <button
             type="button"
             onClick={handleDownloadPDF}
             className={`px-2.5 sm:px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-sm transition active:scale-95 cursor-pointer ${
-              !isProTier(currentTier)
+              !canPdf
                 ? 'bg-red-800/80 hover:bg-red-700 text-white'
                 : 'bg-red-700 hover:bg-red-600 text-white'
             }`}
-            title={!isProTier(currentTier) ? 'Terkunci di Paket Basic (Klik untuk upgrade)' : 'Unduh Berkas PDF (.pdf) Langsung'}
+            title={!canPdf ? 'Terkunci di Paket Newcomer (Klik untuk upgrade ke Basic)' : 'Unduh Berkas PDF (.pdf) Langsung'}
           >
-            {!isProTier(currentTier) ? (
+            {!canPdf ? (
               <Lock className="w-3.5 h-3.5 text-red-200" />
             ) : (
               <Download className="w-4 h-4 text-red-200" />
             )}
             <span className="hidden sm:inline">Unduh PDF</span>
             <span className="sm:hidden">PDF</span>
-            {!isProTier(currentTier) && <span className="text-[10px] text-red-200 font-black">PRO</span>}
+            {!canPdf && <span className="text-[10px] text-red-200 font-black">BASIC</span>}
           </button>
 
           <button
             type="button"
             onClick={handleOpenPdfModal}
             className={`px-2.5 sm:px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-sm transition active:scale-95 cursor-pointer ${
-              !isProTier(currentTier)
+              !canPdf
                 ? 'bg-slate-800/80 hover:bg-slate-700 text-slate-200'
                 : 'bg-slate-800 hover:bg-slate-700 text-white'
             }`}
-            title={!isProTier(currentTier) ? 'Terkunci di Paket Basic (Klik untuk upgrade)' : 'Pratinjau Dokumen & Cetak Kertas'}
+            title={!canPdf ? 'Terkunci di Paket Newcomer (Klik untuk upgrade)' : 'Pratinjau Dokumen & Cetak Kertas'}
           >
-            {!isProTier(currentTier) ? (
+            {!canPdf ? (
               <Lock className="w-3.5 h-3.5 text-amber-300" />
             ) : (
               <Printer className="w-4 h-4 text-amber-300" />
@@ -583,7 +588,7 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
             </div>
           </div>
 
-          {/* Tab Switcher: Ringkasan vs Analisis Komparasi Pro */}
+          {/* Tab Switcher: Ringkasan vs Analisis Komparasi */}
           <div className="grid grid-cols-2 p-1 bg-slate-100 rounded-xl text-xs font-bold">
             <button
               type="button"
@@ -600,7 +605,7 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
             <button
               type="button"
               onClick={() => {
-                if (!isProTier(currentTier)) {
+                if (!canGrowth) {
                   onOpenUpgradeModal?.('Analisis Komparasi Pertumbuhan Historis (MoM & YoY)');
                   return;
                 }
@@ -612,12 +617,12 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              {!isProTier(currentTier) ? (
+              {!canGrowth ? (
                 <Lock className="w-3.5 h-3.5 text-amber-500" />
               ) : (
                 <TrendingUp className="w-3.5 h-3.5 text-amber-400" />
               )}
-              <span>Analisis Komparasi {!isProTier(currentTier) ? '(Pro)' : 'Pro'}</span>
+              <span>Analisis Komparasi {!canGrowth ? '(Basic)' : ''}</span>
             </button>
           </div>
         </div>

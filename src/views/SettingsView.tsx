@@ -222,7 +222,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         {(() => {
           const limits = getLaundryLimits(currentTier || currentUser.subscriptionType);
           const isNewcomer = limits.tier === 'newcomer';
-          const isPro = limits.tier === 'pro';
 
           return (
             <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-4 space-y-3.5">
@@ -238,9 +237,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       </h2>
                       <span
                         className={`px-2 py-0.5 rounded-full border text-[10px] font-bold flex items-center gap-1 shrink-0 ${
-                          isPro
-                            ? 'bg-amber-50 text-amber-900 border-amber-300'
-                            : isNewcomer
+                          isNewcomer
                             ? 'bg-emerald-50 text-emerald-900 border-emerald-300'
                             : 'bg-sky-50 text-sky-900 border-sky-300'
                         }`}

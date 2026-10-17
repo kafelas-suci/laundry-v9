@@ -21,7 +21,7 @@ import {
 import { User, Laundry, SubscriptionHistory } from '../types';
 import { formatRupiah, formatDateIndo } from '../utils/formatters';
 import { useToast, useConfirm } from '../components/NotificationContext';
-import { isProTier, normalizeTier, getLaundryLimits } from '../utils/subscription';
+import { normalizeTier, getLaundryLimits } from '../utils/subscription';
 
 interface KelolaOwnerViewProps {
   onBack: () => void;
@@ -81,18 +81,16 @@ export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
   const currentLimits = getLaundryLimits(currentUser.subscriptionType);
   const isNewcomer = currentLimits.tier === 'newcomer';
   const isBasic = currentLimits.tier === 'basic';
-  const isPro = currentLimits.tier === 'pro';
   const HARGA_BASIC_BULANAN = 27000;
-  const HARGA_PRO_BULANAN = 57000;
 
   const sisaHari = Math.max(
     0,
     Math.ceil(((currentUser.subscriptionEndDate || Date.now()) - Date.now()) / (1000 * 60 * 60 * 24))
   );
 
-  const handlePayBulanan = async (tierToBuy: 'basic' | 'pro' = isPro ? 'pro' : 'basic') => {
-    const cost = tierToBuy === 'pro' ? HARGA_PRO_BULANAN : HARGA_BASIC_BULANAN;
-    const label = tierToBuy === 'pro' ? 'Paket Pro (Maks. 3 Cabang)' : 'Paket Basic (1 Cabang)';
+  const handlePayBulanan = async () => {
+    const cost = HARGA_BASIC_BULANAN;
+    const label = 'Paket Basic (30 Hari)';
 
     if (currentUser.walletBalance < cost) {
       toast.warning(`Saldo dompet tidak mencukupi (${formatRupiah(cost)}). Silakan isi saldo terlebih dahulu.`);
@@ -101,39 +99,55 @@ export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
     }
     const ok = await confirm({
       title: `Beli ${label}`,
-      message: `Beli ${label} 30 Hari seharga ${formatRupiah(cost)}? Saldo dompet akan dipotong.`,
+      message: `Beli ${label} seharga ${formatRupiah(cost)}? Saldo dompet akan dipotong.`,
       confirmText: 'Beli Sekarang',
     });
     if (ok) {
-      onExtendSubscription(`${label} 30 Hari`, cost, 30);
-      toast.success(`Langganan ${label} 30 hari berhasil diaktifkan!`);
+      onExtendSubscription(`${label}`, cost, 30);
+      toast.success(`Langganan ${label} berhasil diaktifkan!`);
     }
   };
 
-  const handleAddBranchSubmit = () => {
+  const handleAddBranchSubmit = async () => {
     if (!newBranchName.trim()) {
       toast.warning('Nama cabang laundry wajib diisi.');
       return;
     }
 
-    if (!isProTier(currentUser.subscriptionType) && laundries.length >= 1) {
-      setShowAddBranchModal(false);
-      onOpenUpgradeModal?.('Menambah cabang baru (Paket Basic dibatasi 1 Cabang Outlet). Upgrade ke Paket Pro untuk mengelola hingga 3 cabang.');
-      return;
+    const isExtraBranch = laundries.length >= 1;
+    const EXTRA_COST = 25000;
+
+    if (isExtraBranch) {
+      if ((currentUser.walletBalance || 0) < EXTRA_COST) {
+        toast.warning(
+          `Saldo dompet tidak mencukupi (${formatRupiah(EXTRA_COST)}). Silakan isi saldo terlebih dahulu.`
+        );
+        setShowAddBranchModal(false);
+        setSelectedNominal(EXTRA_COST);
+        setShowTopUpModal(true);
+        return;
+      }
+
+      const confirmed = await confirm({
+        title: 'Konfirmasi Aktivasi Cabang Baru',
+        message: `Biaya aktivasi cabang '${newBranchName.trim()}' sebesar ${formatRupiah(EXTRA_COST)} akan dipotong dari saldo dompet Anda (${formatRupiah(currentUser.walletBalance)}). Lanjutkan?`,
+        confirmText: 'Ya, Bayar & Buat Cabang',
+        cancelText: 'Batal',
+      });
+
+      if (!confirmed) return;
     }
 
-    if (laundries.length >= 3) {
-      setShowAddBranchModal(false);
-      toast.warning('Batas maksimal 3 cabang outlet telah tercapai untuk Paket Pro.');
-      return;
-    }
-
-    onAddLaundry(newBranchName.trim(), newBranchAddress.trim() || undefined, newBranchPhone.trim() || undefined, copyLayananFrom || undefined);
+    onAddLaundry(
+      newBranchName.trim(),
+      newBranchAddress.trim() || undefined,
+      newBranchPhone.trim() || undefined,
+      copyLayananFrom || undefined
+    );
     setShowAddBranchModal(false);
     setNewBranchName('');
     setNewBranchAddress('');
     setNewBranchPhone('');
-    toast.success(`Cabang '${newBranchName}' berhasil ditambahkan!`);
   };
 
   return (
@@ -228,31 +242,11 @@ export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
                       <span className="font-bold text-white">Paket Basic (30 Hari)</span>
                       {isBasic && <span className="text-[9px] bg-sky-500/20 text-sky-300 border border-sky-400/30 px-2 py-0.5 rounded-full font-bold">Aktif</span>}
                     </div>
-                    <div className="text-[10px] text-slate-400 mt-0.5">{formatRupiah(HARGA_BASIC_BULANAN)} · 1 Cabang & 1 Kasir Mandiri</div>
+                    <div className="text-[10px] text-slate-400 mt-0.5">{formatRupiah(HARGA_BASIC_BULANAN)} · 1 Cabang, Kasir, Staf & Laporan Lengkap</div>
                   </div>
                   <button
-                    onClick={() => handlePayBulanan('basic')}
+                    onClick={handlePayBulanan}
                     className="px-3.5 py-1.5 rounded-xl bg-sky-700 hover:bg-sky-600 text-white font-bold text-[11px] transition shadow-2xs active:scale-95 shrink-0 cursor-pointer"
-                  >
-                    Bayar
-                  </button>
-                </div>
-
-                {/* Paket Bulanan Pro */}
-                <div className="flex items-center justify-between p-3 rounded-xl bg-gradient-to-r from-amber-950/50 via-slate-800 to-slate-800 border border-amber-500/50 hover:border-amber-500 transition text-xs shadow-2xs">
-                  <div className="pr-2">
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-bold text-amber-300 flex items-center gap-1">
-                        <Sparkles className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
-                        <span>Paket Pro (30 Hari)</span>
-                      </span>
-                      {isPro && <span className="text-[9px] bg-amber-400/20 text-amber-300 border border-amber-300/40 px-2 py-0.5 rounded-full font-bold">Aktif</span>}
-                    </div>
-                    <div className="text-[10px] text-amber-200/80 mt-0.5">{formatRupiah(HARGA_PRO_BULANAN)} · Hingga 3 Cabang, Kasir & Staf Tanpa Login</div>
-                  </div>
-                  <button
-                    onClick={() => handlePayBulanan('pro')}
-                    className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-[11px] transition shadow-md active:scale-95 shrink-0 cursor-pointer"
                   >
                     Bayar
                   </button>
@@ -263,10 +257,10 @@ export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
                   <button
                     type="button"
                     onClick={() => onOpenUpgradeModal?.()}
-                    className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 shadow-md transition active:scale-98 cursor-pointer"
+                    className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white font-black text-xs flex items-center justify-center gap-1.5 shadow-md transition active:scale-98 cursor-pointer"
                   >
-                    <Crown className="w-3.5 h-3.5 text-slate-950" />
-                    <span>Bandingkan Detail Paket (Newcomer vs Basic vs Pro)</span>
+                    <Crown className="w-3.5 h-3.5 text-amber-300" />
+                    <span>Bandingkan Detail Paket (Newcomer vs Basic)</span>
                   </button>
                 </div>
               </div>
@@ -303,29 +297,18 @@ export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
                 <div className="flex items-center gap-2">
                   <Building2 className="w-4 h-4 text-white" />
                   <span className="font-bold text-xs tracking-wide">
-                    Daftar Cabang ({laundries.length} {isPro ? '/ 3 Pro' : '/ 1 Basic'})
+                    Daftar Cabang ({laundries.length} Cabang)
                   </span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <button
                     type="button"
-                    onClick={() => {
-                      if (!isPro && laundries.length >= 1) {
-                        onOpenUpgradeModal?.('Menambah cabang baru (Paket Basic dibatasi 1 Cabang).');
-                        return;
-                      }
-                      if (laundries.length >= 3) {
-                        toast.warning('Batas maksimal 3 cabang tercapai.');
-                        return;
-                      }
-                      setShowAddBranchModal(true);
-                    }}
+                    onClick={() => setShowAddBranchModal(true)}
                     className="px-3 py-1.5 rounded-xl bg-white/20 hover:bg-white/30 text-white text-[11px] font-bold transition flex items-center gap-1 cursor-pointer shadow-2xs"
+                    title="Tambah cabang baru (Rp 25.000 per cabang)"
                   >
-                    {(!isPro && laundries.length >= 1) || laundries.length >= 3 ? (
-                      <Lock className="w-3 h-3 text-amber-300" />
-                    ) : <Plus className="w-3.5 h-3.5" />}
-                    <span>Cabang</span>
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Cabang (+Rp25rb)</span>
                   </button>
                   <button
                     onClick={() => setShowBranches(!showBranches)}
@@ -449,7 +432,7 @@ export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
               <div className="space-y-1.5">
                 <label className="font-bold text-slate-800 text-[11px]">1. Pilih Nominal Top Up</label>
                 <div className="grid grid-cols-2 gap-2">
-                  {[27000, 30000, 50000, 100000].map((nom) => {
+                  {[25000, 27000, 57000, 100000].map((nom) => {
                     const isSelected = selectedNominal === nom && !customTopUp;
                     return (
                       <button
@@ -466,7 +449,7 @@ export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
                         }`}
                       >
                         <span className="block text-[9px] text-slate-400 font-normal">
-                          {nom === 27000 ? 'Paket 1 Bln' : 'Top Up'}
+                          {nom === 25000 ? 'Tambah 1 Cabang' : nom === 27000 ? 'Paket Basic' : nom === 57000 ? 'Paket Pro' : 'Top Up'}
                         </span>
                         <span className="text-xs font-black">{formatRupiah(nom)}</span>
                       </button>
@@ -638,6 +621,37 @@ export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
                 </select>
               </div>
 
+              {laundries.length >= 1 && (
+                <div className="p-3 rounded-2xl bg-amber-50 border border-amber-200 text-amber-950 space-y-1">
+                  <div className="flex items-center justify-between text-xs font-bold">
+                    <span>Biaya Aktivasi Cabang:</span>
+                    <span className="text-[#800000] font-black text-sm">Rp 25.000</span>
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] text-slate-600">
+                    <span>Saldo Dompet Owner:</span>
+                    <span className={`font-bold ${currentUser.walletBalance >= 25000 ? 'text-emerald-700' : 'text-red-600'}`}>
+                      {formatRupiah(currentUser.walletBalance || 0)}
+                    </span>
+                  </div>
+                  {currentUser.walletBalance < 25000 && (
+                    <div className="text-[10px] text-red-600 pt-1 font-semibold flex items-center justify-between">
+                      <span>Saldo Anda kurang.</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowAddBranchModal(false);
+                          setSelectedNominal(25000);
+                          setShowTopUpModal(true);
+                        }}
+                        className="underline text-[#800000] font-bold cursor-pointer hover:text-red-800"
+                      >
+                        Isi Saldo Rp 25.000
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="flex gap-2.5 pt-2">
                 <button
                   type="button"
@@ -651,7 +665,7 @@ export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
                   onClick={handleAddBranchSubmit}
                   className="flex-1 py-2.5 rounded-2xl bg-[#800000] hover:bg-[#660000] text-white text-xs font-bold shadow-md transition cursor-pointer"
                 >
-                  Buat Cabang
+                  {laundries.length >= 1 ? 'Bayar Rp 25.000 & Buat' : 'Buat Cabang'}
                 </button>
               </div>
             </div>

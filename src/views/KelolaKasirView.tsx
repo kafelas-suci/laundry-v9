@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { ArrowLeft, Plus, Trash2, X, Lock, Building2, User as UserIcon, ShieldCheck, Users } from 'lucide-react';
 import { User, Laundry, OperationalStaff } from '../types';
 import { useToast, useConfirm } from '../components/NotificationContext';
-import { isProTier, getLaundryLimits } from '../utils/subscription';
+import { getLaundryLimits } from '../utils/subscription';
 
 interface KelolaKasirViewProps {
   onBack: () => void;
@@ -61,24 +61,14 @@ export const KelolaKasirView: React.FC<KelolaKasirViewProps> = ({
     const limits = getLaundryLimits(currentTier);
     if (limits.tier === 'newcomer' || limits.maxCashiers <= 0) {
       toast.warning('Paket Newcomer dibatasi 1 Owner dan tidak mendukung akun kasir tambahan.');
-      onOpenUpgradeModal?.('Paket Newcomer dibatasi 1 Owner dan tidak mendukung kasir. Tingkatkan ke Paket Basic atau Pro untuk menambah kasir.');
-      return;
-    }
-
-    if (limits.tier === 'basic' && cashiers.length >= 1) {
-      onOpenUpgradeModal?.('Menambah akun kasir baru (Paket Basic dibatasi 1 Kasir)');
-      return;
-    }
-
-    if (isProTier(currentTier) && cashiers.length >= 3) {
-      toast.warning('Batas maksimal 3 admin telah tercapai.');
+      onOpenUpgradeModal?.('Paket Newcomer dibatasi 1 Owner dan tidak mendukung kasir. Tingkatkan ke Paket Basic untuk membuat akun kasir.');
       return;
     }
 
     const existingInBranch = cashiers.find((c) => c.laundryId === selectedBranchId);
     if (existingInBranch) {
       const branchName = laundries.find((l) => l.id === selectedBranchId)?.namaLaundry || 'Cabang terpilih';
-      toast.warning(`${branchName} sudah memiliki admin (${existingInBranch.displayName}).`);
+      toast.warning(`${branchName} sudah memiliki admin kasir (${existingInBranch.displayName}).`);
       return;
     }
 
@@ -103,10 +93,14 @@ export const KelolaKasirView: React.FC<KelolaKasirViewProps> = ({
     toast.success(`Akun kasir '${nama}' berhasil dibuat!`);
   };
 
+  const limits = getLaundryLimits(currentTier);
+  const isNewcomer = limits.tier === 'newcomer';
+  const isAtLimit = isNewcomer || cashiers.length >= laundries.length;
+
   const handleAddOpStaffSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isProTier(currentTier)) {
-      onOpenUpgradeModal?.('Fitur Staf Pengerjaan Tanpa Login eksklusif untuk Paket Pro.');
+    if (!limits.canAssignStaff) {
+      onOpenUpgradeModal?.('Fitur Penugasan Staf Pengerjaan aktif di Paket Basic.');
       return;
     }
     if (!opStaffName.trim()) {
@@ -114,18 +108,14 @@ export const KelolaKasirView: React.FC<KelolaKasirViewProps> = ({
       return;
     }
     const branchOpStaff = operationalStaffList.filter((s) => s.laundryId === selectedBranchForOp);
-    if (branchOpStaff.length >= 5) {
-      toast.warning('Batas maksimal 5 staf per outlet tercapai.');
+    if (branchOpStaff.length >= 10) {
+      toast.warning('Batas maksimal 10 staf per outlet tercapai.');
       return;
     }
     onAddOperationalStaff(opStaffName.trim(), selectedBranchForOp);
     setOpStaffName('');
     toast.success(`Staf '${opStaffName}' berhasil ditambahkan!`);
   };
-
-  const limits = getLaundryLimits(currentTier);
-  const isNewcomer = limits.tier === 'newcomer';
-  const isAtLimit = isNewcomer || (!isProTier(currentTier) ? cashiers.length >= 1 : cashiers.length >= 3);
 
   return (
     <div className="flex flex-col min-h-screen bg-slate-100 text-slate-800 pb-16">
@@ -158,17 +148,13 @@ export const KelolaKasirView: React.FC<KelolaKasirViewProps> = ({
                   <span className="text-xs font-bold text-slate-700 uppercase tracking-wide">Akun Kasir (Login)</span>
                 </div>
                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
-                  isProTier(currentTier)
-                    ? 'bg-amber-100 text-amber-800'
-                    : isNewcomer
+                  isNewcomer
                     ? 'bg-slate-100 text-slate-500'
-                    : 'bg-slate-100 text-slate-600'
+                    : 'bg-sky-100 text-sky-800'
                 }`}>
-                  {isProTier(currentTier)
-                    ? `${cashiers.length}/3 Pro`
-                    : isNewcomer
+                  {isNewcomer
                     ? '0/0 Newcomer'
-                    : `${cashiers.length}/1 Basic`}
+                    : `${cashiers.length}/${laundries.length} Kasir`}
                 </span>
               </div>
 
@@ -190,7 +176,7 @@ export const KelolaKasirView: React.FC<KelolaKasirViewProps> = ({
                     onClick={() => onOpenUpgradeModal?.('Menambah Akun Kasir')}
                     className="w-full py-1.5 px-3 bg-[#800000] hover:bg-[#660000] text-white rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
                   >
-                    <span>Tingkatkan ke Basic (1 Kasir) / Pro (3 Kasir)</span>
+                    <span>Tingkatkan ke Paket Basic (1 Kasir per Outlet)</span>
                   </button>
                 </div>
               ) : isAtLimit ? (

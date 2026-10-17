@@ -41,7 +41,8 @@ import { LimitTransaksiModal } from './components/LimitTransaksiModal';
 import { AssignStaffModal } from './components/AssignStaffModal';
 import { ReceiptModal } from './components/ReceiptModal';
 import { UpgradePlanModal } from './components/UpgradePlanModal';
-import { LaundryTier, normalizeTier, getLaundryLimits } from './utils/subscription';
+import { LaundryTier, normalizeTier, getLaundryLimits, EXTRA_BRANCH_PRICE } from './utils/subscription';
+import { formatRupiah } from './utils/formatters';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { DesktopSidebar } from './components/DesktopSidebar';
 import { DemoBanner } from './components/DemoBanner';
@@ -733,17 +734,38 @@ export default function App() {
     telepon?: string,
     copyFromId?: string
   ) => {
-    const limits = getLaundryLimits(activeTier);
-    if (laundries.length >= limits.maxBranches) {
-      toast.warning(
-        limits.tier === 'newcomer'
-          ? 'Paket Newcomer dibatasi 1 Cabang Outlet. Tingkatkan ke Paket Pro untuk mengelola hingga 3 cabang.'
-          : limits.tier === 'basic'
-          ? 'Paket Basic dibatasi 1 Cabang Outlet. Tingkatkan ke Paket Pro untuk mengelola hingga 3 cabang.'
-          : 'Batas maksimal 3 cabang telah tercapai untuk Paket Pro (kebijakan keamanan & anti-bot).'
-      );
-      handleOpenUpgradeModal('Mengelola Multi-Cabang Outlet');
-      return;
+    const isExtraBranch = laundries.length >= 1;
+    const EXTRA_COST = EXTRA_BRANCH_PRICE;
+
+    if (isExtraBranch && currentUser) {
+      if ((currentUser.walletBalance || 0) < EXTRA_COST) {
+        toast.warning(
+          `Saldo dompet tidak mencukupi (${formatRupiah(EXTRA_COST)}). Silakan top up saldo terlebih dahulu.`
+        );
+        return;
+      }
+
+      const updatedUser: User = {
+        ...currentUser,
+        walletBalance: Math.max(0, (currentUser.walletBalance || 0) - EXTRA_COST),
+      };
+      setCurrentUser(updatedUser);
+      StorageService.set('active_user', updatedUser);
+
+      // Record in subscription history
+      const newHist: SubscriptionHistory = {
+        id: `hist-${Date.now()}`,
+        ownerId: currentUser.uid,
+        packageName: `Aktivasi Slot Cabang Baru: ${nama}`,
+        cost: EXTRA_COST,
+        purchaseDate: Date.now(),
+        durationDays: 30,
+        newExpiryDate: currentUser.subscriptionEndDate || Date.now() + 30 * 24 * 3600 * 1000,
+        laundries: [nama],
+      };
+      const updatedHist = [newHist, ...subscriptionHistory];
+      setSubscriptionHistory(updatedHist);
+      StorageService.set('subscription_history', updatedHist);
     }
 
     const newLndId = `lnd-${Date.now()}`;
@@ -768,6 +790,11 @@ export default function App() {
     }
 
     setActiveLaundryId(newLndId);
+    toast.success(
+      isExtraBranch
+        ? `Cabang '${nama}' berhasil diaktifkan dengan biaya ${formatRupiah(EXTRA_COST)}!`
+        : `Cabang '${nama}' berhasil dibuat!`
+    );
   };
 
   const handleUpdateLaundry = (lnd: Laundry) => {
@@ -801,15 +828,12 @@ export default function App() {
       return;
     }
 
-    // Cek total kasir berdasarkan paket
+    // Cek total kasir berdasarkan cabang yang dimiliki (1 admin kasir per cabang)
     const totalCashiers = staffList.filter((s) => s.role === 'admin' || s.role === 'karyawan').length;
-    if (totalCashiers >= limits.maxCashiers) {
+    if (totalCashiers >= laundries.length) {
       toast.warning(
-        limits.tier === 'basic'
-          ? 'Paket Basic dibatasi 1 akun kasir. Upgrade ke Paket Pro untuk menambah cabang dan kasir.'
-          : 'Batas maksimal 3 admin telah tercapai untuk Paket Pro (1 admin per outlet untuk maks. 3 cabang).'
+        'Semua cabang laundry yang Anda kelola sudah memiliki 1 admin kasir. Silakan tambah cabang baru untuk menambah akun kasir.'
       );
-      handleOpenUpgradeModal('Menambah akun kasir tambahan');
       return;
     }
 
@@ -1455,7 +1479,7 @@ export default function App() {
           onOpenUpgradeModal={handleOpenUpgradeModal}
         />
 
-        {/* Modal Komparasi & Upgrade Paket Basic vs Pro */}
+        {/* Modal Komparasi Paket Newcomer & Paket Basic */}
         <UpgradePlanModal
           isOpen={isUpgradeModalOpen}
           onClose={() => setIsUpgradeModalOpen(false)}
