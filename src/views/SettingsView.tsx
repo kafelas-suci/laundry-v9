@@ -46,6 +46,7 @@ interface SettingsViewProps {
   onOpenKelolaKasir: () => void;
   onOpenApkModal: () => void;
   onOpenUpgradeModal?: (reason?: string) => void;
+  onUpdateOwnerProfile?: (data: { displayName: string; nomorTelepon?: string | null }) => void;
   onLogout: () => void;
 }
 
@@ -62,6 +63,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onOpenKelolaKasir,
   onOpenApkModal,
   onOpenUpgradeModal,
+  onUpdateOwnerProfile,
   onLogout,
 }) => {
   const toast = useToast();
@@ -87,6 +89,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [showPrinterModal, setShowPrinterModal] = useState(false);
   const [showFeatureSettingsModal, setShowFeatureSettingsModal] = useState(false);
   const [showLogoutConfirmModal, setShowLogoutConfirmModal] = useState(false);
+  const [showEditOwnerModal, setShowEditOwnerModal] = useState(false);
+  const [editDisplayName, setEditDisplayName] = useState(currentUser.displayName || '');
+  const [editNomorTelepon, setEditNomorTelepon] = useState(currentUser.nomorTelepon || '');
 
   // Edit receipt info state
   const [headerStruk, setHeaderStruk] = useState(settings.headerStruk);
@@ -235,10 +240,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             {isOwner && (
               <button
                 type="button"
-                onClick={onOpenKelolaOwner}
+                onClick={() => {
+                  setEditDisplayName(currentUser.displayName || '');
+                  setEditNomorTelepon(currentUser.nomorTelepon || '');
+                  setShowEditOwnerModal(true);
+                }}
                 className="px-3 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 border border-white/30 text-white font-bold text-xs shrink-0 transition active:scale-95 cursor-pointer"
               >
-                Langganan
+                Edit Profil
               </button>
             )}
           </div>
@@ -792,6 +801,88 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 className="flex-1 py-2.5 rounded-xl bg-[#800000] hover:bg-[#660000] text-white text-xs font-bold shadow-xs active:scale-95 transition"
               >
                 Simpan Pengaturan
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: EDIT PROFIL OWNER - dibuka dari tombol Langganan */}
+      {showEditOwnerModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fade-in">
+          <div className="w-full max-w-sm bg-white rounded-2xl shadow-2xl p-5 space-y-4">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-2">
+              <h3 className="font-bold text-sm text-slate-900">Edit Profil Owner</h3>
+              <button
+                type="button"
+                onClick={() => setShowEditOwnerModal(false)}
+                className="p-1 rounded-full text-slate-400 hover:bg-slate-100"
+                aria-label="Tutup"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-500 mb-1">
+                Nama Owner
+              </label>
+              <input
+                type="text"
+                value={editDisplayName}
+                onChange={(e) => setEditDisplayName(e.target.value)}
+                placeholder="Masukkan nama owner"
+                className="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#800000]/20 focus:border-[#800000]"
+                autoFocus
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-500 mb-1">
+                Nomor Telepon
+              </label>
+              <input
+                type="tel"
+                value={editNomorTelepon}
+                onChange={(e) => setEditNomorTelepon(e.target.value)}
+                placeholder="Masukkan nomor telepon"
+                className="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#800000]/20 focus:border-[#800000]"
+              />
+            </div>
+
+            <p className="text-[11px] text-slate-500">
+              Email atau nomor untuk login tidak diubah dari menu ini.
+            </p>
+
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setShowEditOwnerModal(false)}
+                className="flex-1 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!editDisplayName.trim()) {
+                    toast.warning('Nama Owner tidak boleh kosong.');
+                    return;
+                  }
+                  if (!onUpdateOwnerProfile) {
+                    toast.warning('Fungsi simpan profil belum dihubungkan di komponen induk.');
+                    return;
+                  }
+                  onUpdateOwnerProfile({
+                    displayName: editDisplayName.trim(),
+                    nomorTelepon: editNomorTelepon.trim() || null,
+                  });
+                  setShowEditOwnerModal(false);
+                  toast.success('Permintaan pembaruan profil berhasil dikirim.');
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-[#800000] hover:bg-[#660000] text-white text-xs font-bold shadow-xs"
+              >
+                Simpan Profil
               </button>
             </div>
           </div>

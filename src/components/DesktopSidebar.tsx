@@ -320,7 +320,12 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
                   <button
                     key={item.id}
                     type="button"
-                    onClick={() => onSelectView(item.id)}
+                    onClick={() => {
+                      if ((item.id === 'kelola_kasir' || item.id === 'kelola_owner') && currentUser.role !== 'owner') {
+                        return;
+                      }
+                      onSelectView(item.id);
+                    }}
                     title={collapsed ? item.label : undefined}
                     className={`w-full flex items-center ${
                       collapsed ? 'justify-center px-0 py-2.5' : 'justify-between px-3 py-2'

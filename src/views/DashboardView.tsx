@@ -249,10 +249,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   const paketNama = useMemo(() => {
     const raw = (currentUser.subscriptionType || '').toLowerCase();
-    if (raw.includes('harian')) return 'Paket Harian';
-    if (raw.includes('bulanan')) return 'Paket Bulanan';
-    if (raw.includes('standar') || raw.includes('gratis') || raw.includes('free')) return 'Paket Standar';
-    return 'selection';
+    if (raw.includes('basic') || raw.includes('standar') || raw.includes('gratis') || raw.includes('free')) return 'Paket Basic';
+    return 'Pro';
   }, [currentUser.subscriptionType]);
 
   const formattedToday = new Intl.DateTimeFormat('id-ID', {
@@ -987,15 +985,21 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
                 {/* Nama Laundry & Switcher Cabang */}
                 <button
-                  onClick={laundries.length > 1 ? onOpenSwitchBranch : undefined}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl hover:bg-white/10 active:scale-98 transition max-w-[180px] sm:max-w-[240px] md:max-w-[280px]"
+                  onClick={laundries.length > 1 ? onOpenSwitchBranch : onOpenKelolaOwner}
+                  title={`Paket: ${paketNama} (${sisaHari} hari lagi). Klik untuk kelola.`}
+                  className="flex flex-col items-start px-2 py-1 rounded-xl hover:bg-white/10 active:scale-98 transition max-w-[190px]"
                 >
-                  <span className="font-bold text-base truncate text-white tracking-wide">
-                    {activeLaundry.namaLaundry}
+                  <div className="flex items-center gap-1">
+                    <span className="font-bold text-sm truncate text-white tracking-wide">
+                      {activeLaundry.namaLaundry}
+                    </span>
+                    {laundries.length > 1 && (
+                      <ChevronDown className="w-3.5 h-3.5 text-white/80 shrink-0" />
+                    )}
+                  </div>
+                  <span className="text-[10px] font-semibold text-amber-300 tracking-tight leading-none mt-0.5">
+                    {paketNama} • {sisaHari}h
                   </span>
-                  {laundries.length > 1 && (
-                    <ChevronDown className="w-4 h-4 text-white/80 shrink-0" />
-                  )}
                 </button>
               </div>
 
@@ -1030,6 +1034,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <div className="max-w-7xl mx-auto w-full space-y-3 pb-2">
               {/* PWA Install Banner */}
               <PWAInstallButton variant="banner" />
+
+
 
        
 

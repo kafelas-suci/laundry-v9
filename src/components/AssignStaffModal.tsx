@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { X, UserCheck, User as UserIcon, Check } from 'lucide-react';
-import { User, Transaksi } from '../types';
+import { User, Transaksi, OperationalStaff } from '../types';
 import { useToast } from './NotificationContext';
 
 interface AssignStaffModalProps {
   isOpen: boolean;
   onClose: () => void;
   staffList: User[];
+  operationalStaffList?: OperationalStaff[];
+  activeLaundryId?: string;
   currentUser?: User | null;
   transaksi: Transaksi | null;
   onAssign: (staffName: string) => void;
@@ -16,6 +18,8 @@ export const AssignStaffModal: React.FC<AssignStaffModalProps> = ({
   isOpen,
   onClose,
   staffList,
+  operationalStaffList = [],
+  activeLaundryId,
   currentUser,
   transaksi,
   onAssign,
@@ -52,6 +56,10 @@ export const AssignStaffModal: React.FC<AssignStaffModalProps> = ({
     const sName = s.displayName || 'Kasir';
     return sName.trim().toLowerCase() !== loginUserName.trim().toLowerCase();
   });
+
+  // Operational staff for this laundry
+  const targetLaundryId = transaksi.laundryId || activeLaundryId;
+  const branchOpStaff = operationalStaffList.filter((os) => os.laundryId === targetLaundryId);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fade-in">
@@ -121,11 +129,61 @@ export const AssignStaffModal: React.FC<AssignStaffModalProps> = ({
               />
             </label>
 
-            {/* OPSI 2..n: Staf yang Terdaftar */}
+            {/* OPSI 2: Staf Operasional Tanpa Login */}
+            {branchOpStaff.length > 0 && (
+              <div className="pt-1">
+                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1 pb-1.5">
+                  Staf Pengerjaan (Tanpa Login)
+                </div>
+                <div className="space-y-2">
+                  {branchOpStaff.map((stf) => {
+                    const isSelected = selectedStaff === stf.nama;
+                    return (
+                      <label
+                        key={stf.id}
+                        onClick={() => setSelectedStaff(stf.nama)}
+                        className={`flex items-center justify-between p-3 rounded-2xl border text-sm font-semibold cursor-pointer transition-all ${
+                          isSelected
+                            ? 'border-[#800000] bg-rose-50/80 text-[#800000] shadow-xs'
+                            : 'border-slate-200 hover:bg-slate-50 text-slate-700'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div
+                            className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
+                              isSelected
+                                ? 'bg-[#800000] text-white'
+                                : 'bg-slate-100 text-slate-600'
+                            }`}
+                          >
+                            <UserCheck className="w-4 h-4" />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="font-bold text-xs truncate">{stf.nama}</div>
+                            <div className="text-[10px] text-slate-400 font-normal">
+                              Pekerja Operasional
+                            </div>
+                          </div>
+                        </div>
+                        <input
+                          type="radio"
+                          name="staff_selection"
+                          checked={isSelected}
+                          onChange={() => setSelectedStaff(stf.nama)}
+                          className="accent-[#800000] w-4 h-4 cursor-pointer"
+                        />
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* OPSI 3: Staf yang Terdaftar (Dengan Login) */}
             {staffCandidates.length > 0 && (
               <div className="pt-1">
                 <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1 pb-1.5">
-                  Pilihan Staf Terdaftar
+                  Akun Kasir / Staf Terdaftar
                 </div>
                 <div className="space-y-2">
                   {staffCandidates.map((staf) => {

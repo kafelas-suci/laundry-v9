@@ -173,3 +173,9 @@ export interface SettingsData {
   pemasukanManualEnabled: boolean;
   waNotificationEnabled: boolean;
 }
+
+export interface OperationalStaff {
+  id: string;
+  laundryId: string;
+  nama: string;
+}

@@ -17,6 +17,7 @@ import {
   SubscriptionHistory,
   ArusKas,
   LayananItem,
+  OperationalStaff,
 } from './types';
 import { SplashView } from './views/SplashView';
 import { AuthView } from './views/AuthView';
@@ -136,6 +137,29 @@ export default function App() {
   const [staffList, setStaffList] = useState<User[]>(() =>
     StorageService.get<User[]>('staff', [])
   );
+
+  const [operationalStaffList, setOperationalStaffList] = useState<OperationalStaff[]>(() =>
+    StorageService.get<OperationalStaff[]>('operational_staff', [])
+  );
+
+  const handleAddOperationalStaff = (nama: string, laundryId: string) => {
+    const newStaff: OperationalStaff = {
+      id: `op-stf-${Date.now()}`,
+      laundryId,
+      nama: nama.trim(),
+    };
+    const updated = [...operationalStaffList, newStaff];
+    setOperationalStaffList(updated);
+    StorageService.set('operational_staff', updated);
+    toast.success(`Staf operasional '${nama}' berhasil ditambahkan!`);
+  };
+
+  const handleDeleteOperationalStaff = (id: string) => {
+    const updated = operationalStaffList.filter((s) => s.id !== id);
+    setOperationalStaffList(updated);
+    StorageService.set('operational_staff', updated);
+    toast.success('Staf operasional berhasil dihapus.');
+  };
 
   const [subscriptionHistory, setSubscriptionHistory] = useState<SubscriptionHistory[]>(() =>
     StorageService.get<SubscriptionHistory[]>('subscription_history', [])
@@ -1260,33 +1284,73 @@ export default function App() {
         )}
 
         {activeView === 'kelola_owner' && currentUser && (
-          <KelolaOwnerView
-            onBack={() => setActiveView('dashboard')}
-            currentUser={currentUser}
-            laundries={laundries}
-            activeLaundryId={activeLaundryId}
-            subscriptionHistory={subscriptionHistory}
-            onSelectLaundry={handleSelectBranch}
-            onAddLaundry={handleAddLaundry}
-            onUpdateLaundry={handleUpdateLaundry}
-            onDeleteLaundry={handleDeleteLaundry}
-            onTopUpWallet={handleTopUpWallet}
-            onExtendSubscription={handleExtendSubscription}
-            onUpdateOwnerProfile={handleUpdateOwnerProfile}
-            onOpenUpgradeModal={handleOpenUpgradeModal}
-          />
+          currentUser.role !== 'owner' ? (
+            <div className="flex-1 flex flex-col items-center justify-center p-6 text-center bg-slate-100 min-h-[75vh]">
+              <div className="max-w-md w-full bg-white rounded-3xl p-6 border border-slate-200 shadow-xl space-y-3">
+                <div className="w-14 h-14 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
+                  <Lock className="w-7 h-7" />
+                </div>
+                <h3 className="text-base font-black text-slate-900">Akses Dibatasi (Owner Only)</h3>
+                <p className="text-xs text-slate-500">Halaman Kelola Cabang & Owner hanya dapat diakses oleh akun dengan peran Owner.</p>
+                <button
+                  onClick={() => setActiveView('dashboard')}
+                  className="w-full py-2.5 rounded-xl bg-[#800000] text-white font-bold text-xs shadow-md transition active:scale-95"
+                >
+                  Kembali ke Dashboard
+                </button>
+              </div>
+            </div>
+          ) : (
+            <KelolaOwnerView
+              onBack={() => setActiveView('dashboard')}
+              currentUser={currentUser}
+              laundries={laundries}
+              activeLaundryId={activeLaundryId}
+              subscriptionHistory={subscriptionHistory}
+              onSelectLaundry={handleSelectBranch}
+              onAddLaundry={handleAddLaundry}
+              onUpdateLaundry={handleUpdateLaundry}
+              onDeleteLaundry={handleDeleteLaundry}
+              onTopUpWallet={handleTopUpWallet}
+              onExtendSubscription={handleExtendSubscription}
+              onUpdateOwnerProfile={handleUpdateOwnerProfile}
+              onOpenUpgradeModal={handleOpenUpgradeModal}
+            />
+          )
         )}
 
-        {activeView === 'kelola_kasir' && (
-          <KelolaKasirView
-            onBack={() => setActiveView('dashboard')}
-            staffList={staffList}
-            laundries={laundries}
-            currentTier={activeTier}
-            onAddKasir={handleAddKasir}
-            onDeleteKasir={handleDeleteKasir}
-            onOpenUpgradeModal={handleOpenUpgradeModal}
-          />
+        {activeView === 'kelola_kasir' && currentUser && (
+          currentUser.role !== 'owner' ? (
+            <div className="flex-1 flex flex-col items-center justify-center p-6 text-center bg-slate-100 min-h-[75vh]">
+              <div className="max-w-md w-full bg-white rounded-3xl p-6 border border-slate-200 shadow-xl space-y-3">
+                <div className="w-14 h-14 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
+                  <Lock className="w-7 h-7" />
+                </div>
+                <h3 className="text-base font-black text-slate-900">Akses Dibatasi (Owner Only)</h3>
+                <p className="text-xs text-slate-500">Halaman Kelola Akun Kasir hanya dapat diakses oleh akun dengan peran Owner.</p>
+                <button
+                  onClick={() => setActiveView('dashboard')}
+                  className="w-full py-2.5 rounded-xl bg-[#800000] text-white font-bold text-xs shadow-md transition active:scale-95"
+                >
+                  Kembali ke Dashboard
+                </button>
+              </div>
+            </div>
+          ) : (
+            <KelolaKasirView
+              onBack={() => setActiveView('dashboard')}
+              staffList={staffList}
+              laundries={laundries}
+              currentTier={activeTier}
+              operationalStaffList={operationalStaffList}
+              activeLaundryId={activeLaundryId}
+              onAddKasir={handleAddKasir}
+              onDeleteKasir={handleDeleteKasir}
+              onAddOperationalStaff={handleAddOperationalStaff}
+              onDeleteOperationalStaff={handleDeleteOperationalStaff}
+              onOpenUpgradeModal={handleOpenUpgradeModal}
+            />
+          )
         )}
 
         {activeView === 'settings' && currentUser && (
@@ -1364,6 +1428,8 @@ export default function App() {
           isOpen={!!trxForAssignStaff}
           onClose={() => setTrxForAssignStaff(null)}
           staffList={staffList}
+          operationalStaffList={operationalStaffList}
+          activeLaundryId={activeLaundryId}
           currentUser={currentUser}
           transaksi={trxForAssignStaff}
           onAssign={(staffName) => {
