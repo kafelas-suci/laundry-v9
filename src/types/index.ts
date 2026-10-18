@@ -73,6 +73,8 @@ export interface Transaksi {
   tanggalDitugaskan?: number | null;
   tanggalStatusSelesai?: number | null;
   terakhirDieditPada?: number | null;
+  isTransisi?: boolean;
+  noNotaLama?: string;
   items: LayananItem[];
 }
 
@@ -173,6 +175,8 @@ export interface SettingsData {
   nilaiTukarPoin: number;
   pemasukanManualEnabled: boolean;
   waNotificationEnabled: boolean;
+    tampilkanTombolAmbilNotaLama?: boolean;
+
 }
 
 export interface OperationalStaff {

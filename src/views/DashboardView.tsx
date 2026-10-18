@@ -30,11 +30,15 @@ import {
   Wallet,
   Coins,
   BarChart3,
+  History,
+  X,
 } from 'lucide-react';
 import { Transaksi, SettingsData, User, Laundry, Pengeluaran } from '../types';
 import { formatRupiah, formatShortDate, formatShortTime } from '../utils/formatters';
 import { PWAInstallButton } from '../components/PWAInstallButton';
 import { getLaundryLimits } from '../utils/subscription';
+import { QuickTransitionPickupModal, TransitionPickupData } from '../components/QuickTransitionPickupModal';
+import { useToast } from '../components/NotificationContext';
 
 export type DashboardFilterStatus = 'semua' | 'selesai' | 'baru_masuk' | 'sedang_dikerjakan';
 
@@ -71,6 +75,8 @@ interface DashboardViewProps {
   onSelesaikanTransaksi: (transaksi: Transaksi) => void;
   onAmbilTransaksi: (transaksi: Transaksi) => void;
   onAmbilBanyakTransaksi?: (transaksiList: Transaksi[]) => void;
+  onSaveTransitionPickup?: (data: TransitionPickupData) => void;
+  onUpdateSettings?: (settings: SettingsData) => void;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
@@ -101,13 +107,32 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onSelesaikanTransaksi,
   onAmbilTransaksi,
   onAmbilBanyakTransaksi,
+  onSaveTransitionPickup,
+  onUpdateSettings,
+  settings,
 }) => {
+  const toast = useToast();
   const [searchQuery, setSearchQuery] = useState('');
   const [isSyncing, setIsSyncing] = useState(false);
   // 3 Tombol Filter: Default awal menampilkan semua transaksi baru masuk
   const [filterStatus, setFilterStatus] = useState<DashboardFilterStatus>('baru_masuk');
   const [isSummaryCollapsed, setIsSummaryCollapsed] = useState(false);
   const [trxToAmbil, setTrxToAmbil] = useState<Transaksi | null>(null);
+  const [isTransitionModalOpen, setIsTransitionModalOpen] = useState(false);
+  const [transitionInitialQuery, setTransitionInitialQuery] = useState('');
+
+  const showAmbilNotaLama = settings?.tampilkanTombolAmbilNotaLama !== false;
+
+  const handleHideAmbilNotaLama = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onUpdateSettings && settings) {
+      onUpdateSettings({
+        ...settings,
+        tampilkanTombolAmbilNotaLama: false,
+      });
+      toast.info('Tombol Ambil Nota Lama disembunyikan. Dapat diaktifkan kembali di Pengaturan.');
+    }
+  };
 
   const handleManualSync = async () => {
     if (isSyncing || !onSyncCloudData) return;
@@ -143,6 +168,22 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       selesai,
     };
   }, [activeBranchTrx]);
+
+  // Tab 'Sedang Dikerjakan' disembunyikan jika alur langsung selesai diaktifkan dan tidak ada transaksi proses
+  const showSedangDikerjakanTab =
+    !settings?.selesaikanSaatDitugaskan || filterCounts.sedangDikerjakan > 0;
+
+  // Filter jam merah ('Baru Masuk') juga disembunyikan jika tombol alur langsung selesai diaktifkan
+  const showBaruMasukTab = !settings?.selesaikanSaatDitugaskan;
+
+  useEffect(() => {
+    if (!showSedangDikerjakanTab && filterStatus === 'sedang_dikerjakan') {
+      setFilterStatus('semua');
+    }
+    if (!showBaruMasukTab && filterStatus === 'baru_masuk') {
+      setFilterStatus('semua');
+    }
+  }, [showSedangDikerjakanTab, showBaruMasukTab, filterStatus]);
 
   // Search & Status Filter
   const displayedTrx = useMemo(() => {
@@ -339,6 +380,31 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   <RotateCw className={`w-3.5 h-3.5 text-blue-600 ${isSyncing ? 'animate-spin' : ''}`} />
                   <span className="hidden xl:inline">{isSyncing ? 'Menyinkron...' : 'Sinkron Cloud'}</span>
                 </button>
+              )}
+
+              {showAmbilNotaLama && (
+                <div className="inline-flex items-center rounded-xl bg-amber-600 shadow-2xs overflow-hidden group">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTransitionInitialQuery('');
+                      setIsTransitionModalOpen(true);
+                    }}
+                    title="Ambil & Pelunasan Nota Lama dari Aplikasi Sebelumnya (Transisi Cepat)"
+                    className="px-3.5 py-2 hover:bg-amber-700 active:bg-amber-800 text-white font-bold text-xs flex items-center gap-1.5 transition cursor-pointer"
+                  >
+                    <History className="w-3.5 h-3.5 text-amber-100" />
+                    <span>Ambil Nota Lama</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleHideAmbilNotaLama}
+                    title="Sembunyikan tombol (Dapat dimunculkan kembali di Pengaturan)"
+                    className="px-2 py-2.5 bg-amber-700/80 hover:bg-amber-800 active:bg-amber-900 text-amber-200 hover:text-white transition flex items-center justify-center cursor-pointer border-l border-amber-500/40"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               )}
 
               <button
@@ -580,39 +646,43 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         </span>
                       </button>
 
-                      <button
-                        type="button"
-                        onClick={() => setFilterStatus(filterStatus === 'baru_masuk' ? 'semua' : 'baru_masuk')}
-                        className={`py-2 px-3 rounded-xl font-bold text-xs flex items-center gap-1.5 transition ${
-                          filterStatus === 'baru_masuk'
-                            ? 'bg-rose-700 text-white shadow-2xs ring-2 ring-rose-200'
-                            : 'bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200'
-                        }`}
-                      >
-                        <Clock className="w-3.5 h-3.5 shrink-0" />
-                        <span>Baru Masuk</span>
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-md font-black bg-rose-200 text-rose-900">
-                          {filterCounts.baruMasuk}
-                        </span>
-                      </button>
+                      {showBaruMasukTab && (
+                        <button
+                          type="button"
+                          onClick={() => setFilterStatus(filterStatus === 'baru_masuk' ? 'semua' : 'baru_masuk')}
+                          className={`py-2 px-3 rounded-xl font-bold text-xs flex items-center gap-1.5 transition ${
+                            filterStatus === 'baru_masuk'
+                              ? 'bg-rose-700 text-white shadow-2xs ring-2 ring-rose-200'
+                              : 'bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200'
+                          }`}
+                        >
+                          <Clock className="w-3.5 h-3.5 shrink-0" />
+                          <span>Baru Masuk</span>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-md font-black bg-rose-200 text-rose-900">
+                            {filterCounts.baruMasuk}
+                          </span>
+                        </button>
+                      )}
 
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setFilterStatus(filterStatus === 'sedang_dikerjakan' ? 'semua' : 'sedang_dikerjakan')
-                        }
-                        className={`py-2 px-3 rounded-xl font-bold text-xs flex items-center gap-1.5 transition ${
-                          filterStatus === 'sedang_dikerjakan'
-                            ? 'bg-amber-600 text-white shadow-2xs ring-2 ring-amber-200'
-                            : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200'
-                        }`}
-                      >
-                        <Sparkles className="w-3.5 h-3.5 shrink-0" />
-                        <span>Dikerjakan</span>
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-md font-black bg-amber-200 text-amber-900">
-                          {filterCounts.sedangDikerjakan}
-                        </span>
-                      </button>
+                      {showSedangDikerjakanTab && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setFilterStatus(filterStatus === 'sedang_dikerjakan' ? 'semua' : 'sedang_dikerjakan')
+                          }
+                          className={`py-2 px-3 rounded-xl font-bold text-xs flex items-center gap-1.5 transition ${
+                            filterStatus === 'sedang_dikerjakan'
+                              ? 'bg-amber-600 text-white shadow-2xs ring-2 ring-amber-200'
+                              : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200'
+                          }`}
+                        >
+                          <Sparkles className="w-3.5 h-3.5 shrink-0" />
+                          <span>Dikerjakan</span>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-md font-black bg-amber-200 text-amber-900">
+                            {filterCounts.sedangDikerjakan}
+                          </span>
+                        </button>
+                      )}
 
                       <button
                         type="button"
@@ -651,6 +721,21 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         <p className="text-sm font-semibold text-slate-700">
                           {getEmptyStateMessage()}
                         </p>
+                        {searchQuery && showAmbilNotaLama && (
+                          <div className="pt-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setTransitionInitialQuery(searchQuery);
+                                setIsTransitionModalOpen(true);
+                              }}
+                              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 font-bold text-xs shadow-2xs transition active:scale-95 cursor-pointer"
+                            >
+                              <History className="w-4 h-4 text-amber-600" />
+                              <span>Nota "{searchQuery}" tidak ada di sistem baru? Klik untuk Ambil Nota Lama (10 Detik)</span>
+                            </button>
+                          </div>
+                        )}
                         {filterStatus !== 'semua' && (
                           <button
                             type="button"
@@ -739,15 +824,27 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                                 onClick={(e) => e.stopPropagation()}
                               >
                                 {trx.status === 'Diterima' ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => onSelesaikanTransaksi(trx)}
-                                    title="Mulai Pengerjaan"
-                                    className="px-3 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-2xs active:scale-95 transition"
-                                  >
-                                    <Clock className="w-3.5 h-3.5" />
-                                    <span>Proses</span>
-                                  </button>
+                                  settings?.selesaikanSaatDitugaskan ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => onSelesaikanTransaksi(trx)}
+                                      title="Selesaikan & Siap Ambil"
+                                      className="px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold flex items-center gap-1.5 shadow-2xs active:scale-95 transition"
+                                    >
+                                      <Sparkles className="w-3.5 h-3.5" />
+                                      <span>Selesai</span>
+                                    </button>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => onSelesaikanTransaksi(trx)}
+                                      title="Mulai Pengerjaan"
+                                      className="px-3 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-2xs active:scale-95 transition"
+                                    >
+                                      <Clock className="w-3.5 h-3.5" />
+                                      <span>Proses</span>
+                                    </button>
+                                  )
                                 ) : trx.status === 'Proses' ? (
                                   <button
                                     type="button"
@@ -1068,7 +1165,30 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               )}
 
               {/* 2. PENCARIAN & 3 TOMBOL FILTER BERSEBELAHAN */}
-              <div className="bg-white rounded-2xl border border-slate-200 p-2 sm:p-3 shadow-2xs">
+              <div className="bg-white rounded-2xl border border-slate-200 p-2 sm:p-3 shadow-2xs space-y-1.5">
+                {showAmbilNotaLama && (
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTransitionInitialQuery('');
+                        setIsTransitionModalOpen(true);
+                      }}
+                      className="flex-1 py-1.5 px-3 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 font-extrabold text-[11px] flex items-center justify-center gap-1.5 transition active:scale-95 shadow-2xs cursor-pointer"
+                    >
+                      <History className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                      <span>+ Ambil Nota Lama (Transisi Aplikasi)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleHideAmbilNotaLama}
+                      title="Sembunyikan tombol (Dapat dimunculkan kembali di Pengaturan)"
+                      className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-500 hover:text-slate-800 transition active:scale-95 cursor-pointer flex items-center justify-center shrink-0"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-1 items-center">
                   {/* Kolom 1: Kolom Pencarian */}
                   <div className="relative w-full">
@@ -1091,39 +1211,65 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     )}
                   </div>
 
-                  {/* Kolom 2: 3 Tombol Filter */}
-                  <div className="grid grid-cols-3 gap-1 w-full">
-                    {/* Tombol 1: Baru Masuk */}
-                    <button
-                      type="button"
-                      onClick={() => setFilterStatus(filterStatus === 'baru_masuk' ? 'semua' : 'baru_masuk')}
-                      className={`py-2 px-1 rounded-xl font-bold text-xs flex items-center justify-center gap-1 transition ${
-                        filterStatus === 'baru_masuk'
-                          ? 'bg-rose-700 text-white shadow-sm ring-2 ring-rose-300'
-                          : 'bg-rose-50/80 hover:bg-rose-100 text-rose-800 border border-rose-200'
-                      }`}
-                    >
-                      <Clock className="w-3.5 h-3.5 shrink-0" />
-                      <span className="text-[10px] px-1 rounded-full font-black bg-rose-200 text-rose-900">
-                        {filterCounts.baruMasuk}
-                      </span>
-                    </button>
+                  {/* Kolom 2: Tombol Filter */}
+                  <div className={`grid ${
+                    (showBaruMasukTab ? 1 : 1) + (showSedangDikerjakanTab ? 1 : 0) + 1 === 3
+                      ? 'grid-cols-3'
+                      : 'grid-cols-2'
+                  } gap-1 w-full`}>
+                    {/* Jika filter jam merah (Baru Masuk) disembunyikan, tampilkan tombol Semua agar di HP tetap ada filter Semua vs Selesai */}
+                    {!showBaruMasukTab && (
+                      <button
+                        type="button"
+                        onClick={() => setFilterStatus('semua')}
+                        className={`py-2 px-1 rounded-xl font-bold text-xs flex items-center justify-center gap-1 transition ${
+                          filterStatus === 'semua'
+                            ? 'bg-slate-800 text-white shadow-sm ring-2 ring-slate-300'
+                            : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
+                        }`}
+                      >
+                        <span className="text-[11px]">Semua</span>
+                        <span className="text-[10px] px-1 rounded-full font-black bg-slate-200 text-slate-800">
+                          {filterCounts.semua}
+                        </span>
+                      </button>
+                    )}
+
+                    {/* Tombol 1: Baru Masuk (Filter Jam Merah) */}
+                    {showBaruMasukTab && (
+                      <button
+                        type="button"
+                        onClick={() => setFilterStatus(filterStatus === 'baru_masuk' ? 'semua' : 'baru_masuk')}
+                        className={`py-2 px-1 rounded-xl font-bold text-xs flex items-center justify-center gap-1 transition ${
+                          filterStatus === 'baru_masuk'
+                            ? 'bg-rose-700 text-white shadow-sm ring-2 ring-rose-300'
+                            : 'bg-rose-50/80 hover:bg-rose-100 text-rose-800 border border-rose-200'
+                        }`}
+                      >
+                        <Clock className="w-3.5 h-3.5 shrink-0" />
+                        <span className="text-[10px] px-1 rounded-full font-black bg-rose-200 text-rose-900">
+                          {filterCounts.baruMasuk}
+                        </span>
+                      </button>
+                    )}
 
                     {/* Tombol 2: Sedang Dikerjakan */}
-                    <button
-                      type="button"
-                      onClick={() => setFilterStatus(filterStatus === 'sedang_dikerjakan' ? 'semua' : 'sedang_dikerjakan')}
-                      className={`py-2 px-1 rounded-xl font-bold text-xs flex items-center justify-center gap-1 transition ${
-                        filterStatus === 'sedang_dikerjakan'
-                          ? 'bg-amber-600 text-white shadow-sm ring-2 ring-amber-300'
-                          : 'bg-amber-50/80 hover:bg-amber-100 text-amber-800 border border-amber-200'
-                      }`}
-                    >
-                      <Sparkles className="w-3.5 h-3.5 shrink-0" />
-                      <span className="text-[10px] px-1 rounded-full font-black bg-amber-200 text-amber-900">
-                        {filterCounts.sedangDikerjakan}
-                      </span>
-                    </button>
+                    {showSedangDikerjakanTab && (
+                      <button
+                        type="button"
+                        onClick={() => setFilterStatus(filterStatus === 'sedang_dikerjakan' ? 'semua' : 'sedang_dikerjakan')}
+                        className={`py-2 px-1 rounded-xl font-bold text-xs flex items-center justify-center gap-1 transition ${
+                          filterStatus === 'sedang_dikerjakan'
+                            ? 'bg-amber-600 text-white shadow-sm ring-2 ring-amber-300'
+                            : 'bg-amber-50/80 hover:bg-amber-100 text-amber-800 border border-amber-200'
+                        }`}
+                      >
+                        <Sparkles className="w-3.5 h-3.5 shrink-0" />
+                        <span className="text-[10px] px-1 rounded-full font-black bg-amber-200 text-amber-900">
+                          {filterCounts.sedangDikerjakan}
+                        </span>
+                      </button>
+                    )}
 
                     {/* Tombol 3: Selesai */}
                     <button
@@ -1154,6 +1300,21 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     <p className="text-sm font-semibold text-slate-700">
                       {getEmptyStateMessage()}
                     </p>
+                    {searchQuery && showAmbilNotaLama && (
+                      <div className="pt-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setTransitionInitialQuery(searchQuery);
+                            setIsTransitionModalOpen(true);
+                          }}
+                          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 font-bold text-xs shadow-2xs transition active:scale-95 text-left cursor-pointer"
+                        >
+                          <History className="w-4 h-4 text-amber-600 shrink-0" />
+                          <span>Nota "{searchQuery}" tidak ada? Ambil Nota Lama</span>
+                        </button>
+                      </div>
+                    )}
                     <div className="flex items-center justify-center gap-2 pt-1">
                       {filterStatus !== 'semua' && (
                         <button
@@ -1229,14 +1390,25 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                               onClick={(e) => e.stopPropagation()}
                             >
                               {trx.status === 'Diterima' ? (
-                                <button
-                                  type="button"
-                                  onClick={() => onSelesaikanTransaksi(trx)}
-                                  title="Mulai Pengerjaan"
-                                  className="w-10 min-h-[20px] rounded-xl bg-rose-600 hover:bg-rose-700 text-white flex flex-col items-center justify-center gap-1 shadow-2xs active:scale-95 transition"
-                                >
-                                  <Clock className="w-4 h-4" />
-                                </button>
+                                settings?.selesaikanSaatDitugaskan ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => onSelesaikanTransaksi(trx)}
+                                    title="Selesaikan & Siap Ambil"
+                                    className="w-10 min-h-[20px] rounded-xl bg-amber-500 hover:bg-amber-600 text-white flex flex-col items-center justify-center gap-1 shadow-2xs active:scale-95 transition"
+                                  >
+                                    <Sparkles className="w-4 h-4" />
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => onSelesaikanTransaksi(trx)}
+                                    title="Mulai Pengerjaan"
+                                    className="w-10 min-h-[20px] rounded-xl bg-rose-600 hover:bg-rose-700 text-white flex flex-col items-center justify-center gap-1 shadow-2xs active:scale-95 transition"
+                                  >
+                                    <Clock className="w-4 h-4" />
+                                  </button>
+                                )
                               ) : trx.status === 'Proses' ? (
                                 <button
                                   type="button"
@@ -1603,6 +1775,26 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         );
       })()}
+
+      {/* MODAL INPUT KILAT AMBIL NOTA LAMA (TRANSISI) */}
+      <QuickTransitionPickupModal
+        isOpen={isTransitionModalOpen}
+        onClose={() => setIsTransitionModalOpen(false)}
+        initialQuery={transitionInitialQuery}
+        existingCustomers={Array.from(
+          new Map(
+            transaksiList
+              .filter((t) => t.namaPelanggan)
+              .map((t) => [t.namaPelanggan.toLowerCase(), { nama: t.namaPelanggan, nomorTelepon: t.nomorTelepon }])
+          ).values()
+        )}
+        onSave={(data) => {
+          setIsTransitionModalOpen(false);
+          if (onSaveTransitionPickup) {
+            onSaveTransitionPickup(data);
+          }
+        }}
+      />
     </div>
   );
 };

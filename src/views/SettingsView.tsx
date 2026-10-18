@@ -137,6 +137,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [waNotification, setWaNotification] = useState(settings.waNotificationEnabled);
   const [selesaikanOtomatis, setSelesaikanOtomatis] = useState(settings.selesaikanSaatDitugaskan);
   const [ambilTanpaSelesai, setAmbilTanpaSelesai] = useState(settings.pengambilanTanpaSelesai);
+  const [tampilkanAmbilNotaLama, setTampilkanAmbilNotaLama] = useState(settings.tampilkanTombolAmbilNotaLama ?? true);
 
   const handleSaveInfoStruk = () => {
     onUpdateSettings({
@@ -174,6 +175,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       waNotificationEnabled: waNotification,
       selesaikanSaatDitugaskan: selesaikanOtomatis,
       pengambilanTanpaSelesai: ambilTanpaSelesai,
+      tampilkanTombolAmbilNotaLama: tampilkanAmbilNotaLama,
       poinSystemEnabled: false,
     });
     setShowFeatureSettingsModal(false);
@@ -443,7 +445,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
             <button
               type="button"
-              onClick={() => setShowFeatureSettingsModal(true)}
+              onClick={() => {
+                setPemasukanManual(settings.pemasukanManualEnabled);
+                setEstimasiPerItem(settings.estimasiDisplayMode === 0);
+                setWaNotification(settings.waNotificationEnabled);
+                setSelesaikanOtomatis(settings.selesaikanSaatDitugaskan);
+                setAmbilTanpaSelesai(settings.pengambilanTanpaSelesai);
+                setTampilkanAmbilNotaLama(settings.tampilkanTombolAmbilNotaLama ?? true);
+                setShowFeatureSettingsModal(true);
+              }}
               className="w-full p-3.5 flex items-center justify-between hover:bg-slate-50 active:bg-slate-100 transition text-left"
             >
               <div className="flex items-center gap-3 min-w-0">
@@ -763,6 +773,22 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </span>
               </label>
 
+              <label className="flex items-start gap-3 p-3 rounded-xl border border-amber-200 bg-amber-50/50 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={tampilkanAmbilNotaLama}
+                  onChange={(e) => setTampilkanAmbilNotaLama(e.target.checked)}
+                  className="w-4 h-4 accent-[#800000] mt-0.5"
+                />
+                <div>
+                  <span className="font-bold text-slate-800 text-xs block">
+                    ● Tampilkan tombol "Ambil Nota Lama" (Transisi Cepat)
+                  </span>
+                  <span className="text-[11px] text-slate-500 block mt-0.5 leading-relaxed">
+                    Menampilkan tombol di Dashboard & saran saat pencarian nota nihil. Jika dinonaktifkan (atau ditutup dengan tombol X), tombol akan tersembunyi.
+                  </span>
+                </div>
+              </label>
             </div>
 
             <div className="flex gap-2 pt-2">

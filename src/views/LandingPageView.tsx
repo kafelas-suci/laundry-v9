@@ -9,6 +9,7 @@ import {
   ChevronRight,
   ShieldCheck,
   Zap,
+  ArrowLeft,
   ArrowRight,
   Download,
   HelpCircle,
@@ -125,8 +126,16 @@ export const LandingPageView: React.FC<LandingPageViewProps> = ({
 
           <div className="flex items-center gap-2 sm:gap-3">
             <button
+              onClick={onOpenKasir}
+              className="px-2.5 sm:px-3 py-2 text-xs font-bold text-slate-700 bg-stone-100 hover:bg-stone-200 rounded-lg transition-colors border border-stone-300 flex items-center gap-1.5 cursor-pointer"
+              title="Kembali ke Layar Login"
+            >
+              <ArrowLeft className="w-3.5 h-3.5 text-slate-600" />
+              <span>Login</span>
+            </button>
+            <button
               onClick={() => onStartDemo('owner')}
-              className="px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm font-semibold text-slate-700 bg-stone-100 hover:bg-stone-200 rounded-lg transition-colors border border-stone-300 flex items-center gap-1.5"
+              className="px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm font-semibold text-slate-700 bg-stone-100 hover:bg-stone-200 rounded-lg transition-colors border border-stone-300 flex items-center gap-1.5 cursor-pointer"
               title="Coba aplikasi dengan data simulasi langsung"
             >
               <Sparkles className="w-3.5 h-3.5 text-amber-600" />
@@ -134,7 +143,7 @@ export const LandingPageView: React.FC<LandingPageViewProps> = ({
             </button>
             <button
               onClick={onOpenKasir}
-              className="px-3.5 sm:px-5 py-2 sm:py-2.5 text-xs sm:text-sm font-bold text-white bg-red-950 hover:bg-red-900 rounded-lg shadow-sm transition-all flex items-center gap-1.5"
+              className="px-3.5 sm:px-5 py-2 sm:py-2.5 text-xs sm:text-sm font-bold text-white bg-red-950 hover:bg-red-900 rounded-lg shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
             >
               <span>Buka Kasir POS</span>
               <ArrowRight className="w-4 h-4" />

@@ -200,7 +200,7 @@ export const BukuKasView: React.FC<BukuKasViewProps> = ({
 
           cashList.push({
             timestamp: trx.tanggalPengambilan,
-            keterangan: `${trx.namaPelanggan} (${trx.nomorTransaksi || '-'}) • Pelunasan Saat Ambil`,
+            keterangan: `${trx.namaPelanggan} (${trx.nomorTransaksi || '-'}) `,
             jumlahMasuk: pelunasan,
             jumlahKeluar: 0,
             metodePembayaran: trx.metodePembayaran || 'Tunai',
@@ -487,7 +487,7 @@ export const BukuKasView: React.FC<BukuKasViewProps> = ({
                   <span className="font-bold text-amber-950 text-[11px] block">
                     Sisa Piutang Nota (Belum Dibayar)
                   </span>
-                e
+                
                 </div>
               </div>
               <span className="font-black text-amber-900 font-mono text-xs sm:text-sm">
@@ -536,8 +536,8 @@ export const BukuKasView: React.FC<BukuKasViewProps> = ({
         {/* 6. DAFTAR MUTASI SESUAI TAB AKTIF */}
         <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-2xs">
           {/* Header Tabel */}
-          <div className="bg-slate-100/90 px-3 py-2 text-[11px] font-extrabold text-slate-600 flex justify-between items-center border-b border-slate-200">
-            <span className="w-12 shrink-0">Waktu</span>
+          <div className="bg-slate-100/90 px-2 py-2 text-[11px] font-extrabold text-slate-600 flex justify-between items-center border-b border-slate-200">
+            <span className="w-8 shrink-0">Waktu</span>
             <span className="flex-1 px-2">
               {activeTab === 'uang' ? 'Rincian Mutasi Kas' : 'Rincian Serah Terima Cucian'}
             </span>
@@ -628,74 +628,87 @@ export const BukuKasView: React.FC<BukuKasViewProps> = ({
           )}
 
           {/* TAB 2: LOGISTIK SERAH TERIMA CUCIAN */}
-          {activeTab === 'logistik' && (
-            <div className="divide-y divide-slate-100 text-xs">
-              {displayedLogisticRows.length === 0 ? (
-                <div className="p-8 text-center text-slate-400 space-y-1">
-                  <Shirt className="w-8 h-8 text-slate-300 mx-auto" />
-                  <p className="font-semibold text-xs text-slate-600">
-                    Tidak ada aktivitas serah terima cucian pada tanggal ini.
-                  </p>
-                </div>
-              ) : (
-                displayedLogisticRows.map((row, idx) => {
-                  const isMasuk = row.logType === 'MASUK';
-                  const trx = row.transaksi;
-                  const totalNilai = trx ? trx.totalHarga : (row.jumlahMasuk || 0);
-                  const isLunas = trx ? trx.statusPembayaran === 'Lunas' : true;
+{activeTab === 'logistik' && (
+  <div className="divide-y divide-slate-100 text-xs">
+    {displayedLogisticRows.length === 0 ? (
+      <div className="p-8 text-center text-slate-400 space-y-1">
+        <Shirt className="w-8 h-8 text-slate-300 mx-auto" />
+        <p className="font-semibold text-xs text-slate-600">
+          Tidak ada aktivitas serah terima cucian pada tanggal ini.
+        </p>
+      </div>
+    ) : (
+      displayedLogisticRows.map((row, idx) => {
+        const isMasuk = row.logType === 'MASUK';
+        const trx = row.transaksi;
+        const totalNilai = trx ? trx.totalHarga : (row.jumlahMasuk || 0);
+        const isLunas = trx ? trx.statusPembayaran === 'Lunas' : true;
 
-                  return (
-                    <div
-                      key={idx}
-                      onClick={() => row.transaksiId && onOpenDetailTransaksi(row.transaksiId)}
-                      className={`p-3 flex items-center justify-between hover:bg-slate-50 transition ${
-                        row.transaksiId ? 'cursor-pointer' : ''
-                      }`}
-                    >
-                      {/* Jam */}
-                      <div className="w-12 font-mono text-[11px] text-slate-400 shrink-0 font-medium">
-                        {formatShortTime(row.timestamp)}
-                      </div>
+        // Memisahkan keterangan dengan ' • ' jika ada (misal: "Budi (001) • Diambil Pelanggan")
+        const parts = (row.keterangan || '').split(' • ');
+        const namaUtama = parts[0] || '';
+        const statusKanan = parts.slice(1).join(' • ');
 
-                      {/* Detail Cucian */}
-                      <div className="flex-1 px-2 min-w-0 space-y-1">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span
-                            className={`px-1.5 py-0.5 rounded text-[9px] font-black tracking-wider uppercase shrink-0 ${
-                              isMasuk
-                                ? 'bg-blue-100 text-blue-800 border border-blue-200'
-                                : 'bg-purple-100 text-purple-800 border border-purple-200'
-                            }`}
-                          >
-                            {isMasuk ? '📥 CUCIAN MASUK' : '📦 CUCIAN DIAMBIL'}
-                          </span>
-
-                          <span
-                            className={`text-[9px] px-1.5 py-0.5 rounded font-bold border ${
-                              isLunas
-                                ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                                : 'bg-rose-50 text-rose-800 border-rose-200'
-                            }`}
-                          >
-                            {isLunas ? 'LUNAS' : 'BELUM LUNAS'}
-                          </span>
-                        </div>
-
-                        <div className="font-bold text-slate-900 text-xs sm:text-sm truncate">
-                          {row.keterangan}
-                        </div>
-                      </div>
-
-                      {/* Nilai Nota */}
-                      <div className="w-24 text-right font-black font-mono shrink-0 text-xs sm:text-sm text-slate-700">
-                        {formatRupiah(totalNilai)}
-                      </div>
-                    </div>
-                  );
-                })
-              )}
+        return (
+          <div
+            key={idx}
+            onClick={() => row.transaksiId && onOpenDetailTransaksi(row.transaksiId)}
+            className={`p-1.5 flex items-center justify-between hover:bg-slate-50 transition ${
+              row.transaksiId ? 'cursor-pointer' : ''
+            }`}
+          >
+            {/* Jam */}
+            <div className="w-8 font-mono text-[11px] text-slate-400 shrink-0 font-medium">
+              {formatShortTime(row.timestamp)}
             </div>
-          )}
+
+            {/* Detail Cucian (Badge di Atas, Nama di Bawah) */}
+            <div className="flex-1 px-2 min-w-0 space-y-1">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span
+                  className={`px-1.5 py-0.5 rounded text-[9px] font-black tracking-wider uppercase shrink-0 ${
+                    isMasuk
+                      ? 'bg-blue-100 text-blue-800 border border-blue-200'
+                      : 'bg-purple-100 text-purple-800 border border-purple-200'
+                  }`}
+                >
+                  {isMasuk ? '📥 CUCIAN MASUK' : '📦 CUCIAN DIAMBIL'}
+                </span>
+
+                <span
+                  className={`text-[9px] px-1.5 py-0.5 rounded font-bold border ${
+                    isLunas
+                      ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                      : 'bg-rose-50 text-rose-800 border-rose-200'
+                  }`}
+                >
+                  {isLunas ? 'LUNAS' : 'BELUM LUNAS'}
+                </span>
+              </div>
+
+              {/* Nama Pelanggan / Keterangan & Status Samping */}
+              <div className="flex items-center justify-between gap-2">
+                <div className="font-bold text-slate-900 text-xs sm:text-sm truncate min-w-0 flex-1">
+                  {namaUtama}
+                </div>
+                {statusKanan && (
+                  <span className="text-[10px] sm:text-xs font-semibold text-slate-500 shrink-0 bg-slate-100 px-1.5 py-0.5 rounded-md">
+                    {statusKanan}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Nilai Nota */}
+            <div className="w-24 text-right font-black font-mono shrink-0 text-xs sm:text-sm text-slate-700">
+              {formatRupiah(totalNilai)}
+            </div>
+          </div>
+        );
+      })
+    )}
+  </div>
+)}
         </div>
       </main>
 

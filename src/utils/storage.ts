@@ -35,6 +35,8 @@ export const defaultSettings: SettingsData = {
   nilaiTukarPoin: 1,
   pemasukanManualEnabled: true,
   waNotificationEnabled: true,
+  tampilkanTombolAmbilNotaLama: true,
+
 };
 
 // Default Services matching SignUpActivity.kt

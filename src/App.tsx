@@ -33,6 +33,7 @@ import { KelolaLayananView } from './views/KelolaLayananView';
 import { KelolaOwnerView } from './views/KelolaOwnerView';
 import { KelolaKasirView } from './views/KelolaKasirView';
 import { SettingsView } from './views/SettingsView';
+import { LandingPageView } from './views/LandingPageView';
 
 import { AturKasModal } from './components/AturKasModal';
 import { SwitchBranchModal } from './components/SwitchBranchModal';
@@ -41,6 +42,7 @@ import { LimitTransaksiModal } from './components/LimitTransaksiModal';
 import { AssignStaffModal } from './components/AssignStaffModal';
 import { ReceiptModal } from './components/ReceiptModal';
 import { UpgradePlanModal } from './components/UpgradePlanModal';
+import { TransitionPickupData } from './components/QuickTransitionPickupModal';
 import { LaundryTier, normalizeTier, getLaundryLimits, EXTRA_BRANCH_PRICE } from './utils/subscription';
 import { formatRupiah } from './utils/formatters';
 import { OfflineIndicator } from './components/OfflineIndicator';
@@ -64,6 +66,7 @@ import { useToast } from './components/NotificationContext';
 type ViewType =
   | 'splash'
   | 'auth'
+  | 'landing'
   | 'dashboard'
   | 'tambah_edit'
   | 'detail_transaksi'
@@ -304,6 +307,13 @@ export default function App() {
       if (state.hasTrxForAssignStaff) {
         setTrxForAssignStaff(null);
         window.history.pushState({ view: state.activeView }, '');
+        return;
+      }
+
+      // Jika di halaman landing page, kembali ke auth (login)
+      if (state.activeView === 'landing') {
+        setActiveView('auth');
+        window.history.pushState({ view: 'auth' }, '');
         return;
       }
 
@@ -645,6 +655,94 @@ export default function App() {
         tanggalPengambilan: now,
       }).catch(console.error);
     });
+  };
+
+  const handleSaveTransitionPickup = (data: TransitionPickupData) => {
+    const now = Date.now();
+    const nominal = data.nominal !== undefined
+      ? Math.max(0, data.nominal)
+      : (data.sudahLunasLama ? 0 : Math.max(0, data.sisaNominal || 0));
+
+    const cleanNota = data.noNotaLama?.trim();
+    const nomorTrx = cleanNota || `TRANSISI-${String(now).slice(-5)}`;
+    const isLunasStatus = data.isLunas !== false;
+
+    const newTrx: Transaksi = {
+      id: `trx-transisi-${now}`,
+      userId: currentUser?.uid,
+      laundryId: activeLaundryId,
+      nomorTransaksi: nomorTrx,
+      noNotaLama: cleanNota || undefined,
+      namaPelanggan: data.namaPelanggan.trim(),
+      namaPelanggan_lowercase: data.namaPelanggan.trim().toLowerCase(),
+      nomorTelepon: data.nomorTelepon?.trim() || null,
+      totalHarga: nominal,
+      jumlahDp: 0,
+      tanggalMasuk: now,
+      tanggalSelesai: now,
+      tanggalPengambilan: now,
+      status: 'Diambil',
+      statusPembayaran: isLunasStatus ? 'Lunas' : 'Belum Lunas',
+      metodePembayaran: data.metodePembayaran,
+      metodePembayaranDetail: data.metodePembayaranDetail || data.metodePembayaran,
+      isTransisi: true,
+      catatan: data.catatan
+        ? (cleanNota ? `${data.catatan} (Nota Lama #${cleanNota})` : data.catatan)
+        : (cleanNota ? `Transisi Nota Lama #${cleanNota}` : 'Transisi Nota Lama'),
+      items: [
+        {
+          itemId: 1,
+          laundryId: activeLaundryId,
+          namaLayanan: data.catatan
+            ? `Transisi: ${data.catatan}`
+            : (cleanNota ? `Pelunasan Nota #${cleanNota}` : 'Pelunasan Cucian Transisi'),
+          berat: 1,
+          hargaPerKg: nominal,
+          hargaSatuan: nominal,
+          satuan: 'nota',
+          subtotal: nominal,
+        },
+      ],
+    };
+
+    const updatedList = [newTrx, ...transaksiList];
+    updateTransaksiList(updatedList);
+    if (!isDemoMode) {
+      FirebaseSyncService.saveTransaksi(newTrx).catch(console.error);
+    }
+
+    if (data.namaPelanggan) {
+      const existingCust = pelangganList.find(
+        (p) => p.nama.toLowerCase() === data.namaPelanggan.trim().toLowerCase()
+      );
+      if (!existingCust) {
+        const limits = getLaundryLimits(activeTier);
+        if (pelangganList.length < limits.maxCustomers) {
+          const newCust: Pelanggan = {
+            id: `pel-${now}`,
+            laundryId: activeLaundryId,
+            nama: data.namaPelanggan.trim(),
+            nomorTelepon: data.nomorTelepon?.trim() || null,
+            poin: 0,
+          };
+          updatePelangganList([...pelangganList, newCust]);
+          if (!isDemoMode) {
+            FirebaseSyncService.savePelanggan(newCust).catch(console.error);
+          }
+        }
+      }
+    }
+
+    toast.success(
+      `Cucian ${data.namaPelanggan}${cleanNota ? ` (Nota #${cleanNota})` : ''} diserahkan${
+        nominal > 0 ? ` & uang ${formatRupiah(nominal)} masuk ke kas hari ini!` : '!'
+      }`
+    );
+
+    if (data.bukaStruk) {
+      setSelectedTransaksiId(newTrx.id);
+      setReceiptModalTrx(newTrx);
+    }
   };
 
   // Active uncollected orders for current branch
@@ -1041,7 +1139,11 @@ export default function App() {
   const device = useDeviceDetect();
   const isEffectiveMobile = device.isMobile;
   const showDesktopSidebar =
-    !isEffectiveMobile && activeView !== 'splash' && activeView !== 'auth' && !!currentUser;
+    !isEffectiveMobile &&
+    activeView !== 'splash' &&
+    activeView !== 'auth' &&
+    activeView !== 'landing' &&
+    !!currentUser;
 
   const handleLogoutUser = async () => {
     try {
@@ -1061,20 +1163,26 @@ export default function App() {
       <OfflineIndicator />
 
       {/* Demo Trial Banner for Prospective Users */}
-      {isDemoMode && currentUser && activeView !== 'splash' && activeView !== 'auth' && (
-        <DemoBanner
-          currentUser={currentUser}
-          onResetDemoData={handleResetDemoData}
-          onSwitchToRealRegister={handleSwitchToRealRegister}
-          onExitDemo={handleExitDemo}
-          onSwitchDemoRole={handleSwitchDemoRole}
-        />
-      )}
+      {isDemoMode &&
+        currentUser &&
+        activeView !== 'splash' &&
+        activeView !== 'auth' &&
+        activeView !== 'landing' && (
+          <DemoBanner
+            currentUser={currentUser}
+            onResetDemoData={handleResetDemoData}
+            onSwitchToRealRegister={handleSwitchToRealRegister}
+            onExitDemo={handleExitDemo}
+            onSwitchDemoRole={handleSwitchDemoRole}
+          />
+        )}
 
       {/* Main Container: Full Web App Shell with Sidebar on PC/Tablet, Original Container on HP */}
       <div
         className={
-          showDesktopSidebar
+          activeView === 'landing'
+            ? 'w-full min-h-screen bg-stone-50'
+            : showDesktopSidebar
             ? 'w-full h-screen overflow-hidden bg-slate-100 flex flex-row'
             : `w-full max-w-6xl bg-slate-100 ${
                 activeView === 'dashboard' ? 'h-[100dvh] overflow-hidden' : 'min-h-screen'
@@ -1127,6 +1235,7 @@ export default function App() {
             staffList={staffList}
             initialSignUp={initialSignUpMode}
             onStartDemo={handleStartDemo}
+            onOpenLandingPage={() => setActiveView('landing')}
             onLoginSuccess={async (user) => {
               setIsDemoMode(false);
               StorageService.set('is_demo_mode', false);
@@ -1136,6 +1245,14 @@ export default function App() {
               await loadFirestoreData(user);
               setActiveView('dashboard');
             }}
+          />
+        )}
+
+        {activeView === 'landing' && (
+          <LandingPageView
+            onOpenKasir={() => setActiveView('auth')}
+            onStartDemo={(role) => handleStartDemo(role || 'owner')}
+            onOpenApkModal={() => setIsApkModalOpen(true)}
           />
         )}
 
@@ -1175,10 +1292,13 @@ export default function App() {
                   setTrxForAssignStaff(trx);
                 } else {
                   const loginUserName = currentUser?.displayName || 'Kasir';
+                  const autoFinish = settings.selesaikanSaatDitugaskan;
                   const updated = {
                     ...trx,
-                    status: 'Proses' as const,
+                    status: autoFinish ? ('Selesai' as const) : ('Proses' as const),
                     dikerjakanOleh: loginUserName,
+                    tanggalDitugaskan: Date.now(),
+                    tanggalStatusSelesai: autoFinish ? Date.now() : null,
                   };
                   updateTransaksiList(
                     transaksiList.map((t) => (t.id === trx.id ? updated : t))
@@ -1197,6 +1317,8 @@ export default function App() {
             }}
             onAmbilTransaksi={handleAmbilTransaksi}
             onAmbilBanyakTransaksi={handleAmbilBanyakTransaksi}
+            onSaveTransitionPickup={handleSaveTransitionPickup}
+            onUpdateSettings={updateSettings}
           />
         )}
 
@@ -1458,7 +1580,7 @@ export default function App() {
             onOpenKelolaKasir={() => setActiveView('kelola_kasir')}
             onOpenApkModal={() => setIsApkModalOpen(true)}
             onOpenUpgradeModal={handleOpenUpgradeModal}
-              onTopUpWallet={handleTopUpWallet}
+            onTopUpWallet={handleTopUpWallet}
             onUpdateOwnerProfile={handleUpdateOwnerProfile}
             onLogout={handleLogoutUser}
           />
@@ -1532,6 +1654,7 @@ export default function App() {
               ...trxForAssignStaff,
               dikerjakanOleh: staffName,
               status: autoFinish ? 'Selesai' : 'Proses',
+              tanggalDitugaskan: Date.now(),
               tanggalStatusSelesai: autoFinish ? Date.now() : null,
             };
             updateTransaksiList(

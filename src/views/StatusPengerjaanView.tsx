@@ -309,9 +309,30 @@ export const StatusPengerjaanView: React.FC<StatusPengerjaanViewProps> = ({
           tanggalStatusSelesai: autoFinish ? nowTime : null,
         };
         onUpdateTransaksi(updated);
-        toast.success(
-          `Pesanan ${trx.nomorTransaksi || trx.namaPelanggan} otomatis dikerjakan oleh ${loginUserName}!`
-        );
+        if (autoFinish) {
+          toast.success(
+            `Pesanan ${trx.nomorTransaksi || trx.namaPelanggan} selesai dikerjakan oleh ${loginUserName}!`
+          );
+          if (settings.waNotificationEnabled && trx.nomorTelepon) {
+            confirm({
+              title: 'Kirim Notifikasi WhatsApp',
+              message: `Pekerjaan selesai! Ingin buka WhatsApp dan kirim notifikasi siap ambil ke ${trx.namaPelanggan}?`,
+              confirmText: 'Buka WhatsApp',
+              cancelText: 'Nanti Saja',
+            }).then((ok) => {
+              if (ok) {
+                const sisa = Math.max(0, trx.totalHarga - trx.jumlahDp);
+                const msg = `Halo Kak *${trx.namaPelanggan}*,\nCucian Anda (Nota *${trx.nomorTransaksi}*) sudah *SELESAI* dan siap diambil di ${settings.headerStruk}.\nSisa Tagihan: ${formatRupiah(sisa)}\nTerima kasih!`;
+                const phone = (trx.nomorTelepon || '').replace(/[^0-9]/g, '').replace(/^0/, '62');
+                window.open(`https://api.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(msg)}`, '_blank');
+              }
+            });
+          }
+        } else {
+          toast.success(
+            `Pesanan ${trx.nomorTransaksi || trx.namaPelanggan} otomatis dikerjakan oleh ${loginUserName}!`
+          );
+        }
       }
     } else if (trx.status === 'Proses') {
       // Tandai Selesai: Cucian yang sudah selesai otomatis keluar dari antrean pengerjaan ini
@@ -353,6 +374,28 @@ export const StatusPengerjaanView: React.FC<StatusPengerjaanViewProps> = ({
       tanggalStatusSelesai: autoFinish ? nowTime : null,
     };
     onUpdateTransaksi(updated);
+    if (autoFinish) {
+      toast.success(
+        `Pesanan ${selectedTrxForStaff.nomorTransaksi || selectedTrxForStaff.namaPelanggan} selesai dikerjakan oleh ${staffName}!`
+      );
+      if (settings.waNotificationEnabled && selectedTrxForStaff.nomorTelepon) {
+        confirm({
+          title: 'Kirim Notifikasi WhatsApp',
+          message: `Pekerjaan selesai! Ingin buka WhatsApp dan kirim notifikasi siap ambil ke ${selectedTrxForStaff.namaPelanggan}?`,
+          confirmText: 'Buka WhatsApp',
+          cancelText: 'Nanti Saja',
+        }).then((ok) => {
+          if (ok) {
+            const sisa = Math.max(0, selectedTrxForStaff.totalHarga - selectedTrxForStaff.jumlahDp);
+            const msg = `Halo Kak *${selectedTrxForStaff.namaPelanggan}*,\nCucian Anda (Nota *${selectedTrxForStaff.nomorTransaksi}*) sudah *SELESAI* dan siap diambil di ${settings.headerStruk}.\nSisa Tagihan: ${formatRupiah(sisa)}\nTerima kasih!`;
+            const phone = (selectedTrxForStaff.nomorTelepon || '').replace(/[^0-9]/g, '').replace(/^0/, '62');
+            window.open(`https://api.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(msg)}`, '_blank');
+          }
+        });
+      }
+    } else {
+      toast.success(`Pesanan ditugaskan ke ${staffName}`);
+    }
     setSelectedTrxForStaff(null);
   };
 
@@ -374,60 +417,80 @@ export const StatusPengerjaanView: React.FC<StatusPengerjaanViewProps> = ({
       {/* Main Area */}
       <main className="flex-1 p-2 md:p-6 space-y-1 max-w-xl md:max-w-4xl mx-auto w-full">
         {/* 1. REKAP PRODUKSI STAF DENGAN TOGGLE: HARI INI - PILIH TANGGAL - BULAN INI */}
-        <div className="bg-white rounded-2xl p-3 border border-slate-200 shadow-2xs space-y-2.5">
-          {/* Header & Segmented Toggle Tanggal */}
-         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-slate-100 pb-1 w-full">
-  {/* Bagian Judul / Header Info */}
-  <div className="w-full sm:w-auto">
-    <div className="text-xs font-black text-slate-900 flex items-center gap-1.5">
-      <span>Produksi Staf</span>
-      <span className="text-[11px] font-black text-[#800000]">
-        ({totalKgPeriode.toFixed(1)} kg)
-      </span>
-    </div>
-    <div className="text-[10px] text-slate-500 font-medium">
-      {dateRange.label}
-    </div>
-  </div>
+   <div className="bg-white rounded-2xl p-3 border border-slate-200 shadow-2xs space-y-2.5">
+          
+          {/* Baris Atas: Judul (Kiri) & Kolom Pencarian (Kanan - Sejajar di HP & PC) */}
+          <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2 w-full">
+            {/* Bagian Judul / Header Info */}
+            <div className="shrink-0">
+              <div className="text-xs font-black text-slate-900 flex items-center gap-1.5">
+                <span>Produksi Staf</span>
+                <span className="text-[11px] font-black text-[#800000]">
+                  ({totalKgPeriode.toFixed(1)} kg)
+                </span>
+              </div>
+              <div className="text-[10px] text-slate-500 font-medium">
+                {dateRange.label}
+              </div>
+            </div>
 
-  {/* Toggle Filter Tanggal (Full Width di HP) */}
-  <div className="flex items-center bg-slate-100 p-0.5 rounded-xl text-xs font-bold w-full sm:w-auto">
+            {/* Kolom Pencarian Persis di Samping Kanan */}
+<div className="relative flex-1">
+  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+  <input
+    type="text"
+    placeholder="Cari pelanggan atau no. nota..."
+    value={searchQuery}
+    onChange={(e) => setSearchQuery(e.target.value)}
+    className="w-full pl-9 pr-8 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs focus:outline-[#800000] text-slate-800 placeholder:text-slate-400 shadow-2xs"
+  />
+  {searchQuery && (
     <button
       type="button"
-      onClick={() => setDateMode('hari_ini')}
-      className={`flex-1 sm:flex-none justify-center text-center px-3 py-1.5 rounded-lg transition cursor-pointer ${
-        dateMode === 'hari_ini' ? 'bg-[#800000] text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'
-      }`}
+      onClick={() => setSearchQuery('')}
+      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
     >
-      Hari Ini
+      <X className="w-4 h-4" />
     </button>
-        <button
-      type="button"
-      onClick={() => setDateMode('bulan_ini')}
-      className={`flex-1 sm:flex-none justify-center text-center px-3 py-1.5 rounded-lg transition cursor-pointer ${
-        dateMode === 'bulan_ini' ? 'bg-[#800000] text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'
-      }`}
-      title="Tanggal 1 sampai akhir bulan berjalan"
-    >
-      Bulan Ini
-    </button>
-    <button
-      type="button"
-      onClick={() => setDateMode('custom')}
-      className={`flex-1 sm:flex-none justify-center px-1 py-1.5 rounded-lg transition flex items-center gap-1 cursor-pointer ${
-        dateMode === 'custom' ? 'bg-[#800000] text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'
-      }`}
-    >
-      <Calendar className="w-3 h-3" />
-      <span>Tanggal</span>
-    </button>
-
-  </div>
+  )}
 </div>
+          </div>
+
+          {/* Baris Bawah: Toggle Filter Tanggal */}
+          <div className="flex items-center bg-slate-100 p-0.5 rounded-xl text-xs font-bold w-full">
+            <button
+              type="button"
+              onClick={() => setDateMode('hari_ini')}
+              className={`flex-1 text-center px-2 py-1.5 rounded-lg transition cursor-pointer ${
+                dateMode === 'hari_ini' ? 'bg-[#800000] text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Hari Ini
+            </button>
+            <button
+              type="button"
+              onClick={() => setDateMode('bulan_ini')}
+              className={`flex-1 text-center px-2 py-1.5 rounded-lg transition cursor-pointer ${
+                dateMode === 'bulan_ini' ? 'bg-[#800000] text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Bulan Ini
+            </button>
+            <button
+              type="button"
+              onClick={() => setDateMode('custom')}
+              className={`flex-1 justify-center px-1 py-1.5 rounded-lg transition flex items-center gap-1 cursor-pointer ${
+                dateMode === 'custom' ? 'bg-[#800000] text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Calendar className="w-3 h-3" />
+              <span>Tanggal</span>
+            </button>
+          </div>
 
           {/* Pemilih Tanggal Kustom (Jika Mode Pilih Tanggal Aktif) */}
           {dateMode === 'custom' && (
-            <div className="flex items-center justify-between gap-2 p-1.5 bg-slate-50 rounded-xl  animate-in fade-in">
+            <div className="flex items-center justify-between gap-2 p-1.5 bg-slate-50 rounded-xl animate-in fade-in">
               <div className="flex items-center gap-1">
                 <button
                   type="button"
@@ -460,7 +523,7 @@ export const StatusPengerjaanView: React.FC<StatusPengerjaanViewProps> = ({
             </div>
           )}
 
-          {/* Daftar Beban Kerja Staf (Klik chip nama untuk saring antrean staf tsb) */}
+          {/* Daftar Beban Kerja Staf */}
           {staffWorkload.length === 0 ? (
             <p className="text-xs text-slate-400 italic">
               Belum ada cucian yang dikerjakan oleh staf pada periode ini.
@@ -481,7 +544,6 @@ export const StatusPengerjaanView: React.FC<StatusPengerjaanViewProps> = ({
                         ? 'bg-[#800000] border-[#800000] text-white shadow-xs'
                         : 'bg-slate-50 border-slate-200 text-slate-800 hover:bg-slate-100'
                     }`}
-                    title={isSelected ? 'Klik untuk batal saring staf ini' : `Klik untuk hanya melihat cucian ${staf.nama}`}
                   >
                     <span>{staf.nama}:</span>
                     <strong className={isSelected ? 'text-white' : 'text-[#800000]'}>
@@ -513,34 +575,15 @@ export const StatusPengerjaanView: React.FC<StatusPengerjaanViewProps> = ({
           {/* 3 Tab Utama Status Pengerjaan (Tanpa Selesai) */}
          
 
-          {/* Bar Pencarian Tunggal */}
-          <div className="relative">
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder="Cari pelanggan atau no. nota..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-8 pr-7 py-2 rounded-xl bg-white border border-slate-200 text-xs focus:outline-[#800000] text-slate-800 placeholder:text-slate-400 shadow-2xs"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery('')}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
+     
 
           {/* 4 KOTAK FILTER WAKTU ESTIMASI TEPAT DI BAWAHNYA */}
-          <div className="grid grid-cols-4 gap-1.5 pt-0.5">
+          <div className="grid grid-cols-4 gap-1.5 pt-1">
             {/* Kotak 1: Semua Estimasi */}
             <button
               type="button"
               onClick={() => setEstimasiFilter('semua')}
-              className={`p-1 rounded-2xl border text-center transition cursor-pointer ${
+              className={`p-2 rounded-2xl border text-center transition cursor-pointer ${
                 estimasiFilter === 'semua'
                   ? 'bg-slate-900 border-slate-900 text-white shadow-xs'
                   : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
@@ -558,7 +601,7 @@ export const StatusPengerjaanView: React.FC<StatusPengerjaanViewProps> = ({
             <button
               type="button"
               onClick={() => setEstimasiFilter(estimasiFilter === 'terlewat' ? 'semua' : 'terlewat')}
-              className={`p-1 rounded-2xl border text-center transition cursor-pointer ${
+              className={`p-2 rounded-2xl border text-center transition cursor-pointer ${
                 estimasiFilter === 'terlewat'
                   ? 'bg-red-600 border-red-600 text-white shadow-xs'
                   : 'bg-red-50/80 border-red-200/80 text-red-700 hover:bg-red-100'
@@ -576,7 +619,7 @@ export const StatusPengerjaanView: React.FC<StatusPengerjaanViewProps> = ({
             <button
               type="button"
               onClick={() => setEstimasiFilter(estimasiFilter === 'hari_ini' ? 'semua' : 'hari_ini')}
-              className={`p-1 rounded-2xl border text-center transition cursor-pointer ${
+              className={`p-2 rounded-2xl border text-center transition cursor-pointer ${
                 estimasiFilter === 'hari_ini'
                   ? 'bg-amber-600 border-amber-600 text-white shadow-xs'
                   : 'bg-amber-50/80 border-amber-200/80 text-amber-700 hover:bg-amber-100'
@@ -594,7 +637,7 @@ export const StatusPengerjaanView: React.FC<StatusPengerjaanViewProps> = ({
             <button
               type="button"
               onClick={() => setEstimasiFilter(estimasiFilter === 'sisa_1_hari' ? 'semua' : 'sisa_1_hari')}
-              className={`p-1 rounded-2xl border text-center transition cursor-pointer ${
+              className={`p-2 rounded-2xl border text-center transition cursor-pointer ${
                 estimasiFilter === 'sisa_1_hari'
                   ? 'bg-blue-600 border-blue-600 text-white shadow-xs'
                   : 'bg-blue-50/80 border-blue-200/80 text-blue-700 hover:bg-blue-100'
@@ -646,144 +689,136 @@ export const StatusPengerjaanView: React.FC<StatusPengerjaanViewProps> = ({
               )}
             </div>
           ) : (
-            paginatedOrders.map((trx) => {
-              const est = trx.tanggalSelesai || trx.tanggalMasuk + 3 * 24 * 60 * 60 * 1000;
-              const diffDays = Math.ceil((est - now) / (1000 * 60 * 60 * 24));
-              const isOverdue = diffDays < 0;
-              const trxKg = calculateTransactionKg(trx);
+         paginatedOrders.map((trx) => {
+  const est = trx.tanggalSelesai || trx.tanggalMasuk + 3 * 24 * 60 * 60 * 1000;
+  const diffDays = Math.ceil((est - now) / (1000 * 60 * 60 * 24));
+  const isOverdue = diffDays < 0;
 
-              return (
-                <div
-                  key={trx.id}
-                  onClick={() => onOpenDetail(trx.id)}
-                  className="bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs flex items-center justify-between gap-2.5 hover:border-[#800000] cursor-pointer transition"
-                >
-                  {/* Left: Jam & Tanggal Masuk */}
-                  <div className="w-10 shrink-0 text-center border-r border-slate-100 pr-1 flex flex-col justify-center">
-                    <div className="text-[10px] font-bold text-slate-800 leading-none">
-                      {formatShortTime(trx.tanggalMasuk)}
-                    </div>
-                    <div className="text-[9px] text-slate-400 leading-none mt-1">
-                      {formatShortDate(trx.tanggalMasuk)}
-                    </div>
-                  </div>
+  return (
+    <div
+      key={trx.id}
+      onClick={() => onOpenDetail(trx.id)}
+      className="bg-white px-2 py-1 rounded-2xl border border-slate-200 shadow-2xs flex items-center justify-between gap-2.5 hover:border-[#800000] cursor-pointer transition"
+    >
+      {/* Left: Jam & Tanggal Masuk */}
+      <div className="w-9 shrink-0 text-center border-r border-slate-100 flex flex-col justify-center">
+        <div className="text-[11px] font-bold text-slate-800 leading-none">
+          {formatShortTime(trx.tanggalMasuk)}
+        </div>
+        <div className="text-[9px] text-slate-400 leading-none mt-1">
+          {formatShortDate(trx.tanggalMasuk)}
+        </div>
+      </div>
 
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-bold text-xs text-slate-900 truncate">
-                        {trx.namaPelanggan}
-                      </span>
-                      <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-mono">
-                        {trx.nomorTransaksi}
-                      </span>
-                    </div>
+      {/* Center: Informasi Pelanggan, Nota, Petugas (di kanan nama) & Rincian Layanan */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className="font-bold text-xs text-slate-900 truncate">
+            {trx.namaPelanggan}
+          </span>
 
-                    <div className="text-[11px] text-slate-500 italic truncate mt-0.5">
-                      {Array.isArray(trx.items) && trx.items.length > 0
-                        ? trx.items.map((it) => `${it.namaLayanan || 'Layanan'} (${it.berat || 0} ${it.satuan || ''})`).join(', ')
-                        : 'Layanan Cuci'}
-                    </div>
+          <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-mono">
+            {trx.nomorTransaksi}
+          </span>
 
-                    <div className="flex items-center gap-2 mt-1">
-                      {trx.dikerjakanOleh ? (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (hasRegisteredStaff) {
-                              setSelectedTrxForStaff(trx);
-                            }
-                          }}
-                          className={`text-[10px] text-emerald-800 font-bold bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/60 inline-flex items-center gap-1 ${
-                            hasRegisteredStaff ? 'hover:bg-emerald-100 cursor-pointer' : ''
-                          }`}
-                          title={hasRegisteredStaff ? 'Klik untuk ganti petugas' : undefined}
-                        >
-                          <UserIcon className="w-3 h-3 text-emerald-600" />
-                          <span>Petugas: {trx.dikerjakanOleh}</span>
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleActionButtonClick(trx);
-                          }}
-                          className="text-[10px] text-rose-700 font-bold bg-rose-50 hover:bg-rose-100 px-2 py-0.5 rounded-md border border-rose-200/60 inline-flex items-center gap-1 cursor-pointer"
-                          title={
-                            hasRegisteredStaff
-                              ? 'Klik untuk menugaskan staf'
-                              : `Klik untuk otomatis dikerjakan oleh ${currentUser?.displayName || 'Kasir'}`
-                          }
-                        >
-                          <UserIcon className="w-3 h-3 text-rose-500" />
-                          <span>Belum Ada Petugas</span>
-                        </button>
-                      )}
+          {/* Info Petugas di samping kanan Nama */}
+          {trx.dikerjakanOleh ? (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (hasRegisteredStaff) {
+                  setSelectedTrxForStaff(trx);
+                }
+              }}
+              className={`text-[10px] text-emerald-800 font-bold bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-200/60 inline-flex items-center gap-1 ${
+                hasRegisteredStaff ? 'hover:bg-emerald-100 cursor-pointer' : ''
+              }`}
+              title={hasRegisteredStaff ? 'Klik untuk ganti petugas' : undefined}
+            >
+              <UserIcon className="w-3 h-3 text-emerald-600" />
+              <span>{trx.dikerjakanOleh}</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleActionButtonClick(trx);
+              }}
+              className="text-[10px] text-rose-700 font-bold bg-rose-50 hover:bg-rose-100 px-1.5 py-0.5 rounded-md border border-rose-200/60 inline-flex items-center gap-1 cursor-pointer"
+            >
+              <UserIcon className="w-3 h-3 text-rose-500" />
+              <span>Belum</span>
+            </button>
+          )}
+        </div>
 
-                      {trxKg > 0 && (
-                        <span className="text-[10px] font-extrabold text-[#800000]">
-                          {trxKg.toFixed(1)} kg
-                        </span>
-                      )}
-                    </div>
-                  </div>
+        {/* Teks Rincian Layanan */}
+        <div className="text-[11px] text-slate-600 truncate mt-1">
+          {Array.isArray(trx.items) && trx.items.length > 0
+            ? trx.items.map((it) => `${it.namaLayanan || 'Layanan'} (${it.berat || 0} ${it.satuan || ''})`).join(', ')
+            : 'Layanan Cuci'}
+        </div>
+      </div>
 
-                  {/* Kolom Kanan: Status & Tombol Indikator Pengerjaan */}
-                  <div className="shrink-0 flex flex-col items-end justify-between self-stretch border-l border-slate-100 pl-2 min-w-[72px]">
-                    <div className="text-right">
-                      <div
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded-lg inline-block ${
-                          isOverdue
-                            ? 'bg-red-100 text-red-700'
-                            : diffDays === 0
-                            ? 'bg-amber-100 text-amber-700'
-                            : 'bg-emerald-100 text-emerald-700'
-                        }`}
-                      >
-                        {isOverdue ? 'Lewat' : diffDays === 0 ? 'Hari Ini' : `${diffDays} hr`}
-                      </div>
-                    </div>
+      {/* Right: Estimasi & Tombol Aksi Cepat */}
+      <div className="shrink-0 flex flex-col items-end justify-between self-stretch border-l border-slate-100 pl-1 min-w-[72px]">
+        <div className="text-right">
+          <div
+            className={`text-[10px] font-bold px-2 py-0.5 rounded-lg inline-block ${
+              isOverdue
+                ? 'bg-red-100 text-red-700'
+                : diffDays === 0
+                ? 'bg-amber-100 text-amber-700'
+                : 'bg-emerald-100 text-emerald-700'
+            }`}
+          >
+            {isOverdue ? 'Lewat' : diffDays === 0 ? 'Hari Ini' : `${diffDays} hari`}
+          </div>
+        </div>
 
-                    {/* Action Button: Persis seperti di Dashboard saat tidak ada staf terdaftar */}
-                    <div className="mt-1.5" onClick={(e) => e.stopPropagation()}>
-                      {trx.status === 'Diterima' ? (
-                        <button
-                          onClick={() => handleActionButtonClick(trx)}
-                          title={
-                            hasRegisteredStaff
-                              ? 'Tugaskan Staf Pengerjaan'
-                              : `Mulai Proses (Otomatis oleh ${currentUser?.displayName || 'Kasir'})`
-                          }
-                          className="px-2.5 py-1 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold flex items-center gap-1 shadow-2xs active:scale-90 transition cursor-pointer"
-                        >
-                          {hasRegisteredStaff ? (
-                            <>
-                              <UserCheck className="w-3 h-3" />
-                              <span>Tugaskan</span>
-                            </>
-                          ) : (
-                            <>
-                              <Clock className="w-3 h-3" />
-                              <span>Proses</span>
-                            </>
-                          )}
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => handleActionButtonClick(trx)}
-                          title="Tandai Selesai (Otomatis berpindah ke siap diambil di Dashboard)"
-                          className="px-2.5 py-1 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-[10px] font-bold flex items-center gap-1 shadow-2xs active:scale-90 transition cursor-pointer"
-                        >
-                          <Sparkles className="w-3 h-3" />
-                          <span>Selesai</span>
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })
+        <div className="mt-0.5" onClick={(e) => e.stopPropagation()}>
+          {trx.status === 'Diterima' ? (
+            <button
+              onClick={() => handleActionButtonClick(trx)}
+              className={`px-2.5 py-1 rounded-xl text-white text-[10px] font-bold flex items-center gap-1 shadow-2xs active:scale-90 transition cursor-pointer ${
+                settings.selesaikanSaatDitugaskan
+                  ? 'bg-amber-500 hover:bg-amber-600'
+                  : 'bg-rose-600 hover:bg-rose-700'
+              }`}
+            >
+              {settings.selesaikanSaatDitugaskan ? (
+                <>
+                  <Sparkles className="w-3 h-3" />
+                  <span>Selesai</span>
+                </>
+              ) : hasRegisteredStaff ? (
+                <>
+                  <UserCheck className="w-3 h-3" />
+                  <span>Tugaskan</span>
+                </>
+              ) : (
+                <>
+                  <Clock className="w-3 h-3" />
+                  <span>Proses</span>
+                </>
+              )}
+            </button>
+          ) : (
+            <button
+              onClick={() => handleActionButtonClick(trx)}
+              className="px-2.5 py-1 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-[10px] font-bold flex items-center gap-1 shadow-2xs active:scale-90 transition cursor-pointer"
+            >
+              <Sparkles className="w-3 h-3" />
+              <span>Selesai</span>
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+})
           )}
         </div>
 

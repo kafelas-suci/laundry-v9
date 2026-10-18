@@ -18,6 +18,7 @@ interface AuthViewProps {
   staffList: UserType[];
   ownerUser: UserType;
   onStartDemo?: (role: 'owner' | 'karyawan') => void;
+  onOpenLandingPage?: () => void;
   initialSignUp?: boolean;
 }
 
@@ -26,6 +27,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
   staffList,
   ownerUser,
   onStartDemo,
+  onOpenLandingPage,
   initialSignUp = false,
 }) => {
   const toast = useToast();
@@ -202,6 +204,22 @@ export const AuthView: React.FC<AuthViewProps> = ({
   return (
     <div className="min-h-screen bg-slate-900 flex flex-col justify-between p-4 sm:p-6 text-slate-100">
       <div className="w-full max-w-md mx-auto my-auto py-8">
+        {/* Top Landing Page Button */}
+        {onOpenLandingPage && (
+          <div className="flex justify-end mb-3">
+            <button
+              type="button"
+              onClick={onOpenLandingPage}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-slate-800/90 hover:bg-slate-750 border border-amber-500/30 text-amber-300 hover:text-amber-200 text-xs font-bold transition active:scale-95 cursor-pointer shadow-md group"
+              title="Buka Website Landing Page & Panduan Interaktif Kafelas Laundry"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-400 group-hover:rotate-12 transition-transform" />
+              <span>Lihat Web Landing Page</span>
+              <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
+            </button>
+          </div>
+        )}
+
         {/* Card Header */}
         <div className="text-center space-y-2 mb-6">
           
@@ -532,6 +550,17 @@ export const AuthView: React.FC<AuthViewProps> = ({
                   <span>Demo Owner</span>
                 </button>
 
+                {onOpenLandingPage && (
+                  <button
+                    type="button"
+                    onClick={onOpenLandingPage}
+                    className="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-200 border border-amber-400/40 font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm transition active:scale-95 cursor-pointer"
+                    title="Buka Website Landing Page & Panduan Interaktif"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Web Landing Page</span>
+                  </button>
+                )}
               </div>
             </div>
           </div>

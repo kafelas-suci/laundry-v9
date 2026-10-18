@@ -78,6 +78,8 @@ export const demoSettings: SettingsData = {
   nilaiTukarPoin: 1,
   pemasukanManualEnabled: true,
   waNotificationEnabled: true,
+  tampilkanTombolAmbilNotaLama: true,
+
 };
 
 export const demoLayananList: Layanan[] = [
