@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { CheckCircle2, AlertTriangle, XCircle, Info, X } from 'lucide-react';
 
 export type ToastType = 'success' | 'error' | 'warning' | 'info';
@@ -244,32 +244,12 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 };
 
 const ToastItemComponent: React.FC<{ toast: ToastItem; onDismiss: () => void }> = ({ toast, onDismiss }) => {
-  const [progress, setProgress] = useState(100);
-
-  useEffect(() => {
-    if (toast.duration <= 0) return;
-    const intervalTime = 30;
-    const step = (intervalTime / toast.duration) * 100;
-    const interval = setInterval(() => {
-      setProgress((prev) => {
-        if (prev <= step) {
-          clearInterval(interval);
-          return 0;
-        }
-        return prev - step;
-      });
-    }, intervalTime);
-
-    return () => clearInterval(interval);
-  }, [toast.duration]);
-
   // Color schemes
   const config = {
     success: {
       bg: 'bg-white',
       border: 'border-emerald-200',
       iconBg: 'bg-emerald-100 text-emerald-700',
-      barBg: 'bg-emerald-500',
       icon: <CheckCircle2 className="w-5 h-5 shrink-0" />,
       textColor: 'text-slate-900',
     },
@@ -277,7 +257,6 @@ const ToastItemComponent: React.FC<{ toast: ToastItem; onDismiss: () => void }> 
       bg: 'bg-white',
       border: 'border-rose-200',
       iconBg: 'bg-rose-100 text-rose-700',
-      barBg: 'bg-rose-600',
       icon: <XCircle className="w-5 h-5 shrink-0" />,
       textColor: 'text-slate-900',
     },
@@ -285,7 +264,6 @@ const ToastItemComponent: React.FC<{ toast: ToastItem; onDismiss: () => void }> 
       bg: 'bg-white',
       border: 'border-amber-200',
       iconBg: 'bg-amber-100 text-amber-700',
-      barBg: 'bg-amber-500',
       icon: <AlertTriangle className="w-5 h-5 shrink-0" />,
       textColor: 'text-slate-900',
     },
@@ -293,7 +271,6 @@ const ToastItemComponent: React.FC<{ toast: ToastItem; onDismiss: () => void }> 
       bg: 'bg-white',
       border: 'border-sky-200',
       iconBg: 'bg-sky-100 text-sky-700',
-      barBg: 'bg-sky-500',
       icon: <Info className="w-5 h-5 shrink-0" />,
       textColor: 'text-slate-900',
     },
@@ -324,16 +301,6 @@ const ToastItemComponent: React.FC<{ toast: ToastItem; onDismiss: () => void }> 
           <X className="w-4 h-4" />
         </button>
       </div>
-
-      {/* 3-Second Micro Progress Bar at the bottom */}
-      {toast.duration > 0 && (
-        <div className="absolute bottom-0 left-0 right-0 h-1 bg-slate-100">
-          <div
-            className={`h-full ${config.barBg} transition-all ease-linear`}
-            style={{ width: `${progress}%` }}
-          />
-        </div>
-      )}
     </div>
   );
 };

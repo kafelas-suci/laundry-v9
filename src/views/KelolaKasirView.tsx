@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { ArrowLeft, Plus, Trash2, X, Lock, Building2, User as UserIcon, ShieldCheck, Users } from 'lucide-react';
 import { User, Laundry, OperationalStaff } from '../types';
 import { useToast, useConfirm } from '../components/NotificationContext';
-import { getLaundryLimits } from '../utils/subscription';
+import { getLaundryLimits, isProTier } from '../utils/subscription';
 
 interface KelolaKasirViewProps {
   onBack: () => void;

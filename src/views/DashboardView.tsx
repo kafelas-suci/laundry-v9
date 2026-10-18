@@ -311,60 +311,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <PWAInstallButton variant="header" />
 
               {/* Badge Status & Sisa Hari Langganan PC */}
-              <button
-                type="button"
-                onClick={() => onOpenUpgradeModal ? onOpenUpgradeModal() : onOpenKelolaOwner()}
-                title={
-                  isNewcomer
-                    ? `Paket: ${paketNama} • Gratis Selamanya. Klik untuk kelola / lihat perbandingan paket.`
-                    : `Paket: ${paketNama} • Sisa ${sisaHari} Hari (s/d ${formatTanggalKadaluarsa}). Klik untuk kelola / perpanjang.`
-                }
-                className={`px-3 py-1.5 rounded-xl border flex items-center gap-2 transition active:scale-95 shadow-2xs cursor-pointer ${
-                  isNewcomer
-                    ? 'bg-emerald-50/90 border-emerald-200 text-emerald-950 hover:border-emerald-300'
-                    : isExpired
-                    ? 'bg-red-50 border-red-300 text-red-900 hover:bg-red-100'
-                    : isExpiringSoon
-                    ? 'bg-amber-50 border-amber-300 text-amber-900 hover:bg-amber-100 ring-2 ring-amber-300/60'
-                    : 'bg-gradient-to-r from-amber-50/90 to-orange-50/90 border-amber-200/90 text-amber-950 hover:border-amber-300'
-                }`}
-              >
-                <div
-                  className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 shadow-2xs ${
-                    isNewcomer
-                      ? 'bg-emerald-600 text-white'
-                      : isExpired
-                      ? 'bg-red-600 text-white'
-                      : isExpiringSoon
-                      ? 'bg-amber-500 text-white animate-pulse'
-                      : 'bg-amber-500 text-white'
-                  }`}
-                >
-                  <Crown className="w-3.5 h-3.5 stroke-[2.3]" />
-                </div>
-                <div className="text-left leading-none">
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-extrabold text-xs text-slate-900">{paketNama}</span>
-                    <span
-                      className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${
-                        isNewcomer
-                          ? 'bg-emerald-200 text-emerald-950'
-                          : isExpired
-                          ? 'bg-red-200 text-red-900'
-                          : isExpiringSoon
-                          ? 'bg-amber-200 text-amber-950'
-                          : 'bg-amber-200/90 text-amber-950'
-                      }`}
-                    >
-                      {isNewcomer ? 'Gratis' : isExpired ? 'Habis' : `${sisaHari} Hari Lagi`}
-                    </span>
-                  </div>
-                  <p className="text-[10px] text-slate-500 mt-0.5 font-medium">
-                    {isNewcomer ? 'Tanpa biaya bulanan' : isExpired ? 'Klik untuk perpanjang' : `s/d ${formatTanggalKadaluarsa}`}
-                  </p>
-                </div>
-              </button>
-
+       
               {laundries.length > 1 && (
                 <button
                   type="button"
@@ -1006,16 +953,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   className="flex flex-col items-start px-2 py-1 rounded-xl hover:bg-white/10 active:scale-98 transition max-w-[190px]"
                 >
                   <div className="flex items-center gap-1">
-                    <span className="font-bold text-sm truncate text-white tracking-wide">
+                    <span className="font-bold text-sl truncate text-white tracking-wide">
                       {activeLaundry.namaLaundry}
                     </span>
                     {laundries.length > 1 && (
                       <ChevronDown className="w-3.5 h-3.5 text-white/80 shrink-0" />
                     )}
                   </div>
-                  <span className="text-[10px] font-semibold text-amber-300 tracking-tight leading-none mt-0.5">
-                    {paketNama} • {isNewcomer ? 'Gratis' : `${sisaHari}h`}
-                  </span>
+                
                 </button>
               </div>
 

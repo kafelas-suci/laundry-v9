@@ -201,15 +201,19 @@ export default function App() {
   };
 
   const handleSwitchTier = (newTier: LaundryTier) => {
-    setActiveTier(newTier);
-    StorageService.set('active_subscription_tier', newTier);
+    if (newTier === 'newcomer') {
+      toast.warning('Paket Newcomer adalah paket awal otomatis untuk akun baru dan tidak dapat dipilih kembali.');
+      return;
+    }
+    setActiveTier('basic');
+    StorageService.set('active_subscription_tier', 'basic');
     if (currentUser) {
-      const updatedUser = { ...currentUser, subscriptionType: newTier };
+      const updatedUser = { ...currentUser, subscriptionType: 'basic' };
       setCurrentUser(updatedUser);
       StorageService.set('active_user', updatedUser);
+      FirebaseSyncService.updateUserProfile(updatedUser).catch(console.error);
     }
-    const limits = getLaundryLimits(newTier);
-    toast.success(`Mode simulasi paket beralih ke ${limits.label}!`);
+    toast.success('Selamat! Akun Anda telah ditingkatkan ke Paket Basic!');
   };
 
   // Toast & Double-Tap to Exit state saat berada di menu utama (Dashboard)
@@ -892,10 +896,12 @@ export default function App() {
       ...currentUser,
       walletBalance: Math.max(0, currentUser.walletBalance - cost),
       subscriptionEndDate: newEnd,
-      subscriptionType: 'premium',
+      subscriptionType: 'basic',
     };
     setCurrentUser(updatedUser);
     StorageService.set('active_user', updatedUser);
+    setActiveTier('basic');
+    StorageService.set('active_subscription_tier', 'basic');
 
     const historyItem: SubscriptionHistory = {
       id: `sub-${Date.now()}`,

@@ -210,31 +210,7 @@ export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
 
               {/* Perpanjangan Options */}
               <div className="p-3 space-y-2">
-                {/* Paket Newcomer (Gratis) */}
-                <div className="flex items-center justify-between p-3 rounded-xl bg-slate-800/90 border border-slate-700 hover:border-slate-600 transition text-xs shadow-2xs">
-                  <div className="pr-2">
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-bold text-emerald-400">Paket Newcomer (Gratis)</span>
-                      {isNewcomer && (
-                        <span className="text-[9px] bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 px-2 py-0.5 rounded-full font-bold">
-                          Aktif
-                        </span>
-                      )}
-                    </div>
-                    <div className="text-[10px] text-slate-400 mt-0.5">Rp 0 · 1 Owner (Tanpa Kasir) · 50 Pelanggan & 50 Nota/bln · 5 Layanan</div>
-                  </div>
-                  {isNewcomer ? (
-                    <span className="text-[11px] font-bold text-emerald-400 px-2.5 py-1">Aktif</span>
-                  ) : (
-                    <button
-                      onClick={() => onOpenUpgradeModal?.()}
-                      className="px-3 py-1.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-bold text-[11px] transition shadow-2xs active:scale-95 shrink-0 cursor-pointer"
-                    >
-                      Pilih
-                    </button>
-                  )}
-                </div>
-
+             
                 {/* Paket Bulanan Basic */}
                 <div className="flex items-center justify-between p-3 rounded-xl bg-slate-800/90 border border-slate-700 hover:border-slate-600 transition text-xs shadow-2xs">
                   <div className="pr-2">
@@ -242,25 +218,27 @@ export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
                       <span className="font-bold text-white">Paket Basic (30 Hari)</span>
                       {isBasic && <span className="text-[9px] bg-sky-500/20 text-sky-300 border border-sky-400/30 px-2 py-0.5 rounded-full font-bold">Aktif</span>}
                     </div>
-                    <div className="text-[10px] text-slate-400 mt-0.5">{formatRupiah(HARGA_BASIC_BULANAN)} · 1 Cabang, Kasir, Staf & Laporan Lengkap</div>
+                    <div className="text-[10px] text-slate-400 mt-0.5">{formatRupiah(HARGA_BASIC_BULANAN)} · Multi-User (Owner & Admin) Penugasan Staf & Laporan Lengkap, Export Excell & pdf, Dokumen Web Akses. </div>
                   </div>
                   <button
                     onClick={handlePayBulanan}
-                    className="px-3.5 py-1.5 rounded-xl bg-sky-700 hover:bg-sky-600 text-white font-bold text-[11px] transition shadow-2xs active:scale-95 shrink-0 cursor-pointer"
-                  >
-                    Bayar
+                               className="flex items-center gap-1 px-3 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-500 hover:to-emerald-600 text-white font-bold text-xs transition shadow-md active:scale-95 cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Bayar</span>
+
                   </button>
                 </div>
 
                 {/* Tombol Bandingkan Paket */}
-                <div className="pt-1.5">
+                <div className="pt-0">
                   <button
                     type="button"
                     onClick={() => onOpenUpgradeModal?.()}
                     className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white font-black text-xs flex items-center justify-center gap-1.5 shadow-md transition active:scale-98 cursor-pointer"
                   >
                     <Crown className="w-3.5 h-3.5 text-amber-300" />
-                    <span>Bandingkan Detail Paket (Newcomer vs Basic)</span>
+                    <span> Detail ( paket Basic)</span>
                   </button>
                 </div>
               </div>
@@ -297,7 +275,7 @@ export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
                 <div className="flex items-center gap-2">
                   <Building2 className="w-4 h-4 text-white" />
                   <span className="font-bold text-xs tracking-wide">
-                    Daftar Cabang ({laundries.length} Cabang)
+                    ({laundries.length} Cabang)
                   </span>
                 </div>
                 <div className="flex items-center gap-1.5">
@@ -308,7 +286,7 @@ export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
                     title="Tambah cabang baru (Rp 25.000 per cabang)"
                   >
                     <Plus className="w-3.5 h-3.5" />
-                    <span>Cabang (+Rp25rb)</span>
+                    <span>Cabang </span>
                   </button>
                   <button
                     onClick={() => setShowBranches(!showBranches)}

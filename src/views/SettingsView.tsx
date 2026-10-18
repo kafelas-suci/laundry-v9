@@ -218,34 +218,36 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
       {/* 2. MAIN SCROLL CONTAINER */}
       <main className="flex-1 p-3.5 sm:p-5 space-y-4 overflow-y-auto max-w-xl md:max-w-2xl mx-auto w-full">
-        {/* KARTU RINGKAS PROFIL OWNER, SALDO & KELOLA LANGGANAN */}
+   {/* KARTU RINGKAS PROFIL OWNER, SALDO & KELOLA LANGGANAN */}
+{/* KARTU RINGKAS PROFIL OWNER, SALDO & KELOLA LANGGANAN */}
         {(() => {
           const limits = getLaundryLimits(currentTier || currentUser.subscriptionType);
           const isNewcomer = limits.tier === 'newcomer';
 
           return (
-            <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-4 space-y-3.5">
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-11 h-11 rounded-2xl bg-[#800000]/10 border border-[#800000]/20 flex items-center justify-center text-[#800000] font-black text-base shrink-0">
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-3 space-y-2.5">
+              {/* Profil Header Compact */}
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-xl bg-[#800000] text-white flex items-center justify-center font-black text-xs shrink-0 shadow-xs">
                     {(currentUser.displayName || 'O').charAt(0).toUpperCase()}
                   </div>
                   <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <h2 className="font-black text-sm text-slate-900 truncate">
+                    <div className="flex items-center gap-1.5">
+                      <h2 className="font-extrabold text-xs text-slate-900 truncate">
                         {currentUser.displayName || 'Owner Laundry'}
                       </h2>
                       <span
-                        className={`px-2 py-0.5 rounded-full border text-[10px] font-bold flex items-center gap-1 shrink-0 ${
+                        className={`px-1.5 py-0.2 rounded-md border text-[9px] font-black uppercase tracking-wider shrink-0 ${
                           isNewcomer
-                            ? 'bg-emerald-50 text-emerald-900 border-emerald-300'
-                            : 'bg-sky-50 text-sky-900 border-sky-300'
+                            ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                            : 'bg-sky-100 text-sky-800 border-sky-300'
                         }`}
                       >
                         {limits.label}
                       </span>
                     </div>
-                    <p className="text-xs text-slate-500 mt-0.5 truncate">
+                    <p className="text-[10px] text-slate-400 truncate leading-tight mt-0.5">
                       {currentUser.role === 'owner' ? 'Owner Utama' : 'Kasir Cabang'} • {currentUser.emailOrPhone || currentUser.nomorTelepon || activeLaundry.namaLaundry}
                     </p>
                   </div>
@@ -259,32 +261,35 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       setEditNomorTelepon(currentUser.nomorTelepon || '');
                       setShowEditOwnerModal(true);
                     }}
-                    className="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs shrink-0 transition active:scale-95 cursor-pointer"
+                    className="py-1 px-2.5 rounded-lg border border-slate-200 text-slate-600 hover:text-slate-900 font-bold text-[10px] shrink-0 transition active:scale-95 cursor-pointer"
                   >
                     Edit Profil
                   </button>
                 )}
               </div>
 
-              {/* Saldo Owner & Tombol Perpanjang (Kelola Langganan) */}
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-3">
-                <div>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                    Saldo Dompet Owner
+              {/* Strip Saldo Berani & Terhubung ke Tombol */}
+              <div className="border-t border-slate-100 pt-0 flex items-center justify-between gap-2">
+                {/* Badge Saldo Mencolok */}
+                <div className="flex items-center gap-2 bg-[#800000]/5 border border-[#800000]/20 px-3 py-1.5 rounded-xl min-w-0 flex-1">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-[#800000]/70 shrink-0">
+                    Saldo
                   </span>
-                  <span className="text-base sm:text-lg font-black text-[#800000] font-mono tabular-nums">
+                  <div className="h-3.5 w-px bg-[#800000]/20 shrink-0" />
+                  <span className="text-base sm:text-lg font-black text-[#800000] font-mono tracking-tight tabular-nums truncate">
                     {formatRupiah(currentUser.walletBalance || 0)}
                   </span>
                 </div>
 
+                {/* Tombol Aksi Tambah */}
                 {isOwner && (
                   <button
                     type="button"
                     onClick={onOpenKelolaOwner}
-                    className="py-2 px-3.5 rounded-xl bg-[#800000] hover:bg-[#660000] text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition active:scale-95 cursor-pointer shrink-0"
+                    className="h-9 px-3.5 rounded-xl bg-[#800000] hover:bg-[#660000] active:bg-[#4d0000] text-white font-extrabold text-xs flex items-center gap-1.5 shadow-md shadow-[#800000]/20 transition active:scale-95 cursor-pointer shrink-0"
                   >
                     <CreditCard className="w-3.5 h-3.5" />
-                    <span>Perpanjang (Kelola Langganan)</span>
+                    <span>(+)</span>
                   </button>
                 )}
               </div>

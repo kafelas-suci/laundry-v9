@@ -29,8 +29,8 @@ export const LAUNDRY_TIER_CONFIG: Record<LaundryTier, LaundrySubscriptionLimits>
   newcomer: {
     tier: 'newcomer',
     label: 'Paket Newcomer',
-    tagline: 'Mulai usaha laundry gratis tanpa biaya langganan bulanan',
-    badgeText: 'Paket Newcomer (Gratis)',
+    tagline: 'Starter otomatis untuk akun baru tanpa biaya langganan bulanan',
+    badgeText: 'Paket Newcomer (Starter)',
     priceMonthly: 0,
     maxBranches: 1,
     pricePerExtraBranch: 25000,
@@ -47,14 +47,14 @@ export const LAUNDRY_TIER_CONFIG: Record<LaundryTier, LaundrySubscriptionLimits>
     canUseCustomLogoOnReceipt: false,
     canUseSignatureOnReceipt: false,
     highlights: [
-      'Gratis Selamanya (Rp 0)',
-      '1 Cabang Outlet & 1 Owner (Tidak Ada Kasir)',
+      'Gratis Starter Akun Baru (Rp 0)',
+      'Aktif Otomatis Saat Pertama Kali Mendaftar',
+      '1 Cabang Outlet & 1 Owner (Tanpa Kasir)',
       'Maksimal 50 Data Pelanggan',
       'Maksimal 50 Nota Transaksi per Bulan',
       'Maksimal 5 Jenis Layanan Cucian',
       'Cetak Struk Thermal Standar & Bagikan WhatsApp',
-      'Pencatatan Buku Kas Pemasukan & Pengeluaran',
-      'Fitur Lengkap Kasir & Laporan di Paket Basic',
+      'Wajib Upgrade ke Paket Basic saat Batas Tercapai',
     ],
   },
   basic: {
@@ -69,7 +69,7 @@ export const LAUNDRY_TIER_CONFIG: Record<LaundryTier, LaundrySubscriptionLimits>
     maxAdminPerOutlet: 1,
     maxOwnerPerOutlet: 1,
     maxCustomers: 1000,
-    maxMonthlyTransactions: 300,
+    maxMonthlyTransactions: 400,
     maxServices: 50,
     canAssignStaff: true,
     canExportExcel: true,
@@ -94,20 +94,30 @@ export const LAUNDRY_TIER_CONFIG: Record<LaundryTier, LaundrySubscriptionLimits>
 
 /**
  * Normalisasi string tier menjadi 'newcomer' | 'basic'
+ * Akun baru tanpa riwayat paket otomatis mendapatkan 'newcomer' (Starter)
  */
 export function normalizeTier(rawTier?: string | null): LaundryTier {
-  if (!rawTier) return 'basic';
+  if (!rawTier) return 'newcomer';
   const clean = rawTier.toLowerCase().trim();
   if (
     clean === 'newcomer' ||
     clean === 'pemula' ||
     clean === 'gratis' ||
     clean === 'free' ||
-    clean === 'trial'
+    clean === 'trial' ||
+    clean === 'starter'
   ) {
     return 'newcomer';
   }
   return 'basic';
+}
+
+/**
+ * Paket Newcomer adalah paket starter otomatis hanya saat akun baru.
+ * Pengguna yang sudah aktif di Paket Basic tidak dapat memilih atau kembali ke Newcomer.
+ */
+export function canDowngradeToNewcomer(): boolean {
+  return false;
 }
 
 /**

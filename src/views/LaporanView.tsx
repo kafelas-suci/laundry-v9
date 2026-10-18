@@ -490,54 +490,54 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
         </div>
 
         {/* Tombol Ekspor Excel & Cetak PDF */}
-        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+     {/* Tombol Ekspor Excel, Cetak PDF & Pratinjau (Warna hanya pada Icon/Logo) */}
+        <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+          {/* Tombol Excel */}
           <button
             type="button"
             onClick={handleExportExcel}
-            className={`px-2.5 sm:px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-sm transition active:scale-95 cursor-pointer ${
-              !canExcel
-                ? 'bg-emerald-700/80 hover:bg-emerald-600 text-white'
-                : 'bg-emerald-600 hover:bg-emerald-500 text-white'
-            }`}
+            className="px-2 sm:px-2.5 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 bg-white/10 hover:bg-white/20 active:bg-white/25 text-white transition active:scale-95 cursor-pointer"
             title={!canExcel ? 'Terkunci di Paket Newcomer (Klik untuk upgrade)' : 'Unduh Spreadsheet Excel (.xlsx)'}
           >
             {!canExcel ? (
-              <Lock className="w-3.5 h-3.5 text-emerald-200" />
+              <Lock className="w-3.5 h-3.5 text-amber-300" />
             ) : (
-              <FileSpreadsheet className="w-4 h-4 text-emerald-200" />
+              <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
             )}
             <span className="hidden sm:inline">Excel</span>
-            {!canExcel && <span className="text-[10px] text-emerald-200 font-black">BASIC</span>}
+            {!canExcel && (
+              <span className="text-[9px] text-amber-300 bg-amber-400/20 px-1 py-0.2 rounded font-black">
+                BASIC
+              </span>
+            )}
           </button>
 
+          {/* Tombol PDF */}
           <button
             type="button"
             onClick={handleDownloadPDF}
-            className={`px-2.5 sm:px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-sm transition active:scale-95 cursor-pointer ${
-              !canPdf
-                ? 'bg-red-800/80 hover:bg-red-700 text-white'
-                : 'bg-red-700 hover:bg-red-600 text-white'
-            }`}
+            className="px-2 sm:px-2.5 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 bg-white/10 hover:bg-white/20 active:bg-white/25 text-white transition active:scale-95 cursor-pointer"
             title={!canPdf ? 'Terkunci di Paket Newcomer (Klik untuk upgrade ke Basic)' : 'Unduh Berkas PDF (.pdf) Langsung'}
           >
             {!canPdf ? (
-              <Lock className="w-3.5 h-3.5 text-red-200" />
+              <Lock className="w-3.5 h-3.5 text-amber-300" />
             ) : (
-              <Download className="w-4 h-4 text-red-200" />
+              <Download className="w-4 h-4 text-rose-400" />
             )}
-            <span className="hidden sm:inline">Unduh PDF</span>
+            <span className="hidden sm:inline">PDF</span>
             <span className="sm:hidden">PDF</span>
-            {!canPdf && <span className="text-[10px] text-red-200 font-black">BASIC</span>}
+            {!canPdf && (
+              <span className="text-[9px] text-amber-300 bg-amber-400/20 px-1 py-0.2 rounded font-black">
+                BASIC
+              </span>
+            )}
           </button>
 
+          {/* Tombol Cetak / Pratinjau */}
           <button
             type="button"
             onClick={handleOpenPdfModal}
-            className={`px-2.5 sm:px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-sm transition active:scale-95 cursor-pointer ${
-              !canPdf
-                ? 'bg-slate-800/80 hover:bg-slate-700 text-slate-200'
-                : 'bg-slate-800 hover:bg-slate-700 text-white'
-            }`}
+            className="px-2 sm:px-2.5 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 bg-white/10 hover:bg-white/20 active:bg-white/25 text-white transition active:scale-95 cursor-pointer"
             title={!canPdf ? 'Terkunci di Paket Newcomer (Klik untuk upgrade)' : 'Pratinjau Dokumen & Cetak Kertas'}
           >
             {!canPdf ? (
@@ -545,7 +545,7 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
             ) : (
               <Printer className="w-4 h-4 text-amber-300" />
             )}
-            <span className="hidden md:inline">Cetak / Pratinjau</span>
+            <span className="hidden md:inline">Cetak</span>
             <span className="md:hidden">Cetak</span>
           </button>
         </div>

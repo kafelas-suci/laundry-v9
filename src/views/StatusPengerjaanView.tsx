@@ -350,10 +350,7 @@ export const StatusPengerjaanView: React.FC<StatusPengerjaanViewProps> = ({
                       >
                         {isOverdue ? 'Lewat' : diffDays === 0 ? 'Hari Ini' : `${diffDays} hr`}
                       </div>
-                      <div className="text-[9px] text-slate-400 mt-0.5 font-medium flex items-center justify-end gap-0.5">
-                        <Calendar className="w-2.5 h-2.5" />
-                        <span>{formatShortDate(est)}</span>
-                      </div>
+                 
                     </div>
 
                     {/* Action Button di Bawah */}

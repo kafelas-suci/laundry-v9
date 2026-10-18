@@ -66,7 +66,7 @@ export const ReportPdfModal: React.FC<ReportPdfModalProps> = ({
             </div>
             <div>
               <h2 className="text-sm sm:text-base font-black text-white leading-tight">
-                Pratinjau Dokumen Laporan Resmi (A4)
+                 Laporan Resmi (A4)
               </h2>
               <p className="text-[11px] text-red-200/90 hidden sm:block">
                 {data.laundryName} • {data.periodeLabel}
@@ -76,16 +76,19 @@ export const ReportPdfModal: React.FC<ReportPdfModalProps> = ({
 
           <div className="flex items-center gap-2">
             {/* Tombol Unduh File PDF */}
-            <button
-              type="button"
-              onClick={handleDownloadPdf}
-              disabled={isGeneratingPdf}
-              className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white font-bold text-xs flex items-center gap-1.5 shadow-md transition active:scale-95 cursor-pointer"
-              title="Unduh Berkas PDF (.pdf) ke Penyimpanan"
-            >
-              <Download className="w-4 h-4 text-emerald-200" />
-              <span>{isGeneratingPdf ? 'Membuat PDF...' : 'Unduh PDF (.pdf)'}</span>
-            </button>
+<button
+          type="button"
+          onClick={handleDownloadPdf}
+          disabled={isGeneratingPdf}
+          className="p-2 rounded-xl bg-white/10 hover:bg-white/20 active:bg-white/25 disabled:opacity-60 text-white transition active:scale-95 cursor-pointer shrink-0"
+          title={isGeneratingPdf ? 'Membuat PDF...' : 'Unduh Berkas PDF (.pdf) ke Penyimpanan'}
+        >
+          {isGeneratingPdf ? (
+            <div className="w-4 h-4 border-2 border-rose-400 border-t-transparent rounded-full animate-spin" />
+          ) : (
+            <Download className="w-4 h-4 text-rose-400" />
+          )}
+        </button>
 
             {/* Tombol Cetak Browser */}
             <button

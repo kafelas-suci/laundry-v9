@@ -56,8 +56,8 @@ export class FirebaseSyncService {
       laundries: { [defaultLaundryId]: branchName },
       walletBalance: 0,
       createdAt: Date.now(),
-      subscriptionType: 'trial',
-      subscriptionEndDate: Date.now() + 7 * 24 * 60 * 60 * 1000,
+      subscriptionType: 'newcomer',
+      subscriptionEndDate: Date.now() + 30 * 24 * 60 * 60 * 1000,
     };
 
     const userDocRef = doc(db, 'users', firebaseUser.uid);
