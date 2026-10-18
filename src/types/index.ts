@@ -70,6 +70,7 @@ export interface Transaksi {
   metodePembayaran?: string | null; // "Tunai" | "Non-Tunai"
   metodePembayaranDetail?: string | null; // "QRIS" | "BCA" | "BRI" | "Mandiri" | "Lainnya"
   dikerjakanOleh?: string | null;
+  tanggalDitugaskan?: number | null;
   tanggalStatusSelesai?: number | null;
   terakhirDieditPada?: number | null;
   items: LayananItem[];

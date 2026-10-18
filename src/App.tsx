@@ -1280,6 +1280,7 @@ export default function App() {
             transaksiList={transaksiList}
             semuaLayanan={layananList}
             staffList={staffList}
+            operationalStaffList={operationalStaffList}
             currentUser={currentUser}
             settings={settings}
             activeLaundryId={activeLaundryId}

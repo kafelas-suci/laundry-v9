@@ -19,6 +19,13 @@ import {
   Download,
   Lock,
   Crown,
+  BarChart3,
+  LineChart,
+  Layers,
+  Award,
+  Zap,
+  Activity,
+  Info,
 } from 'lucide-react';
 import { Transaksi, Pengeluaran, SettingsData } from '../types';
 import { formatRupiah, formatShortDate, formatReceiptDate } from '../utils/formatters';
@@ -59,6 +66,9 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
   const canGrowth = limits.canViewComparisonGrowth;
 
   const [activeTab, setActiveTab] = useState<'ringkasan' | 'komparasi'>('ringkasan');
+  const [compareChartMode, setCompareChartMode] = useState<'batang' | 'tren' | 'layanan' | 'rasio'>('batang');
+  const [trendMetric, setTrendMetric] = useState<'omzet' | 'uangMasuk' | 'trx'>('omzet');
+  const [hoveredPointIndex, setHoveredPointIndex] = useState<number | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<number>(currentMonth); // 0-11, or -1 for All
   const [selectedYear, setSelectedYear] = useState<number>(currentYear);
   const [showDailyDetails, setShowDailyDetails] = useState<boolean>(false);
@@ -266,6 +276,7 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
       totalWeight,
       countLunas,
       countBelumLunas,
+      serviceMap,
       serviceList: Object.entries(serviceMap).sort((a, b) => b[1] - a[1]),
       customerList: Object.entries(customerMap).sort((a, b) => b[1] - a[1]),
       expenseList: Object.entries(expenseCategoryMap).sort((a, b) => b[1] - a[1]),
@@ -354,6 +365,119 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
       weightGrowth,
     };
   }, [summary, prevSummary]);
+
+  // Data Perbandingan Tren Kurva SVG (Harian jika per bulan, atau Bulanan jika per tahun)
+  const trendComparisonData = useMemo(() => {
+    const isYearly = selectedMonth === -1;
+    const numPoints = isYearly ? 12 : new Date(selectedYear, selectedMonth + 1, 0).getDate();
+
+    const currentPoints: { label: string; fullLabel: string; omzet: number; uangMasuk: number; trx: number }[] = [];
+    const prevPoints: { label: string; fullLabel: string; omzet: number; uangMasuk: number; trx: number }[] = [];
+
+    for (let i = 0; i < numPoints; i++) {
+      const label = isYearly ? monthNames[i].slice(0, 3) : `${i + 1}`;
+      const fullLabel = isYearly
+        ? `${monthNames[i]} ${selectedYear}`
+        : `${i + 1} ${monthNames[selectedMonth]} ${selectedYear}`;
+      currentPoints.push({ label, fullLabel, omzet: 0, uangMasuk: 0, trx: 0 });
+
+      const prevFullLabel = isYearly
+        ? `${monthNames[i]} ${prevPeriodInfo.year}`
+        : `${i + 1} ${prevPeriodInfo.month !== -1 ? monthNames[prevPeriodInfo.month] : ''} ${prevPeriodInfo.year}`;
+      prevPoints.push({ label, fullLabel: prevFullLabel, omzet: 0, uangMasuk: 0, trx: 0 });
+    }
+
+    filteredTrx.forEach((t) => {
+      const d = new Date(t.tanggalMasuk);
+      const idx = isYearly ? d.getMonth() : d.getDate() - 1;
+      if (idx >= 0 && idx < numPoints) {
+        currentPoints[idx].omzet += t.totalHarga || 0;
+        currentPoints[idx].uangMasuk += t.statusPembayaran === 'Lunas' ? t.totalHarga : (t.jumlahDp || 0);
+        currentPoints[idx].trx += 1;
+      }
+    });
+
+    prevFilteredTrx.forEach((t) => {
+      const d = new Date(t.tanggalMasuk);
+      const idx = isYearly ? d.getMonth() : d.getDate() - 1;
+      if (idx >= 0 && idx < numPoints) {
+        prevPoints[idx].omzet += t.totalHarga || 0;
+        prevPoints[idx].uangMasuk += t.statusPembayaran === 'Lunas' ? t.totalHarga : (t.jumlahDp || 0);
+        prevPoints[idx].trx += 1;
+      }
+    });
+
+    return { isYearly, numPoints, currentPoints, prevPoints };
+  }, [filteredTrx, prevFilteredTrx, selectedMonth, selectedYear, prevPeriodInfo, monthNames]);
+
+  // Data Perbandingan Kinerja Seluruh Layanan (Kg / Unit)
+  const serviceComparisonList = useMemo(() => {
+    const curMap = summary.serviceMap || {};
+    const prvMap = prevSummary.serviceMap || {};
+    const allNames = Array.from(new Set([...Object.keys(curMap), ...Object.keys(prvMap)]));
+
+    return allNames
+      .map((name) => {
+        const currentVal = curMap[name] || 0;
+        const prevVal = prvMap[name] || 0;
+        const diff = currentVal - prevVal;
+        const growth = prevVal === 0 ? (currentVal > 0 ? 100 : 0) : ((currentVal - prevVal) / prevVal) * 100;
+        return { name, currentVal, prevVal, diff, growth };
+      })
+      .sort((a, b) => b.currentVal - a.currentVal);
+  }, [summary.serviceMap, prevSummary.serviceMap]);
+
+  // Metrik Rasio Eksekutif & Skor Kesehatan Bisnis
+  const executiveMetrics = useMemo(() => {
+    const currentMargin = summary.totalOmzet > 0 ? (summary.labaBersih / summary.totalOmzet) * 100 : 0;
+    const prevMargin = prevSummary.totalOmzet > 0 ? (prevSummary.labaBersih / prevSummary.totalOmzet) * 100 : 0;
+    const marginDiff = currentMargin - prevMargin;
+
+    const currentAov = summary.totalTrx > 0 ? summary.totalOmzet / summary.totalTrx : 0;
+    const prevAov = prevSummary.totalTrx > 0 ? prevSummary.totalOmzet / prevSummary.totalTrx : 0;
+    const aovDiff = currentAov - prevAov;
+
+    const currentCostRatio = summary.totalOmzet > 0 ? (summary.totalPengeluaran / summary.totalOmzet) * 100 : 0;
+    const prevCostRatio = prevSummary.totalOmzet > 0 ? (prevSummary.totalPengeluaran / prevSummary.totalOmzet) * 100 : 0;
+
+    let score = 50;
+    if (currentMargin >= 40) score += 20;
+    else if (currentMargin >= 20) score += 10;
+    else if (currentMargin < 0) score -= 25;
+
+    if (comparativeAnalytics.omzetGrowth > 10) score += 15;
+    else if (comparativeAnalytics.omzetGrowth > 0) score += 10;
+    else if (comparativeAnalytics.omzetGrowth < -10) score -= 15;
+
+    if (currentCostRatio <= 50) score += 15;
+    else if (currentCostRatio > 75) score -= 15;
+
+    const healthScore = Math.max(10, Math.min(100, Math.round(score)));
+
+    let healthLabel = 'Sangat Sehat & Menguntungkan';
+    let healthColor = 'text-emerald-700 bg-emerald-50 border-emerald-200';
+    if (healthScore < 40) {
+      healthLabel = 'Perlu Efisiensi & Waspada Biaya';
+      healthColor = 'text-red-700 bg-red-50 border-red-200';
+    } else if (healthScore < 70) {
+      healthLabel = 'Stabil & Bertumbuh Wajar';
+      healthColor = 'text-amber-700 bg-amber-50 border-amber-200';
+    }
+
+    return {
+      currentMargin,
+      prevMargin,
+      marginDiff,
+      currentAov,
+      prevAov,
+      aovDiff,
+      currentCostRatio,
+      prevCostRatio,
+      healthScore,
+      healthLabel,
+      healthColor,
+    };
+  }, [summary, prevSummary, comparativeAnalytics]);
 
   const currentPeriodeLabel = `${selectedMonth === -1 ? 'Semua Bulan' : monthNames[selectedMonth]} ${selectedYear}`;
 
@@ -870,60 +994,44 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
         )}
 
         {/* ======================================================== */}
-        {/* TAB 2: ANALISIS KOMPARASI PRO (Bulan Lalu vs Sekarang)   */}
+        {/* TAB 2: ANALISIS KOMPARASI PRO DENGAN GRAFIK MULTI-MODE   */}
         {/* ======================================================== */}
         {activeTab === 'komparasi' && (
           <div className="space-y-4">
-            {/* Header Komparasi Context */}
-            <div className="p-4 rounded-2xl bg-linear-to-r from-slate-900 to-slate-800 text-white shadow-md border border-slate-700 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-              <div>
-                <span className="inline-flex items-center gap-1.5 text-xs text-amber-300 font-bold mb-1">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
-                  Komparasi Pertumbuhan Usaha (Pro Analytics)
-                </span>
-                <h3 className="text-base font-black">
-                  {currentPeriodeLabel} <span className="text-slate-400 font-normal">dibandingkan</span>{' '}
-                  <span className="text-amber-200">{prevPeriodInfo.label}</span>
-                </h3>
-              </div>
-              <div className="text-[11px] bg-white/10 px-3 py-1.5 rounded-xl border border-white/15 text-slate-200">
-                Tipe: <strong>{prevPeriodInfo.type === 'MoM' ? 'Bulan ke Bulan (MoM)' : 'Tahun ke Tahun (YoY)'}</strong>
-              </div>
-            </div>
-
-            {/* 4 Kartu Metrik Komparasi Utama */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        
+         {/* 4 Kartu Metrik Komparasi Utama - 2 Baris x 2 Kolom di HP */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
               {/* 1. Omzet Usaha */}
-              <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-2xs space-y-2">
-                <div className="flex justify-between items-start">
-                  <span className="text-xs font-bold text-slate-500">Omzet Usaha</span>
+              <div className="bg-white rounded-2xl border border-slate-200 p-3 sm:p-4 shadow-2xs space-y-1.5 sm:space-y-2">
+                <div className="flex flex-col xs:flex-row justify-between items-start xs:items-center gap-1">
+                  <span className="text-[11px] sm:text-xs font-bold text-slate-500 truncate">Omzet Usaha</span>
                   <span
-                    className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[11px] font-black ${
+                    className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] sm:text-[11px] font-black shrink-0 ${
                       comparativeAnalytics.omzetGrowth >= 0
                         ? 'bg-emerald-100 text-emerald-800'
                         : 'bg-red-100 text-red-800'
                     }`}
                   >
                     {comparativeAnalytics.omzetGrowth >= 0 ? (
-                      <ArrowUpRight className="w-3.5 h-3.5" />
+                      <ArrowUpRight className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                     ) : (
-                      <ArrowDownRight className="w-3.5 h-3.5" />
+                      <ArrowDownRight className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                     )}
                     {comparativeAnalytics.omzetGrowth > 0 ? '+' : ''}
                     {comparativeAnalytics.omzetGrowth.toFixed(1)}%
                   </span>
                 </div>
-                <p className="text-lg font-black text-slate-900 tabular-nums">
+                <p className="text-sm sm:text-lg font-black text-slate-900 tabular-nums truncate">
                   {formatRupiah(summary.totalOmzet)}
                 </p>
-                <div className="pt-1.5 border-t border-slate-100 text-[11px] text-slate-500 flex justify-between">
-                  <span>Periode Lalu:</span>
-                  <span className="font-semibold tabular-nums">{formatRupiah(prevSummary.totalOmzet)}</span>
+                <div className="pt-1.5 border-t border-slate-100 text-[10px] sm:text-[11px] text-slate-500 flex justify-between gap-1">
+                  <span className="shrink-0">Lalu:</span>
+                  <span className="font-semibold tabular-nums truncate">{formatRupiah(prevSummary.totalOmzet)}</span>
                 </div>
-                <div className="text-[11px] flex justify-between">
-                  <span>Selisih:</span>
+                <div className="text-[10px] sm:text-[11px] flex justify-between gap-1">
+                  <span className="shrink-0">Selisih:</span>
                   <span
-                    className={`font-bold tabular-nums ${
+                    className={`font-bold tabular-nums truncate ${
                       comparativeAnalytics.omzetDiff >= 0 ? 'text-emerald-700' : 'text-red-700'
                     }`}
                   >
@@ -934,40 +1042,40 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
               </div>
 
               {/* 2. Laba Bersih */}
-              <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-2xs space-y-2">
-                <div className="flex justify-between items-start">
-                  <span className="text-xs font-bold text-slate-500">Laba Bersih</span>
+              <div className="bg-white rounded-2xl border border-slate-200 p-3 sm:p-4 shadow-2xs space-y-1.5 sm:space-y-2">
+                <div className="flex flex-col xs:flex-row justify-between items-start xs:items-center gap-1">
+                  <span className="text-[11px] sm:text-xs font-bold text-slate-500 truncate">Laba Bersih</span>
                   <span
-                    className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[11px] font-black ${
+                    className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] sm:text-[11px] font-black shrink-0 ${
                       comparativeAnalytics.labaGrowth >= 0
                         ? 'bg-emerald-100 text-emerald-800'
                         : 'bg-red-100 text-red-800'
                     }`}
                   >
                     {comparativeAnalytics.labaGrowth >= 0 ? (
-                      <ArrowUpRight className="w-3.5 h-3.5" />
+                      <ArrowUpRight className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                     ) : (
-                      <ArrowDownRight className="w-3.5 h-3.5" />
+                      <ArrowDownRight className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                     )}
                     {comparativeAnalytics.labaGrowth > 0 ? '+' : ''}
                     {comparativeAnalytics.labaGrowth.toFixed(1)}%
                   </span>
                 </div>
                 <p
-                  className={`text-lg font-black tabular-nums ${
+                  className={`text-sm sm:text-lg font-black tabular-nums truncate ${
                     summary.labaBersih >= 0 ? 'text-emerald-700' : 'text-red-700'
                   }`}
                 >
                   {formatRupiah(summary.labaBersih)}
                 </p>
-                <div className="pt-1.5 border-t border-slate-100 text-[11px] text-slate-500 flex justify-between">
-                  <span>Periode Lalu:</span>
-                  <span className="font-semibold tabular-nums">{formatRupiah(prevSummary.labaBersih)}</span>
+                <div className="pt-1.5 border-t border-slate-100 text-[10px] sm:text-[11px] text-slate-500 flex justify-between gap-1">
+                  <span className="shrink-0">Lalu:</span>
+                  <span className="font-semibold tabular-nums truncate">{formatRupiah(prevSummary.labaBersih)}</span>
                 </div>
-                <div className="text-[11px] flex justify-between">
-                  <span>Selisih:</span>
+                <div className="text-[10px] sm:text-[11px] flex justify-between gap-1">
+                  <span className="shrink-0">Selisih:</span>
                   <span
-                    className={`font-bold tabular-nums ${
+                    className={`font-bold tabular-nums truncate ${
                       comparativeAnalytics.labaDiff >= 0 ? 'text-emerald-700' : 'text-red-700'
                     }`}
                   >
@@ -978,11 +1086,11 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
               </div>
 
               {/* 3. Pengeluaran Operasional */}
-              <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-2xs space-y-2">
-                <div className="flex justify-between items-start">
-                  <span className="text-xs font-bold text-slate-500">Beban Pengeluaran</span>
+              <div className="bg-white rounded-2xl border border-slate-200 p-3 sm:p-4 shadow-2xs space-y-1.5 sm:space-y-2">
+                <div className="flex flex-col xs:flex-row justify-between items-start xs:items-center gap-1">
+                  <span className="text-[11px] sm:text-xs font-bold text-slate-500 truncate">Beban Pengeluaran</span>
                   <span
-                    className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[11px] font-black ${
+                    className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] sm:text-[11px] font-black shrink-0 ${
                       comparativeAnalytics.expGrowth <= 0
                         ? 'bg-emerald-100 text-emerald-800'
                         : 'bg-amber-100 text-amber-800'
@@ -992,17 +1100,17 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                     {Math.abs(comparativeAnalytics.expGrowth).toFixed(1)}%
                   </span>
                 </div>
-                <p className="text-lg font-black text-red-600 tabular-nums">
+                <p className="text-sm sm:text-lg font-black text-red-600 tabular-nums truncate">
                   {formatRupiah(summary.totalPengeluaran)}
                 </p>
-                <div className="pt-1.5 border-t border-slate-100 text-[11px] text-slate-500 flex justify-between">
-                  <span>Periode Lalu:</span>
-                  <span className="font-semibold tabular-nums">{formatRupiah(prevSummary.totalPengeluaran)}</span>
+                <div className="pt-1.5 border-t border-slate-100 text-[10px] sm:text-[11px] text-slate-500 flex justify-between gap-1">
+                  <span className="shrink-0">Lalu:</span>
+                  <span className="font-semibold tabular-nums truncate">{formatRupiah(prevSummary.totalPengeluaran)}</span>
                 </div>
-                <div className="text-[11px] flex justify-between">
-                  <span>Selisih:</span>
+                <div className="text-[10px] sm:text-[11px] flex justify-between gap-1">
+                  <span className="shrink-0">Selisih:</span>
                   <span
-                    className={`font-bold tabular-nums ${
+                    className={`font-bold tabular-nums truncate ${
                       comparativeAnalytics.expDiff <= 0 ? 'text-emerald-700' : 'text-red-700'
                     }`}
                   >
@@ -1013,11 +1121,11 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
               </div>
 
               {/* 4. Total Order & Berat Cucian */}
-              <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-2xs space-y-2">
-                <div className="flex justify-between items-start">
-                  <span className="text-xs font-bold text-slate-500">Order & Volume</span>
+              <div className="bg-white rounded-2xl border border-slate-200 p-3 sm:p-4 shadow-2xs space-y-1.5 sm:space-y-2">
+                <div className="flex flex-col xs:flex-row justify-between items-start xs:items-center gap-1">
+                  <span className="text-[11px] sm:text-xs font-bold text-slate-500 truncate">Order & Volume</span>
                   <span
-                    className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[11px] font-black ${
+                    className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] sm:text-[11px] font-black shrink-0 ${
                       comparativeAnalytics.trxGrowth >= 0
                         ? 'bg-emerald-100 text-emerald-800'
                         : 'bg-red-100 text-red-800'
@@ -1027,19 +1135,19 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                     {comparativeAnalytics.trxGrowth.toFixed(1)}%
                   </span>
                 </div>
-                <p className="text-lg font-black text-slate-900 tabular-nums">
-                  {summary.totalTrx} <span className="text-xs text-slate-500 font-normal">Order</span> ({summary.totalWeight.toFixed(1)} Kg)
+                <p className="text-xs sm:text-lg font-black text-slate-900 tabular-nums truncate">
+                  {summary.totalTrx} <span className="text-[10px] sm:text-xs text-slate-500 font-normal">Ord</span> ({summary.totalWeight.toFixed(1)} Kg)
                 </p>
-                <div className="pt-1.5 border-t border-slate-100 text-[11px] text-slate-500 flex justify-between">
-                  <span>Periode Lalu:</span>
-                  <span className="font-semibold tabular-nums">
-                    {prevSummary.totalTrx} Order ({prevSummary.totalWeight.toFixed(1)} Kg)
+                <div className="pt-1.5 border-t border-slate-100 text-[10px] sm:text-[11px] text-slate-500 flex justify-between gap-1">
+                  <span className="shrink-0">Lalu:</span>
+                  <span className="font-semibold tabular-nums truncate">
+                    {prevSummary.totalTrx} Ord ({prevSummary.totalWeight.toFixed(1)} Kg)
                   </span>
                 </div>
-                <div className="text-[11px] flex justify-between">
-                  <span>Selisih:</span>
+                <div className="text-[10px] sm:text-[11px] flex justify-between gap-1">
+                  <span className="shrink-0">Selisih:</span>
                   <span
-                    className={`font-bold tabular-nums ${
+                    className={`font-bold tabular-nums truncate ${
                       comparativeAnalytics.trxDiff >= 0 ? 'text-emerald-700' : 'text-red-700'
                     }`}
                   >
@@ -1050,117 +1158,702 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
               </div>
             </div>
 
-            {/* Visual Comparison Progress Bars */}
-            <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-2xs space-y-4">
-              <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">
-                Visual Rasio Pencapaian Finansial
-              </h4>
+            {/* ======================================================== */}
+            {/* SUB-NAV 4 MODE GRAFIK VISUAL INTERAKTIF                   */}
+            {/* ======================================================== */}
+            <div className="bg-white rounded-2xl border border-slate-200 p-1.5 shadow-2xs">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 text-xs font-bold">
+                <button
+                  type="button"
+                  onClick={() => setCompareChartMode('batang')}
+                  className={`py-2 px-2.5 rounded-xl flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                    compareChartMode === 'batang'
+                      ? 'bg-slate-900 text-white shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                  }`}
+                >
+                  <BarChart3 className="w-3.5 h-3.5" />
+                  <span>Batang Finansial</span>
+                </button>
 
-              {/* Bar 1: Omzet Comparison */}
-              <div className="space-y-1.5">
-                <div className="flex justify-between text-xs font-bold">
-                  <span className="text-slate-700">Perbandingan Omzet</span>
-                  <span className="text-slate-900 tabular-nums">
-                    {formatRupiah(summary.totalOmzet)} vs {formatRupiah(prevSummary.totalOmzet)}
-                  </span>
-                </div>
-                <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden flex">
-                  <div
-                    className="h-full bg-emerald-600 transition-all duration-500"
-                    style={{
-                      width: `${
-                        prevSummary.totalOmzet + summary.totalOmzet > 0
-                          ? Math.min(100, Math.max(5, (summary.totalOmzet / (summary.totalOmzet + prevSummary.totalOmzet)) * 100))
-                          : 50
-                      }%`,
-                    }}
-                    title={`Periode Ini: ${formatRupiah(summary.totalOmzet)}`}
-                  />
-                  <div
-                    className="h-full bg-slate-300 transition-all duration-500"
-                    style={{
-                      width: `${
-                        prevSummary.totalOmzet + summary.totalOmzet > 0
-                          ? Math.min(100, Math.max(5, (prevSummary.totalOmzet / (summary.totalOmzet + prevSummary.totalOmzet)) * 100))
-                          : 50
-                      }%`,
-                    }}
-                    title={`Periode Lalu: ${formatRupiah(prevSummary.totalOmzet)}`}
-                  />
-                </div>
-                <div className="flex justify-between text-[10px] text-slate-500">
-                  <span className="flex items-center gap-1 font-semibold text-emerald-700">
-                    <span className="w-2 h-2 rounded-full bg-emerald-600" /> Periode Ini ({currentPeriodeLabel})
-                  </span>
-                  <span className="flex items-center gap-1 font-semibold text-slate-500">
-                    <span className="w-2 h-2 rounded-full bg-slate-400" /> Periode Lalu ({prevPeriodInfo.label})
-                  </span>
-                </div>
-              </div>
+                <button
+                  type="button"
+                  onClick={() => setCompareChartMode('tren')}
+                  className={`py-2 px-2.5 rounded-xl flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                    compareChartMode === 'tren'
+                      ? 'bg-slate-900 text-white shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                  }`}
+                >
+                  <LineChart className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Kurva Tren Area</span>
+                </button>
 
-              {/* Bar 2: Laba Bersih Comparison */}
-              <div className="space-y-1.5 pt-2 border-t border-slate-100">
-                <div className="flex justify-between text-xs font-bold">
-                  <span className="text-slate-700">Perbandingan Laba Bersih</span>
-                  <span className="text-slate-900 tabular-nums">
-                    {formatRupiah(summary.labaBersih)} vs {formatRupiah(prevSummary.labaBersih)}
-                  </span>
-                </div>
-                <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden flex">
-                  <div
-                    className="h-full bg-[#800000] transition-all duration-500"
-                    style={{
-                      width: `${
-                        Math.max(0, prevSummary.labaBersih) + Math.max(0, summary.labaBersih) > 0
-                          ? Math.min(
-                              100,
-                              Math.max(
-                                5,
-                                (Math.max(0, summary.labaBersih) /
-                                  (Math.max(0, summary.labaBersih) + Math.max(0, prevSummary.labaBersih))) *
-                                  100
-                              )
-                            )
-                          : 50
-                      }%`,
-                    }}
-                  />
-                  <div
-                    className="h-full bg-slate-300 transition-all duration-500"
-                    style={{
-                      width: `${
-                        Math.max(0, prevSummary.labaBersih) + Math.max(0, summary.labaBersih) > 0
-                          ? Math.min(
-                              100,
-                              Math.max(
-                                5,
-                                (Math.max(0, prevSummary.labaBersih) /
-                                  (Math.max(0, summary.labaBersih) + Math.max(0, prevSummary.labaBersih))) *
-                                  100
-                              )
-                            )
-                          : 50
-                      }%`,
-                    }}
-                  />
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setCompareChartMode('layanan')}
+                  className={`py-2 px-2.5 rounded-xl flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                    compareChartMode === 'layanan'
+                      ? 'bg-slate-900 text-white shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                  }`}
+                >
+                  <Layers className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Battle Layanan</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setCompareChartMode('rasio')}
+                  className={`py-2 px-2.5 rounded-xl flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                    compareChartMode === 'rasio'
+                      ? 'bg-slate-900 text-white shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                  }`}
+                >
+                  <Award className="w-3.5 h-3.5 text-rose-400" />
+                  <span>Rasio & Skor Bisnis</span>
+                </button>
               </div>
             </div>
 
-            {/* Evaluasi Usaha Otomatis */}
-            <div className="p-4 rounded-2xl bg-amber-50/80 border border-amber-200/80 text-xs text-amber-950 space-y-2">
-              <div className="flex items-center gap-2 font-bold text-amber-900">
-                <Sparkles className="w-4 h-4 text-amber-600 shrink-0" />
-                <span>Ringkasan Evaluasi Performa Bisnis:</span>
+            {/* ======================================================== */}
+            {/* GRAFIK 1: GRAFIK BATANG FINANSIAL SIDE-BY-SIDE           */}
+            {/* ======================================================== */}
+            {compareChartMode === 'batang' && (
+              <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-2xs space-y-5 animate-in fade-in duration-200">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                  <div>
+                    <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                      <BarChart3 className="w-4 h-4 text-[#800000]" />
+                      <span>Grafik Komparasi 4 Pilar Finansial</span>
+                    </h4>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Perbandingan langsung antara {currentPeriodeLabel} dengan {prevPeriodInfo.label}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3 text-xs font-semibold">
+                    <span className="flex items-center gap-1.5 text-slate-800">
+                      <span className="w-3 h-3 rounded-md bg-emerald-600 inline-block" />
+                      <span>Periode Ini</span>
+                    </span>
+                    <span className="flex items-center gap-1.5 text-slate-500">
+                      <span className="w-3 h-3 rounded-md bg-slate-300 inline-block" />
+                      <span>Periode Lalu</span>
+                    </span>
+                  </div>
+                </div>
+
+                {/* 4 Bar Pairs */}
+                <div className="space-y-4 pt-1">
+                  {[
+                    {
+                      label: 'Omzet Usaha',
+                      cur: summary.totalOmzet,
+                      prev: prevSummary.totalOmzet,
+                      growth: comparativeAnalytics.omzetGrowth,
+                      diff: comparativeAnalytics.omzetDiff,
+                      color: 'bg-emerald-600',
+                      textColor: 'text-emerald-700',
+                    },
+                    {
+                      label: 'Total Uang Masuk',
+                      cur: summary.totalUangMasuk,
+                      prev: prevSummary.totalUangMasuk,
+                      growth: comparativeAnalytics.uangMasukGrowth,
+                      diff: comparativeAnalytics.uangMasukDiff,
+                      color: 'bg-emerald-700',
+                      textColor: 'text-emerald-800',
+                    },
+                    {
+                      label: 'Beban Pengeluaran',
+                      cur: summary.totalPengeluaran,
+                      prev: prevSummary.totalPengeluaran,
+                      growth: comparativeAnalytics.expGrowth,
+                      diff: comparativeAnalytics.expDiff,
+                      color: 'bg-rose-500',
+                      textColor: 'text-rose-600',
+                      isExpense: true,
+                    },
+                    {
+                      label: 'Laba Bersih',
+                      cur: summary.labaBersih,
+                      prev: prevSummary.labaBersih,
+                      growth: comparativeAnalytics.labaGrowth,
+                      diff: comparativeAnalytics.labaDiff,
+                      color: summary.labaBersih >= 0 ? 'bg-[#800000]' : 'bg-red-700',
+                      textColor: summary.labaBersih >= 0 ? 'text-[#800000]' : 'text-red-700',
+                    },
+                  ].map((item, idx) => {
+                    const maxPillarVal = Math.max(1, Math.abs(item.cur), Math.abs(item.prev));
+                    const curWidth = Math.max(4, (Math.max(0, item.cur) / maxPillarVal) * 100);
+                    const prevWidth = Math.max(4, (Math.max(0, item.prev) / maxPillarVal) * 100);
+
+                    return (
+                      <div key={idx} className="space-y-1.5 p-3 rounded-xl bg-slate-50 border border-slate-150">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs">
+                          <span className="font-extrabold text-slate-800">{item.label}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] text-slate-500">
+                              Selisih: <strong className={item.diff >= 0 ? 'text-emerald-700' : 'text-red-700'}>
+                                {item.diff >= 0 ? '+' : ''}{formatRupiah(item.diff)}
+                              </strong>
+                            </span>
+                            <span className={`px-2 py-0.5 rounded-md text-[10px] font-black ${
+                              item.isExpense
+                                ? item.growth <= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                                : item.growth >= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
+                            }`}>
+                              {item.growth > 0 ? '+' : ''}{item.growth.toFixed(1)}%
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Bar Periode Ini */}
+                        <div className="space-y-1 pt-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-bold text-slate-500 w-20 shrink-0">Periode Ini:</span>
+                            <div className="flex-1 bg-slate-200/60 rounded-full h-4 overflow-hidden relative">
+                              <div
+                                className={`h-full ${item.color} rounded-full transition-all duration-700`}
+                                style={{ width: `${curWidth}%` }}
+                              />
+                            </div>
+                            <span className={`text-xs font-black tabular-nums w-28 text-right shrink-0 ${item.textColor}`}>
+                              {formatRupiah(item.cur)}
+                            </span>
+                          </div>
+
+                          {/* Bar Periode Lalu */}
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-bold text-slate-400 w-20 shrink-0">Periode Lalu:</span>
+                            <div className="flex-1 bg-slate-200/60 rounded-full h-3.5 overflow-hidden relative">
+                              <div
+                                className="h-full bg-slate-400 rounded-full transition-all duration-700"
+                                style={{ width: `${prevWidth}%` }}
+                              />
+                            </div>
+                            <span className="text-xs font-bold tabular-nums text-slate-600 w-28 text-right shrink-0">
+                              {formatRupiah(item.prev)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-              <ul className="space-y-1 text-amber-900/90 pl-5 list-disc leading-relaxed text-[11px]">
+            )}
+
+            {/* ======================================================== */}
+            {/* GRAFIK 2: KURVA TREN AREA INTERAKTIF SVG                  */}
+            {/* ======================================================== */}
+            {compareChartMode === 'tren' && (
+              <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-2xs space-y-4 animate-in fade-in duration-200">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                  <div>
+                    <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                      <LineChart className="w-4 h-4 text-emerald-600" />
+                      <span>Kurva Tren Komparasi Dinamis</span>
+                    </h4>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      {trendComparisonData.isYearly ? 'Pola Tren Bulanan (Jan - Des)' : 'Fluktuasi Harian (Tgl 1 s/d Akhir Bulan)'}
+                    </p>
+                  </div>
+
+                  {/* Switcher Metrik Tren */}
+                  <div className="flex items-center bg-slate-100 p-0.5 rounded-xl text-xs font-bold self-start sm:self-auto">
+                    <button
+                      type="button"
+                      onClick={() => setTrendMetric('omzet')}
+                      className={`px-2.5 py-1 rounded-lg transition cursor-pointer ${
+                        trendMetric === 'omzet' ? 'bg-[#800000] text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      Omzet
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTrendMetric('uangMasuk')}
+                      className={`px-2.5 py-1 rounded-lg transition cursor-pointer ${
+                        trendMetric === 'uangMasuk' ? 'bg-[#800000] text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      Uang Masuk
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTrendMetric('trx')}
+                      className={`px-2.5 py-1 rounded-lg transition cursor-pointer ${
+                        trendMetric === 'trx' ? 'bg-[#800000] text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      Order
+                    </button>
+                  </div>
+                </div>
+
+                {/* SVG Area Chart Container */}
+                {(() => {
+                  const { numPoints, currentPoints, prevPoints } = trendComparisonData;
+                  const getVal = (pt: typeof currentPoints[0]) => {
+                    return trendMetric === 'omzet' ? pt.omzet : trendMetric === 'uangMasuk' ? pt.uangMasuk : pt.trx;
+                  };
+
+                  const allVals = [
+                    ...currentPoints.map(getVal),
+                    ...prevPoints.map(getVal),
+                  ];
+                  const maxVal = Math.max(1, ...allVals);
+
+                  const svgW = 600;
+                  const svgH = 220;
+                  const padL = 40;
+                  const padR = 20;
+                  const padT = 20;
+                  const padB = 30;
+                  const plotW = svgW - padL - padR;
+                  const plotH = svgH - padT - padB;
+
+                  const getX = (idx: number) => {
+                    return padL + (idx / Math.max(1, numPoints - 1)) * plotW;
+                  };
+
+                  const getY = (val: number) => {
+                    return padT + plotH - (val / maxVal) * plotH;
+                  };
+
+                  // Path kurva Periode Ini
+                  const curCoords = currentPoints.map((pt, i) => ({ x: getX(i), y: getY(getVal(pt)) }));
+                  const dCurLine = curCoords.map((c, i) => `${i === 0 ? 'M' : 'L'} ${c.x.toFixed(1)} ${c.y.toFixed(1)}`).join(' ');
+                  const dCurArea = `${dCurLine} L ${getX(numPoints - 1).toFixed(1)} ${(padT + plotH).toFixed(1)} L ${getX(0).toFixed(1)} ${(padT + plotH).toFixed(1)} Z`;
+
+                  // Path kurva Periode Lalu
+                  const prevCoords = prevPoints.map((pt, i) => ({ x: getX(i), y: getY(getVal(pt)) }));
+                  const dPrevLine = prevCoords.map((c, i) => `${i === 0 ? 'M' : 'L'} ${c.x.toFixed(1)} ${c.y.toFixed(1)}`).join(' ');
+
+                  const hoveredCur = hoveredPointIndex !== null ? currentPoints[hoveredPointIndex] : null;
+                  const hoveredPrev = hoveredPointIndex !== null ? prevPoints[hoveredPointIndex] : null;
+
+                  return (
+                    <div className="space-y-3">
+                      <div className="w-full overflow-x-auto bg-slate-50/70 p-2 rounded-xl border border-slate-200">
+                        <svg
+                          viewBox={`0 0 ${svgW} ${svgH}`}
+                          className="w-full h-auto min-w-[500px] select-none"
+                        >
+                          <defs>
+                            <linearGradient id="areaGradient" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor="#10b981" stopOpacity="0.35" />
+                              <stop offset="100%" stopColor="#10b981" stopOpacity="0.02" />
+                            </linearGradient>
+                          </defs>
+
+                          {/* Horizontal Grid Lines */}
+                          {[0, 0.25, 0.5, 0.75, 1].map((ratio, idx) => {
+                            const y = padT + plotH * (1 - ratio);
+                            const val = maxVal * ratio;
+                            return (
+                              <g key={idx}>
+                                <line
+                                  x1={padL}
+                                  y1={y}
+                                  x2={padL + plotW}
+                                  y2={y}
+                                  stroke="#e2e8f0"
+                                  strokeDasharray="3 3"
+                                />
+                                <text
+                                  x={padL - 6}
+                                  y={y + 3}
+                                  textAnchor="end"
+                                  className="text-[9px] fill-slate-400 font-mono"
+                                >
+                                  {trendMetric === 'trx'
+                                    ? Math.round(val)
+                                    : val >= 1000000
+                                    ? `${(val / 1000000).toFixed(1)}M`
+                                    : `${Math.round(val / 1000)}k`}
+                                </text>
+                              </g>
+                            );
+                          })}
+
+                          {/* Periode Ini Area Fill */}
+                          <path d={dCurArea} fill="url(#areaGradient)" />
+
+                          {/* Periode Lalu Line (Dashed Slate) */}
+                          <path
+                            d={dPrevLine}
+                            fill="none"
+                            stroke="#94a3b8"
+                            strokeWidth="2"
+                            strokeDasharray="4 4"
+                          />
+
+                          {/* Periode Ini Line (Solid Emerald) */}
+                          <path
+                            d={dCurLine}
+                            fill="none"
+                            stroke="#059669"
+                            strokeWidth="2.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+
+                          {/* X-Axis Labels */}
+                          {currentPoints.map((pt, i) => {
+                            // Show label every few points to avoid crowding
+                            const step = numPoints > 20 ? 3 : 1;
+                            if (i % step !== 0 && i !== numPoints - 1) return null;
+                            const x = getX(i);
+                            return (
+                              <text
+                                key={i}
+                                x={x}
+                                y={padT + plotH + 16}
+                                textAnchor="middle"
+                                className="text-[9px] fill-slate-500 font-bold"
+                              >
+                                {pt.label}
+                              </text>
+                            );
+                          })}
+
+                          {/* Interactive Hover Point Circles */}
+                          {currentPoints.map((pt, i) => {
+                            const x = getX(i);
+                            const y = getY(getVal(pt));
+                            const isHovered = hoveredPointIndex === i;
+
+                            return (
+                              <g
+                                key={i}
+                                onMouseEnter={() => setHoveredPointIndex(i)}
+                                onTouchStart={() => setHoveredPointIndex(i)}
+                                className="cursor-pointer"
+                              >
+                                {/* Invisible wide hit area */}
+                                <rect
+                                  x={x - 10}
+                                  y={padT}
+                                  width={20}
+                                  height={plotH}
+                                  fill="transparent"
+                                />
+                                {isHovered && (
+                                  <line
+                                    x1={x}
+                                    y1={padT}
+                                    x2={x}
+                                    y2={padT + plotH}
+                                    stroke="#059669"
+                                    strokeWidth="1"
+                                    strokeDasharray="2 2"
+                                  />
+                                )}
+                                <circle
+                                  cx={x}
+                                  cy={y}
+                                  r={isHovered ? 5.5 : 3}
+                                  fill={isHovered ? '#059669' : '#10b981'}
+                                  stroke="#ffffff"
+                                  strokeWidth="1.5"
+                                  className="transition-all duration-150"
+                                />
+                              </g>
+                            );
+                          })}
+                        </svg>
+                      </div>
+
+                      {/* Floating Dynamic Tooltip Card */}
+                      {hoveredCur && hoveredPrev && (
+                        <div className="p-3 bg-slate-900 text-white rounded-xl shadow-md border border-slate-700 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 animate-in fade-in">
+                          <div>
+                            <span className="text-[10px] text-amber-300 font-bold">
+                              📅 {hoveredCur.fullLabel}
+                            </span>
+                            <div className="flex items-center gap-3 mt-0.5 text-xs">
+                              <span className="font-bold text-emerald-400">
+                                Periode Ini:{' '}
+                                {trendMetric === 'trx'
+                                  ? `${hoveredCur.trx} Order`
+                                  : formatRupiah(trendMetric === 'omzet' ? hoveredCur.omzet : hoveredCur.uangMasuk)}
+                              </span>
+                              <span className="text-slate-400 font-medium">
+                                Periode Lalu:{' '}
+                                {trendMetric === 'trx'
+                                  ? `${hoveredPrev.trx} Order`
+                                  : formatRupiah(trendMetric === 'omzet' ? hoveredPrev.omzet : hoveredPrev.uangMasuk)}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Delta */}
+                          {(() => {
+                            const curVal = getVal(hoveredCur);
+                            const prvVal = getVal(hoveredPrev);
+                            const diff = curVal - prvVal;
+                            const growth = prvVal === 0 ? (curVal > 0 ? 100 : 0) : ((curVal - prvVal) / prvVal) * 100;
+                            return (
+                              <div className="text-right">
+                                <span className={`text-xs font-black px-2 py-0.5 rounded ${
+                                  diff >= 0 ? 'bg-emerald-900/80 text-emerald-300' : 'bg-red-900/80 text-red-300'
+                                }`}>
+                                  {diff >= 0 ? '+' : ''}{trendMetric === 'trx' ? `${diff} Order` : formatRupiah(diff)} ({growth.toFixed(1)}%)
+                                </span>
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      )}
+
+                      {/* Legend Bar */}
+                      <div className="flex items-center justify-between text-xs text-slate-500 pt-1">
+                        <div className="flex items-center gap-3">
+                          <span className="flex items-center gap-1.5 font-bold text-emerald-700">
+                            <span className="w-3 h-1 bg-emerald-600 rounded-full inline-block" />
+                            <span>Garis Hijau: Periode Ini</span>
+                          </span>
+                          <span className="flex items-center gap-1.5 font-medium text-slate-500">
+                            <span className="w-3 h-1 bg-slate-400 border-dashed border-b border-slate-500 inline-block" />
+                            <span>Garis Putus-Putus: Periode Lalu</span>
+                          </span>
+                        </div>
+                        <span className="text-[10px] text-slate-400 italic">
+                          *Arahkan kursor / sentuh titik untuk melihat detail
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+
+            {/* ======================================================== */}
+            {/* GRAFIK 3: BATTLE LAYANAN (SERVICE PERFORMANCE COMPARISON)*/}
+            {/* ======================================================== */}
+            {compareChartMode === 'layanan' && (
+              <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-2xs space-y-4 animate-in fade-in duration-200">
+                <div className="border-b border-slate-100 pb-3">
+                  <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                    <Layers className="w-4 h-4 text-amber-600" />
+                    <span>Battle Kinerja Seluruh Layanan (Kg / Unit)</span>
+                  </h4>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Evaluasi volume cucian tiap paket layanan antara {currentPeriodeLabel} vs {prevPeriodInfo.label}
+                  </p>
+                </div>
+
+                {serviceComparisonList.length === 0 ? (
+                  <p className="text-xs text-slate-400 italic text-center py-6">
+                    Belum ada data pengerjaan layanan untuk dibandingkan.
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {serviceComparisonList.map((svc, idx) => {
+                      const maxSvcVal = Math.max(1, ...serviceComparisonList.map((s) => Math.max(s.currentVal, s.prevVal)));
+                      const curWidth = Math.max(3, (svc.currentVal / maxSvcVal) * 100);
+                      const prevWidth = Math.max(3, (svc.prevVal / maxSvcVal) * 100);
+                      const isTopLeader = idx === 0 && svc.currentVal > 0;
+
+                      return (
+                        <div key={idx} className="p-3 rounded-xl bg-slate-50 border border-slate-150 space-y-2">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                            <div className="flex items-center gap-1.5">
+                              {isTopLeader && (
+                                <span className="bg-amber-100 text-amber-800 text-[10px] font-black px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                                  <Award className="w-3 h-3 text-amber-600" />
+                                  <span>Terlaris #1</span>
+                                </span>
+                              )}
+                              <span className="font-black text-xs text-slate-900">{svc.name}</span>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              <span className="text-[11px] text-slate-500">
+                                Selisih: <strong className={svc.diff >= 0 ? 'text-emerald-700' : 'text-red-700'}>
+                                  {svc.diff >= 0 ? '+' : ''}{svc.diff.toFixed(1)} Unit/Kg
+                                </strong>
+                              </span>
+                              <span className={`px-2 py-0.5 rounded-md text-[10px] font-black ${
+                                svc.growth >= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
+                              }`}>
+                                {svc.growth > 0 ? '+' : ''}{svc.growth.toFixed(1)}%
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Dual Horizontal Bars */}
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] font-bold text-slate-500 w-20 shrink-0">Periode Ini:</span>
+                              <div className="flex-1 bg-slate-200/60 rounded-full h-3 overflow-hidden">
+                                <div
+                                  className="h-full bg-emerald-600 rounded-full transition-all duration-500"
+                                  style={{ width: `${curWidth}%` }}
+                                />
+                              </div>
+                              <span className="text-xs font-black tabular-nums text-emerald-800 w-20 text-right shrink-0">
+                                {svc.currentVal.toFixed(1)} Kg
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] font-bold text-slate-400 w-20 shrink-0">Periode Lalu:</span>
+                              <div className="flex-1 bg-slate-200/60 rounded-full h-2.5 overflow-hidden">
+                                <div
+                                  className="h-full bg-slate-400 rounded-full transition-all duration-500"
+                                  style={{ width: `${prevWidth}%` }}
+                                />
+                              </div>
+                              <span className="text-xs font-bold tabular-nums text-slate-600 w-20 text-right shrink-0">
+                                {svc.prevVal.toFixed(1)} Kg
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ======================================================== */}
+            {/* GRAFIK 4: RASIO KEUANGAN & SKOR KESEHATAN EKSEKUTIF      */}
+            {/* ======================================================== */}
+            {compareChartMode === 'rasio' && (
+              <div className="space-y-4 animate-in fade-in duration-200">
+                {/* Skor Kesehatan Finansial Gauge Card */}
+                <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-2xs flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="space-y-1 text-center sm:text-left">
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center justify-center sm:justify-start gap-1">
+                      <Zap className="w-3.5 h-3.5 text-amber-500" />
+                      <span>Financial Health Index</span>
+                    </span>
+                    <h3 className="text-xl font-black text-slate-900">
+                      Skor Kesehatan Bisnis: <span className="text-[#800000]">{executiveMetrics.healthScore} / 100</span>
+                    </h3>
+                    <div className="pt-1">
+                      <span className={`inline-block px-3 py-1 rounded-xl text-xs font-black border ${executiveMetrics.healthColor}`}>
+                        {executiveMetrics.healthLabel}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Circular/Linear Visual Meter */}
+                  <div className="w-full sm:w-64 space-y-1.5">
+                    <div className="flex justify-between text-[11px] font-bold text-slate-600">
+                      <span>Efisiensi & Stabilitas</span>
+                      <span className="tabular-nums font-black">{executiveMetrics.healthScore}%</span>
+                    </div>
+                    <div className="w-full h-4 bg-slate-100 rounded-full overflow-hidden p-0.5 border border-slate-200">
+                      <div
+                        className={`h-full rounded-full transition-all duration-1000 ${
+                          executiveMetrics.healthScore >= 70
+                            ? 'bg-linear-to-r from-emerald-500 to-teal-600'
+                            : executiveMetrics.healthScore >= 40
+                            ? 'bg-linear-to-r from-amber-400 to-amber-600'
+                            : 'bg-linear-to-r from-rose-500 to-red-700'
+                        }`}
+                        style={{ width: `${executiveMetrics.healthScore}%` }}
+                      />
+                    </div>
+                    <div className="flex justify-between text-[9px] text-slate-400">
+                      <span>Kritis (&lt;40)</span>
+                      <span>Stabil (40-70)</span>
+                      <span>Prima (&gt;70)</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 4 Rasio Kinerja Utama */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* 1. Net Profit Margin */}
+                  <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-2xs space-y-2">
+                    <span className="text-xs font-bold text-slate-500">Net Profit Margin (Margin Laba Bersih)</span>
+                    <div className="flex items-baseline justify-between">
+                      <span className="text-xl font-black text-slate-900 tabular-nums">
+                        {executiveMetrics.currentMargin.toFixed(1)}%
+                      </span>
+                      <span className={`text-xs font-black ${executiveMetrics.marginDiff >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
+                        {executiveMetrics.marginDiff >= 0 ? '+' : ''}{executiveMetrics.marginDiff.toFixed(1)}% vs Lalu
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500">
+                      Dari setiap Rp 100.000 omzet, Anda mengantongi <strong>{formatRupiah(executiveMetrics.currentMargin * 1000)}</strong> laba bersih.
+                    </p>
+                  </div>
+
+                  {/* 2. Average Order Value (AOV) */}
+                  <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-2xs space-y-2">
+                    <span className="text-xs font-bold text-slate-500">Rata-Rata Nilai Nota (Basket Size / AOV)</span>
+                    <div className="flex items-baseline justify-between">
+                      <span className="text-xl font-black text-slate-900 tabular-nums">
+                        {formatRupiah(executiveMetrics.currentAov)}
+                      </span>
+                      <span className={`text-xs font-black ${executiveMetrics.aovDiff >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
+                        {executiveMetrics.aovDiff >= 0 ? '+' : ''}{formatRupiah(executiveMetrics.aovDiff)}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500">
+                      Rata-rata pengeluaran satu pelanggan dalam sekali cuci di outlet Anda.
+                    </p>
+                  </div>
+
+                  {/* 3. Cost to Income Ratio */}
+                  <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-2xs space-y-2">
+                    <span className="text-xs font-bold text-slate-500">Rasio Beban Operasional (Cost-to-Income)</span>
+                    <div className="flex items-baseline justify-between">
+                      <span className="text-xl font-black text-slate-900 tabular-nums">
+                        {executiveMetrics.currentCostRatio.toFixed(1)}%
+                      </span>
+                      <span className={`text-xs font-black ${executiveMetrics.currentCostRatio <= executiveMetrics.prevCostRatio ? 'text-emerald-700' : 'text-amber-700'}`}>
+                        {executiveMetrics.currentCostRatio <= executiveMetrics.prevCostRatio ? 'Lebih Efisien' : 'Beban Naik'}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500">
+                      Persentase omzet yang terserap untuk biaya deterjen, listrik, gaji, dan sewa toko.
+                    </p>
+                  </div>
+
+                  {/* 4. Rata-Rata Beban per Order */}
+                  <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-2xs space-y-2">
+                    <span className="text-xs font-bold text-slate-500">Biaya Operasional per Nota Cucian</span>
+                    <div className="flex items-baseline justify-between">
+                      <span className="text-xl font-black text-slate-900 tabular-nums">
+                        {summary.totalTrx > 0 ? formatRupiah(summary.totalPengeluaran / summary.totalTrx) : 'Rp 0'}
+                      </span>
+                      <span className="text-xs font-bold text-slate-500">
+                        {summary.totalTrx} Nota
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500">
+                      Estimasi modal operasional yang dikeluarkan untuk menyelesaikan setiap 1 nota pelanggan.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ======================================================== */}
+            {/* REKOMENDASI STRATEGIS EKSEKUTIF BERBASIS DATA RIIL       */}
+            {/* ======================================================== */}
+            <div className="p-4 rounded-2xl bg-amber-50/90 border border-amber-200/90 text-xs text-amber-950 space-y-2.5 shadow-2xs">
+              <div className="flex items-center gap-2 font-black text-amber-900">
+                <Sparkles className="w-4 h-4 text-amber-600 shrink-0 animate-pulse" />
+                <span>Executive Business Intelligence & Saran Strategis:</span>
+              </div>
+              <ul className="space-y-1.5 text-amber-900/90 pl-5 list-disc leading-relaxed text-[11px]">
                 {comparativeAnalytics.omzetGrowth > 0 ? (
                   <li>
                     <strong>Pendapatan Meningkat:</strong> Omzet toko Anda mengalami kenaikan sebesar{' '}
                     <span className="font-bold text-emerald-800">
                       +{comparativeAnalytics.omzetGrowth.toFixed(1)}% ({formatRupiah(comparativeAnalytics.omzetDiff)})
                     </span>{' '}
-                    dibanding periode {prevPeriodInfo.label}.
+                    dibanding periode {prevPeriodInfo.label}. Pertahankan kualitas layanan dan ketepatan waktu.
                   </li>
                 ) : comparativeAnalytics.omzetGrowth < 0 ? (
                   <li>
@@ -1168,7 +1861,7 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                     <span className="font-bold text-red-700">
                       {comparativeAnalytics.omzetGrowth.toFixed(1)}% ({formatRupiah(comparativeAnalytics.omzetDiff)})
                     </span>
-                    . Pertimbangkan promo bundling atau follow-up pelanggan lama.
+                    . Disarankan meluncurkan promo bundling akhir pekan atau mengirim pesan pengingat siap cuci ke pelanggan loyal.
                   </li>
                 ) : (
                   <li>Pendapatan stabil dan seimbang dengan periode sebelumnya.</li>
@@ -1180,7 +1873,7 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                     <span className="font-bold text-red-700">
                       +{formatRupiah(comparativeAnalytics.expDiff)} (+{comparativeAnalytics.expGrowth.toFixed(1)}%)
                     </span>
-                    . Pastikan stok deterjen, listrik, dan gas terkontrol efisien.
+                    . Pastikan pembelian sabun/pewangi dalam jumlah grosir dan matikan mesin pengering saat tidak terpakai.
                   </li>
                 ) : comparativeAnalytics.expDiff < 0 ? (
                   <li>
@@ -1188,13 +1881,13 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                     <span className="font-bold text-emerald-800">
                       {formatRupiah(Math.abs(comparativeAnalytics.expDiff))} ({Math.abs(comparativeAnalytics.expGrowth).toFixed(1)}%)
                     </span>
-                    .
+                    . Pengendalian modal berjalan efektif!
                   </li>
                 ) : null}
 
                 <li>
                   Total pelanggan yang dilayani pada periode ini sebanyak{' '}
-                  <strong>{summary.customerList.length} orang</strong> dengan rata-rata{' '}
+                  <strong>{summary.customerList.length} orang</strong> dengan rata-rata beban{' '}
                   <strong>
                     {summary.totalTrx > 0 ? (summary.totalWeight / summary.totalTrx).toFixed(1) : '0'} Kg
                   </strong>{' '}

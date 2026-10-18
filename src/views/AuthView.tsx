@@ -210,7 +210,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
           <p className="text-xs text-slate-400">
             {isSignUp
               ? 'Daftarkan bisnis laundry Anda untuk manajemen terintegrasi'
-              : 'Silakan masuk'}
+              : 'Kafelas Laundry'}
           </p>
         </div>
 
