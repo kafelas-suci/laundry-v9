@@ -19,6 +19,8 @@ import {
   Sparkles,
   Lock,
   Crown,
+  Shirt,
+  BarChart3,
 } from 'lucide-react';
 import { User, Laundry, Transaksi } from '../types';
 import { isProTier, getLaundryLimits } from '../utils/subscription';
@@ -109,7 +111,7 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
         {
           id: 'status_pengerjaan',
           label: 'Status Pengerjaan',
-          icon: Clock,
+          icon: Shirt,
           badge: inProgressCount > 0 ? inProgressCount : undefined,
           badgeColor: 'bg-amber-100 text-amber-800',
         },
@@ -128,12 +130,12 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
         {
           id: 'buku_kas',
           label: 'Buku Kas Harian',
-          icon: DollarSign,
+          icon: Wallet,
         },
         {
           id: 'laporan',
           label: 'Laporan Keuangan',
-          icon: FileText,
+          icon: BarChart3,
         },
       ],
     },

@@ -32,6 +32,7 @@ import {
   disconnectBluetoothPrinter,
   pairBluetoothPrinterDirectly,
 } from '../utils/nativeBridge';
+import { TopUpModal } from '../components/TopUpModal';
 
 interface SettingsViewProps {
   onBack: () => void;
@@ -46,6 +47,7 @@ interface SettingsViewProps {
   onOpenKelolaKasir: () => void;
   onOpenApkModal: () => void;
   onOpenUpgradeModal?: (reason?: string) => void;
+  onTopUpWallet?: (nominal: number) => void;
   onUpdateOwnerProfile?: (data: { displayName: string; nomorTelepon?: string | null }) => void;
   onLogout: () => void;
 }
@@ -63,6 +65,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onOpenKelolaKasir,
   onOpenApkModal,
   onOpenUpgradeModal,
+  onTopUpWallet,
   onUpdateOwnerProfile,
   onLogout,
 }) => {
@@ -90,6 +93,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [showFeatureSettingsModal, setShowFeatureSettingsModal] = useState(false);
   const [showLogoutConfirmModal, setShowLogoutConfirmModal] = useState(false);
   const [showEditOwnerModal, setShowEditOwnerModal] = useState(false);
+  const [showTopUpModal, setShowTopUpModal] = useState(false);
   const [editDisplayName, setEditDisplayName] = useState(currentUser.displayName || '');
   const [editNomorTelepon, setEditNomorTelepon] = useState(currentUser.nomorTelepon || '');
 
@@ -177,6 +181,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   };
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const limits = getLaundryLimits(currentTier);
+    if (!limits.canUseCustomLogoOnReceipt) {
+      toast.warning('Fitur upload logo toko di struk hanya untuk Paket Basic / Pro.');
+      return;
+    }
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
@@ -281,15 +290,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   </span>
                 </div>
 
-                {/* Tombol Aksi Tambah */}
+                {/* Tombol Aksi Tambah Saldo Langsung */}
                 {isOwner && (
                   <button
                     type="button"
-                    onClick={onOpenKelolaOwner}
+                    onClick={() => setShowTopUpModal(true)}
+                    title="Isi Saldo Akun Owner Langsung"
                     className="h-9 px-3.5 rounded-xl bg-[#800000] hover:bg-[#660000] active:bg-[#4d0000] text-white font-extrabold text-xs flex items-center gap-1.5 shadow-md shadow-[#800000]/20 transition active:scale-95 cursor-pointer shrink-0"
                   >
                     <CreditCard className="w-3.5 h-3.5" />
-                    <span>(+)</span>
+                    <span>(+) Isi Saldo</span>
                   </button>
                 )}
               </div>
@@ -490,7 +500,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 <input
                   type="checkbox"
                   checked={useLogo}
-                  onChange={(e) => setUseLogo(e.target.checked)}
+                  onChange={(e) => {
+                    const limits = getLaundryLimits(currentTier);
+                    if (e.target.checked && !limits.canUseCustomLogoOnReceipt) {
+                      toast.warning('Fitur kustomisasi logo toko di struk hanya untuk Paket Basic / Pro.');
+                      return;
+                    }
+                    setUseLogo(e.target.checked);
+                  }}
                   className="w-4 h-4 accent-[#800000]"
                 />
                 <span>Gunakan Logo di Struk</span>
@@ -885,6 +902,20 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </div>
         </div>
       )}
+      {/* MODAL ISI SALDO AKUN OWNER */}
+      <TopUpModal
+        isOpen={showTopUpModal}
+        onClose={() => setShowTopUpModal(false)}
+        currentUser={currentUser}
+        onTopUpWallet={(nominal) => {
+          if (onTopUpWallet) {
+            onTopUpWallet(nominal);
+          } else {
+            toast.success(`Saldo ${formatRupiah(nominal)} berhasil ditambahkan!`);
+          }
+        }}
+        sisaHari={sisaHari}
+      />
     </div>
   );
 };

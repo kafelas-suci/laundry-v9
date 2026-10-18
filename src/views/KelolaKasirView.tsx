@@ -60,8 +60,7 @@ export const KelolaKasirView: React.FC<KelolaKasirViewProps> = ({
 
     const limits = getLaundryLimits(currentTier);
     if (limits.tier === 'newcomer' || limits.maxCashiers <= 0) {
-      toast.warning('Paket Newcomer dibatasi 1 Owner dan tidak mendukung akun kasir tambahan.');
-      onOpenUpgradeModal?.('Paket Newcomer dibatasi 1 Owner dan tidak mendukung kasir. Tingkatkan ke Paket Basic untuk membuat akun kasir.');
+      toast.warning('Fitur pembuatan akun kasir tambahan hanya untuk Paket Basic / Pro.');
       return;
     }
 
@@ -100,7 +99,7 @@ export const KelolaKasirView: React.FC<KelolaKasirViewProps> = ({
   const handleAddOpStaffSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!limits.canAssignStaff) {
-      onOpenUpgradeModal?.('Fitur Penugasan Staf Pengerjaan aktif di Paket Basic.');
+      toast.warning('Fitur penugasan staf operasional hanya untuk Paket Basic / Pro.');
       return;
     }
     if (!opStaffName.trim()) {
@@ -173,10 +172,10 @@ export const KelolaKasirView: React.FC<KelolaKasirViewProps> = ({
                   </p>
                   <button
                     type="button"
-                    onClick={() => onOpenUpgradeModal?.('Menambah Akun Kasir')}
-                    className="w-full py-1.5 px-3 bg-[#800000] hover:bg-[#660000] text-white rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                    onClick={() => toast.warning('Fitur pembuatan akun kasir tambahan hanya untuk Paket Basic / Pro.')}
+                    className="w-full py-1.5 px-3 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
                   >
-                    <span>Tingkatkan ke Paket Basic (1 Kasir per Outlet)</span>
+                    <span>Fitur Hanya untuk Paket Basic / Pro</span>
                   </button>
                 </div>
               ) : isAtLimit ? (
@@ -296,15 +295,15 @@ export const KelolaKasirView: React.FC<KelolaKasirViewProps> = ({
                 )}
               </div>
 
-              {!isProTier(currentTier) ? (
+              {!limits.canAssignStaff ? (
                 <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between gap-2">
-                  <p className="text-[11px] text-amber-900">Fitur eksklusif Pro untuk kelola tukang cuci/setrika.</p>
+                  <p className="text-[11px] text-amber-900">Fitur penugasan staf operasional hanya untuk Paket Basic / Pro.</p>
                   <button
                     type="button"
-                    onClick={() => onOpenUpgradeModal?.('Fitur Staf Pengerjaan Tanpa Login')}
+                    onClick={() => toast.warning('Fitur penugasan staf operasional hanya untuk Paket Basic / Pro.')}
                     className="px-2.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-[10px] font-bold shrink-0 cursor-pointer"
                   >
-                    Upgrade
+                    Info
                   </button>
                 </div>
               ) : (

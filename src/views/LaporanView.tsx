@@ -484,7 +484,7 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
   // Handler Ekspor Excel (.xlsx)
   const handleExportExcel = () => {
     if (!canExcel) {
-      onOpenUpgradeModal?.('Ekspor Pembukuan Lengkap ke Excel Spreadsheet (.xlsx)');
+      toast.warning('Fitur ekspor Excel (.xlsx) hanya untuk Paket Basic / Pro.');
       return;
     }
 
@@ -567,7 +567,7 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
   // 1-Click Direct Download PDF File
   const handleDownloadPDF = () => {
     if (!canPdf) {
-      onOpenUpgradeModal?.('Cetak & Unduh Dokumen Laporan Keuangan Resmi A4 (.pdf)');
+      toast.warning('Fitur cetak dan unduh dokumen laporan resmi PDF hanya untuk Paket Basic / Pro.');
       return;
     }
 
@@ -584,7 +584,7 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
   // Open Preview & Print Modal
   const handleOpenPdfModal = () => {
     if (!canPdf) {
-      onOpenUpgradeModal?.('Pratinjau & Cetak Dokumen Laporan Keuangan Resmi A4');
+      toast.warning('Fitur cetak dokumen laporan resmi PDF hanya untuk Paket Basic / Pro.');
       return;
     }
 
@@ -730,7 +730,7 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
               type="button"
               onClick={() => {
                 if (!canGrowth) {
-                  onOpenUpgradeModal?.('Analisis Komparasi Pertumbuhan Historis (MoM & YoY)');
+                  toast.warning('Fitur analisis komparasi pertumbuhan (MoM & YoY) hanya untuk Paket Basic / Pro.');
                   return;
                 }
                 setActiveTab('komparasi');

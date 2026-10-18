@@ -26,6 +26,10 @@ import {
   Crown,
   RotateCw,
   Cloud,
+  Shirt,
+  Wallet,
+  Coins,
+  BarChart3,
 } from 'lucide-react';
 import { Transaksi, SettingsData, User, Laundry, Pengeluaran } from '../types';
 import { formatRupiah, formatShortDate, formatShortTime } from '../utils/formatters';
@@ -1452,36 +1456,40 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <nav className="fixed bottom-0 left-0 right-0 z-30 bg-[#800000] text-white h-14 flex items-center justify-around px-1 shadow-2xl border-t border-white/10 pb-safe">
             <button
               onClick={onOpenStatusPengerjaan}
-              className="flex flex-col items-center justify-center flex-1 py-1 hover:bg-white/10 rounded-xl transition text-[10px] active:scale-95"
+              className="flex flex-col items-center justify-center flex-1 py-1 hover:bg-white/10 rounded-xl transition text-[10px] active:scale-95 cursor-pointer"
+              title="Status Pengerjaan Cucian & Antrean Staf"
             >
-              <Clock className="w-5 h-5 mb-0.5" />
-              <span>Status</span>
+              <Shirt className="w-5 h-5 mb-0.5" />
+              <span className="font-semibold tracking-tight">Pengerjaan</span>
             </button>
 
             <button
               onClick={onOpenBukuKas}
-              className="flex flex-col items-center justify-center flex-1 py-1 hover:bg-white/10 rounded-xl transition text-[10px] active:scale-95"
+              className="flex flex-col items-center justify-center flex-1 py-1 hover:bg-white/10 rounded-xl transition text-[10px] active:scale-95 cursor-pointer"
+              title="Buku Kas Harian & Riwayat Transaksi Masuk/Keluar"
             >
-              <DollarSign className="w-5 h-5 mb-0.5" />
-              <span>Keuangan</span>
+              <Wallet className="w-5 h-5 mb-0.5" />
+              <span className="font-semibold tracking-tight">Buku Kas</span>
             </button>
 
             <div className="flex-1 h-full pointer-events-none" aria-hidden="true" />
 
             <button
               onClick={onOpenAturKas}
-              className="flex flex-col items-center justify-center flex-1 py-1 hover:bg-white/10 rounded-xl transition text-[10px] active:scale-95"
+              className="flex flex-col items-center justify-center flex-1 py-1 hover:bg-white/10 rounded-xl transition text-[10px] active:scale-95 cursor-pointer"
+              title="Atur Kas Toko (Catat Pengeluaran & Pemasukan Manual)"
             >
-              <Plus className="w-5 h-5 mb-0.5" />
-              <span>Catat Kas</span>
+              <Coins className="w-5 h-5 mb-0.5" />
+              <span className="font-semibold tracking-tight">Atur Kas</span>
             </button>
 
             <button
               onClick={onOpenLaporan}
-              className="flex flex-col items-center justify-center flex-1 py-1 hover:bg-white/10 rounded-xl transition text-[10px] active:scale-95"
+              className="flex flex-col items-center justify-center flex-1 py-1 hover:bg-white/10 rounded-xl transition text-[10px] active:scale-95 cursor-pointer"
+              title="Laporan Keuangan & Grafik Analisis Bisnis"
             >
-              <FileText className="w-5 h-5 mb-0.5" />
-              <span>Laporan</span>
+              <BarChart3 className="w-5 h-5 mb-0.5" />
+              <span className="font-semibold tracking-tight">Laporan</span>
             </button>
           </nav>
         </>

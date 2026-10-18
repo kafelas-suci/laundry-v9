@@ -44,8 +44,7 @@ export const KelolaPelangganView: React.FC<KelolaPelangganViewProps> = ({
 
   const openAddModal = () => {
     if (isCustomerLimitReached) {
-      toast.warning(`Batas ${limits.maxCustomers} data pelanggan untuk ${limits.label} telah tercapai.`);
-      onOpenUpgradeModal?.(`Batas ${limits.maxCustomers} data pelanggan untuk ${limits.label} telah tercapai. Tingkatkan paket untuk menyimpan data pelanggan tanpa batas.`);
+      toast.warning(`Batas ${limits.maxCustomers} data pelanggan telah tercapai. Fitur kapasitas pelanggan lebih besar hanya untuk Paket Basic / Pro.`);
       return;
     }
     setEditingPelanggan(null);
@@ -74,8 +73,7 @@ export const KelolaPelangganView: React.FC<KelolaPelangganViewProps> = ({
     }
 
     if (!editingPelanggan && isCustomerLimitReached) {
-      toast.warning(`Batas ${limits.maxCustomers} pelanggan tercapai di ${limits.label}.`);
-      onOpenUpgradeModal?.(`Batas ${limits.maxCustomers} pelanggan untuk ${limits.label} telah tercapai.`);
+      toast.warning(`Batas ${limits.maxCustomers} data pelanggan telah tercapai. Fitur kapasitas pelanggan lebih besar hanya untuk Paket Basic / Pro.`);
       return;
     }
 
