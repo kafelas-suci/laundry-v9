@@ -36,7 +36,7 @@ export const defaultSettings: SettingsData = {
   pemasukanManualEnabled: true,
   waNotificationEnabled: true,
   tampilkanTombolAmbilNotaLama: true,
-
+  hitungKerjaStaf: true,
 };
 
 // Default Services matching SignUpActivity.kt

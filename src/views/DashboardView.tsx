@@ -326,7 +326,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         return 'Tidak ada antrean transaksi aktif saat ini.';
     }
   };
-
+ 
   return (
     <div className="flex flex-col h-full max-h-full bg-slate-100 text-slate-800 select-none overflow-hidden relative">
       {!isMobile ? (
@@ -1092,7 +1092,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </header>
 
           {/* 2. AREA ATAS YANG BISA DI-SCROLL (Pencarian, Filter, Transaksi, Paginasi) */}
-          <div className="flex-1 overflow-y-auto px-2 sm:px-4 md:px-6 py-2.5">
+          <div className="flex-1 overflow-y-auto px-2 sm:px-4 md:px-6 py-1">
             <div className="max-w-7xl mx-auto w-full space-y-3 pb-2">
               {/* PWA Install Banner */}
               <PWAInstallButton variant="banner" />
@@ -1291,9 +1291,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </div>
 
               {/* 4. DAFTAR TRANSAKSI AKTIF */}
-              <main className="space-y-1">
+              <main className="space-y-">
                 {displayedTrx.length === 0 ? (
-                  <div className="bg-white rounded-2xl p-8 text-center border border-slate-200 mt-2 space-y-3">
+                  <div className="bg-white rounded-2xl p-8 text-center border border-slate-200 mt-0 space-y-1">
                     <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mx-auto text-slate-400">
                       <CheckCircle className="w-6 h-6" />
                     </div>
@@ -1342,7 +1342,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       <div
                         key={trx.id}
                         onClick={() => onOpenDetailTransaksi(trx.id)}
-                        className={`p-2.5 sm:p-3 rounded-2xl border border-slate-200 shadow-2xs cursor-pointer transition hover:border-[#800000] hover:shadow-xs ${
+                        className={`p-1.5 sm:p-3 rounded-2xl border border-slate-200 shadow-2xs cursor-pointer transition hover:border-[#800000] hover:shadow-xs ${
                           isEven ? 'bg-white' : 'bg-slate-50/80'
                         }`}
                       >

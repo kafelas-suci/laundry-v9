@@ -138,6 +138,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [selesaikanOtomatis, setSelesaikanOtomatis] = useState(settings.selesaikanSaatDitugaskan);
   const [ambilTanpaSelesai, setAmbilTanpaSelesai] = useState(settings.pengambilanTanpaSelesai);
   const [tampilkanAmbilNotaLama, setTampilkanAmbilNotaLama] = useState(settings.tampilkanTombolAmbilNotaLama ?? true);
+  const [hitungKerjaStaf, setHitungKerjaStaf] = useState(settings.hitungKerjaStaf ?? true);
 
   const handleSaveInfoStruk = () => {
     onUpdateSettings({
@@ -176,6 +177,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       selesaikanSaatDitugaskan: selesaikanOtomatis,
       pengambilanTanpaSelesai: ambilTanpaSelesai,
       tampilkanTombolAmbilNotaLama: tampilkanAmbilNotaLama,
+      hitungKerjaStaf: hitungKerjaStaf,
       poinSystemEnabled: false,
     });
     setShowFeatureSettingsModal(false);
@@ -452,6 +454,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 setSelesaikanOtomatis(settings.selesaikanSaatDitugaskan);
                 setAmbilTanpaSelesai(settings.pengambilanTanpaSelesai);
                 setTampilkanAmbilNotaLama(settings.tampilkanTombolAmbilNotaLama ?? true);
+                setHitungKerjaStaf(settings.hitungKerjaStaf ?? true);
                 setShowFeatureSettingsModal(true);
               }}
               className="w-full p-3.5 flex items-center justify-between hover:bg-slate-50 active:bg-slate-100 transition text-left"
@@ -786,6 +789,23 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   </span>
                   <span className="text-[11px] text-slate-500 block mt-0.5 leading-relaxed">
                     Menampilkan tombol di Dashboard & saran saat pencarian nota nihil. Jika dinonaktifkan (atau ditutup dengan tombol X), tombol akan tersembunyi.
+                  </span>
+                </div>
+              </label>
+
+              <label className="flex items-start gap-3 p-3 rounded-xl border border-slate-200 bg-slate-50 cursor-pointer hover:bg-slate-100 transition">
+                <input
+                  type="checkbox"
+                  checked={hitungKerjaStaf}
+                  onChange={(e) => setHitungKerjaStaf(e.target.checked)}
+                  className="w-4 h-4 accent-[#800000] mt-0.5 cursor-pointer"
+                />
+                <div>
+                  <span className="font-bold text-slate-800 text-xs block">
+                    ● Aktifkan Perhitungan Kerja Staf (Produksi & Beban Cucian)
+                  </span>
+                  <span className="text-[11px] text-slate-500 block mt-0.5 leading-relaxed">
+                    Apabila diceklis maka perhitungan beban kerja staf (kg cucian, jumlah nota) dan pemilihan petugas pengerjaan aktif. Jika tidak diceklis, maka perhitungan kerja staf dinonaktifkan.
                   </span>
                 </div>
               </label>

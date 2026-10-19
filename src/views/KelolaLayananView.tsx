@@ -18,7 +18,7 @@ import {
   RotateCcw,
   SlidersHorizontal,
 } from 'lucide-react';
-import { Layanan } from '../types';
+import { Layanan, SettingsData } from '../types';
 import { formatRupiah } from '../utils/formatters';
 import { useToast, useConfirm } from '../components/NotificationContext';
 import { isProTier, getLaundryLimits } from '../utils/subscription';
@@ -28,6 +28,7 @@ interface KelolaLayananViewProps {
   onBack: () => void;
   layananList: Layanan[];
   activeLaundryId: string;
+  settings?: SettingsData;
   currentTier?: string | null;
   onSaveLayanan: (layanan: Layanan) => void;
   onDeleteLayanan: (layananId: string) => void;
@@ -52,6 +53,7 @@ export const KelolaLayananView: React.FC<KelolaLayananViewProps> = ({
   onBack,
   layananList,
   activeLaundryId,
+  settings,
   currentTier,
   onSaveLayanan,
   onDeleteLayanan,
@@ -697,11 +699,18 @@ export const KelolaLayananView: React.FC<KelolaLayananViewProps> = ({
                   className="w-4 h-4 mt-0.5 accent-[#800000] rounded cursor-pointer"
                 />
                 <div>
-                  <div className="font-bold text-xs text-slate-800">
-                    Hitung Beban Kerja Harian Staf
+                  <div className="font-bold text-xs text-slate-800 flex items-center gap-1.5 flex-wrap">
+                    <span>Hitung Beban Kerja Harian Staf</span>
+                    {settings?.hitungKerjaStaf === false && (
+                      <span className="text-[10px] font-semibold text-amber-700 bg-amber-100 px-1.5 py-0.2 rounded-md">
+                        Global Nonaktif
+                      </span>
+                    )}
                   </div>
                   <p className="text-[10px] text-slate-500 leading-tight mt-0.5">
-                    Aktifkan jika jumlah/berat layanan ini dimasukkan ke hitungan beban operasional kerja staf kasir/cuci.
+                    {settings?.hitungKerjaStaf === false
+                      ? 'Perhitungan kerja staf saat ini sedang dinonaktifkan di Pengaturan. Layanan ini tetap dapat dikonfigurasi dan akan berlaku saat perhitungan kerja staf diaktifkan kembali.'
+                      : 'Aktifkan jika jumlah/berat layanan ini dimasukkan ke hitungan beban operasional kerja staf kasir/cuci.'}
                   </p>
                 </div>
               </label>

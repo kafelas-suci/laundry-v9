@@ -175,8 +175,8 @@ export interface SettingsData {
   nilaiTukarPoin: number;
   pemasukanManualEnabled: boolean;
   waNotificationEnabled: boolean;
-    tampilkanTombolAmbilNotaLama?: boolean;
-
+  tampilkanTombolAmbilNotaLama?: boolean;
+  hitungKerjaStaf?: boolean;
 }
 
 export interface OperationalStaff {

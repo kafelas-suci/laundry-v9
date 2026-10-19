@@ -1288,16 +1288,17 @@ export default function App() {
             onSyncCloudData={() => loadFirestoreData(currentUser, true)}
             onSelesaikanTransaksi={(trx) => {
               if (trx.status === 'Diterima') {
-                if (staffList.length > 0) {
+                const isHitungKerjaStaf = settings.hitungKerjaStaf ?? true;
+                if (isHitungKerjaStaf && staffList.length > 0) {
                   setTrxForAssignStaff(trx);
                 } else {
-                  const loginUserName = currentUser?.displayName || 'Kasir';
+                  const loginUserName = isHitungKerjaStaf ? (currentUser?.displayName || 'Kasir') : null;
                   const autoFinish = settings.selesaikanSaatDitugaskan;
                   const updated = {
                     ...trx,
                     status: autoFinish ? ('Selesai' as const) : ('Proses' as const),
                     dikerjakanOleh: loginUserName,
-                    tanggalDitugaskan: Date.now(),
+                    tanggalDitugaskan: isHitungKerjaStaf ? Date.now() : null,
                     tanggalStatusSelesai: autoFinish ? Date.now() : null,
                   };
                   updateTransaksiList(
@@ -1490,6 +1491,7 @@ export default function App() {
             onBack={() => setActiveView('dashboard')}
             layananList={layananList}
             activeLaundryId={activeLaundryId}
+            settings={settings}
             onSaveLayanan={handleSaveLayanan}
             onDeleteLayanan={handleDeleteLayanan}
             onReorderLayanan={updateLayananList}

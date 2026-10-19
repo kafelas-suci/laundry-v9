@@ -108,7 +108,7 @@ export const DetailTransaksiView: React.FC<DetailTransaksiViewProps> = ({
               <span className="inline-block bg-[#800000] text-white text-xs font-bold px-2.5 py-1 rounded-lg shadow-2xs">
                 {transaksi.nomorTransaksi || '-'}
               </span>
-              {transaksi.dikerjakanOleh && (
+              {transaksi.dikerjakanOleh && (settings.hitungKerjaStaf ?? true) && (
                 <p className="text-[10px] text-slate-500 italic mt-1">
                   Oleh: {transaksi.dikerjakanOleh}
                 </p>
