@@ -155,20 +155,20 @@ export const BukuKasView: React.FC<BukuKasViewProps> = ({
           const isLunasAwal = bayarAwal >= total;
           cashList.push({
             timestamp: trx.tanggalMasuk,
-            keterangan: `${trx.namaPelanggan} (${trx.nomorTransaksi || '-'}) • ${isLunasAwal ? 'Lunas di Awal' : 'DP Cucian Masuk'}`,
+            keterangan: `${trx.namaPelanggan} (${trx.nomorTransaksi || '-'})`,
             jumlahMasuk: bayarAwal,
             jumlahKeluar: 0,
             metodePembayaran: trx.metodePembayaran || 'Tunai',
             transaksiId: trx.id,
             logType: 'MASUK',
-            badgeText: isLunasAwal ? 'LUNAS DI AWAL' : 'UANG MUKA (DP)',
+            badgeText: isLunasAwal ? 'Lunas' : 'DP',
           });
         }
 
         // Catat ke Log Logistik Cucian Masuk
         logList.push({
           timestamp: trx.tanggalMasuk,
-          keterangan: `${trx.namaPelanggan} (${trx.nomorTransaksi || '-'}) • Masuk Cucian`,
+          keterangan: `${trx.namaPelanggan} (${trx.nomorTransaksi || '-'}) • Masuk`,
           jumlahMasuk: bayarAwal,
           jumlahKeluar: 0,
           metodePembayaran: trx.metodePembayaran,
@@ -199,13 +199,13 @@ export const BukuKasView: React.FC<BukuKasViewProps> = ({
         const isOrderBedaHari = trx.tanggalMasuk < startOfDay;
         cashList.push({
           timestamp: waktuPelunasan,
-          keterangan: `${trx.namaPelanggan} (${trx.nomorTransaksi || '-'}) • Pelunasan Sisa${isOrderBedaHari ? ` (Order ${formatTanggalIndo(trx.tanggalMasuk, false)})` : ''}`,
+          keterangan: `${trx.namaPelanggan} (${trx.nomorTransaksi || '-'}) `,
           jumlahMasuk: sisa,
           jumlahKeluar: 0,
           metodePembayaran: trx.metodePembayaran || 'Tunai',
           transaksiId: trx.id,
           logType: 'MASUK',
-          badgeText: isOrderBedaHari ? 'PELUNASAN LALU' : 'PELUNASAN SISA',
+          badgeText: isOrderBedaHari ? 'Pelunasan' : 'Pelunasan',
         });
       }
 
@@ -219,7 +219,7 @@ export const BukuKasView: React.FC<BukuKasViewProps> = ({
         const pelunasanDiambil = trx.statusPembayaran === 'Lunas' ? sisa : 0;
         logList.push({
           timestamp: trx.tanggalPengambilan,
-          keterangan: `${trx.namaPelanggan} (${trx.nomorTransaksi || '-'}) • Diambil Pelanggan`,
+          keterangan: `${trx.namaPelanggan} (${trx.nomorTransaksi || '-'}) • Diambil`,
           jumlahMasuk: pelunasanDiambil,
           jumlahKeluar: 0,
           metodePembayaran: trx.metodePembayaran,
@@ -243,7 +243,7 @@ export const BukuKasView: React.FC<BukuKasViewProps> = ({
           jumlahKeluar: p.jumlah,
           metodePembayaran: 'Tunai',
           logType: 'BIAYA',
-          badgeText: 'PENGELUARAN',
+          badgeText: '',
         });
       });
 
@@ -452,11 +452,9 @@ export const BukuKasView: React.FC<BukuKasViewProps> = ({
 
    <div className="grid grid-cols-2 gap-2 w-full text-xs">
   {/* Box Fisik Uang Laci */}
-  <div className="flex items-center justify-between p-2 sm:p-2.5 rounded-xl bg-amber-50/70 border border-amber-200/80 min-w-0">
+  <div className="flex items-center justify-between p-2 sm:p-2.5 rounded-xl border border-amber-200/80 min-w-0">
     <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
-      <div className="w-7 h-7 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
-        <Banknote className="w-4 h-4" />
-      </div>
+    
       <div className="min-w-0">
         <span className="font-extrabold text-amber-900 text-[10px] sm:text-[11px] block truncate">
           Tunai
@@ -469,11 +467,9 @@ export const BukuKasView: React.FC<BukuKasViewProps> = ({
   </div>
 
   {/* Box Non-Tunai */}
-  <div className="flex items-center justify-between p-2 sm:p-2.5 rounded-xl bg-sky-50/70 border border-sky-200/80 min-w-0">
+  <div className="flex items-center justify-between p-2 sm:p-2.5 rounded-xl  border border-sky-200/80 min-w-0">
     <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
-      <div className="w-7 h-7 rounded-lg bg-sky-100 text-sky-800 flex items-center justify-center shrink-0">
-        <CreditCard className="w-4 h-4" />
-      </div>
+   
       <div className="min-w-0">
         <span className="font-extrabold text-sky-900 text-[10px] sm:text-[11px] block truncate">
          Transfer
@@ -545,97 +541,89 @@ export const BukuKasView: React.FC<BukuKasViewProps> = ({
         <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-2xs">
           {/* Header Tabel */}
           <div className="bg-slate-100/90 px-2 py-2 text-[11px] font-extrabold text-slate-600 flex justify-between items-center border-b border-slate-200">
-            <span className="w-8 shrink-0">Waktu</span>
+            <span className="w-10 shrink-0">Waktu</span>
             <span className="flex-1 px-2">
               {activeTab === 'uang' ? 'Rincian Mutasi Kas' : 'Rincian Serah Terima Cucian'}
             </span>
             <span className="w-24 text-right shrink-0">
-              {activeTab === 'uang' ? 'Nominal' : 'Nilai Nota'}
+              {activeTab === 'uang' ? 'Nominal' : ''}
             </span>
           </div>
 
-          {/* TAB 1: MUTASI UANG KAS SAJA (BEBAS DARI RP 0) */}
-          {activeTab === 'uang' && (
-            <div className="divide-y divide-slate-100 text-xs">
-              {displayedCashRows.length === 0 ? (
-                <div className="p-8 text-center text-slate-400 space-y-1">
-                  <Wallet className="w-8 h-8 text-slate-300 mx-auto" />
-                  <p className="font-semibold text-xs text-slate-600">
-                    Tidak ada transaksi uang pada tanggal ini.
-                  </p>
-                  <p className="text-[11px] text-slate-400">
-                    Hanya transaksi dengan uang masuk atau uang keluar yang ditampilkan di sini.
-                  </p>
-                </div>
-              ) : (
-                displayedCashRows.map((row, idx) => {
-                  const isMasuk = row.jumlahMasuk > 0;
-                  const isNonTunai = row.metodePembayaran === 'Non-Tunai';
+{/* TAB 1: MUTASI UANG KAS SAJA */}
+{/* TAB 1: MUTASI UANG KAS SAJA */}
+{activeTab === 'uang' && (
+  <div className="divide-y divide-slate-100 text-xs">
+    {displayedCashRows.length === 0 ? (
+      <div className="p-8 text-center text-slate-400 space-y-1">
+        <Wallet className="w-8 h-8 text-slate-300 mx-auto" />
+        <p className="font-semibold text-xs text-slate-600">
+          Tidak ada transaksi uang pada tanggal ini.
+        </p>
+        <p className="text-[11px] text-slate-400">
+          Hanya transaksi dengan uang masuk atau uang keluar yang ditampilkan di sini.
+        </p>
+      </div>
+    ) : (
+      displayedCashRows.map((row, idx) => {
+        const isMasuk = row.jumlahMasuk > 0;
+        const isNonTunai = row.metodePembayaran === 'Non-Tunai';
 
-                  return (
-                    <div
-                      key={idx}
-                      onClick={() => row.transaksiId && onOpenDetailTransaksi(row.transaksiId)}
-                      className={`p-1.5  flex items-center justify-between hover:bg-slate-50 transition ${
-                        row.transaksiId ? 'cursor-pointer' : ''
-                      }`}
-                    >
-                      {/* Jam */}
-                      <div className="w-8 font-mono text-[11px] text-slate-400 shrink-0 font-medium">
-                        {formatShortTime(row.timestamp)}
-                      </div>
-
-                      {/* Detail & Badge */}
-                      <div className="flex-1 px-2 min-w-0 space-y-1">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span
-                            className={`px-1.5 py-0.5 rounded text-[9px] font-black tracking-wider uppercase shrink-0 ${
-                              isMasuk
-                                ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                                : 'bg-rose-100 text-rose-800 border border-rose-200'
-                            }`}
-                          >
-                            {row.badgeText || (isMasuk ? 'KAS MASUK' : 'BIAYA')}
-                          </span>
-
-                          <span
-                            className={`text-[9px] px-1.5 py-0.5 rounded font-bold border ${
-                              isNonTunai
-                                ? 'bg-sky-50 text-sky-800 border-sky-200'
-                                : 'bg-amber-50 text-amber-800 border-amber-200'
-                            }`}
-                          >
-                            {isNonTunai ? '📱 QRIS/Transfer' : '💵 Tunai'}
-                          </span>
-                        </div>
-
-                        <div className="font-bold text-slate-900 text-xs sm:text-sm truncate">
-                          {row.keterangan}
-                        </div>
-                      </div>
-
-                      {/* Nominal Uang Masuk / Keluar */}
-                      <div className="w-10 text-right font-black font-mono shrink-0 text-xs sm:text-sm">
-                        {isMasuk ? (
-                          <span className="text-emerald-700 flex items-center justify-end gap-0.5">
-                            <ArrowDownRight className="w-3.5 h-3.5" />
-                            <span>+{formatRupiah(row.jumlahMasuk).replace('Rp ', '')}</span>
-                          </span>
-                        ) : (
-                          <span className="text-rose-600 flex items-center justify-end gap-0.5">
-                            <ArrowUpRight className="w-3.5 h-3.5" />
-                            <span>-{formatRupiah(row.jumlahKeluar).replace('Rp ', '')}</span>
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })
-              )}
+        return (
+          <div
+            key={idx}
+            onClick={() => row.transaksiId && onOpenDetailTransaksi(row.transaksiId)}
+            className={`py-2 px-2.5 flex items-center justify-between text-xs hover:bg-slate-50 transition ${
+              row.transaksiId ? 'cursor-pointer' : ''
+            }`}
+          >
+            {/* Jam */}
+            <div className="w-8 font-mono text-xs text-slate-400 shrink-0 font-medium">
+              {formatShortTime(row.timestamp)}
             </div>
-          )}
 
-          {/* TAB 2: LOGISTIK SERAH TERIMA CUCIAN */}
+            {/* Keterangan di Kiri */}
+            <div className="flex-1 px-2 min-w-0">
+              <div className="font-bold text-slate-900 text-xs truncate">
+                {row.keterangan}
+              </div>
+            </div>
+
+            {/* Bagian Kanan: Badge Status, Badge TF, & Nominal */}
+            <div className="flex items-center gap-1.5 shrink-0">
+              {isNonTunai && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded font-bold bg-sky-50 text-sky-800 shrink-0">
+                  tf
+                </span>
+              )}
+
+              {row.badgeText && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded font-extrabold text-slate-700 border shrink-0">
+                  {row.badgeText}
+                </span>
+              )}
+
+              {/* Nominal Uang Masuk / Keluar */}
+              <div className="w-16 text-right font-black font-mono text-xs">
+                {isMasuk ? (
+                  <span className="text-emerald-700 flex items-center justify-end gap-0.5">
+                    <span>{formatRupiah(row.jumlahMasuk).replace('Rp ', '')}</span>
+                  </span>
+                ) : (
+                  <span className="text-rose-600 flex items-center justify-end gap-0.5">
+                    <span>{formatRupiah(row.jumlahKeluar).replace('Rp ', '')}</span>
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })
+    )}
+  </div>
+)}
+
+{/* TAB 2: LOGISTIK SERAH TERIMA CUCIAN */}
 {activeTab === 'logistik' && (
   <div className="divide-y divide-slate-100 text-xs">
     {displayedLogisticRows.length === 0 ? (
@@ -648,11 +636,8 @@ export const BukuKasView: React.FC<BukuKasViewProps> = ({
     ) : (
       displayedLogisticRows.map((row, idx) => {
         const isMasuk = row.logType === 'MASUK';
-        const trx = row.transaksi;
-        const totalNilai = trx ? trx.totalHarga : (row.jumlahMasuk || 0);
-        const isLunas = trx ? trx.statusPembayaran === 'Lunas' : true;
 
-        // Memisahkan keterangan dengan ' • ' jika ada (misal: "Budi (001) • Diambil Pelanggan")
+        // Memisahkan keterangan dengan ' • ' jika ada
         const parts = (row.keterangan || '').split(' • ');
         const namaUtama = parts[0] || '';
         const statusKanan = parts.slice(1).join(' • ');
@@ -661,55 +646,34 @@ export const BukuKasView: React.FC<BukuKasViewProps> = ({
           <div
             key={idx}
             onClick={() => row.transaksiId && onOpenDetailTransaksi(row.transaksiId)}
-            className={`p-1.5 flex items-center justify-between hover:bg-slate-50 transition ${
+            className={`py-2 px-2.5 flex items-center justify-between text-xs transition ${
               row.transaksiId ? 'cursor-pointer' : ''
+            } ${
+              isMasuk 
+                ? 'bg-emerald-50/50 hover:bg-emerald-50/90' 
+                : 'bg-purple-50/40 hover:bg-purple-50/80'
             }`}
           >
             {/* Jam */}
-            <div className="w-8 font-mono text-[11px] text-slate-400 shrink-0 font-medium">
+            <div className="w-8 font-mono text-xs text-slate-400 shrink-0 font-medium">
               {formatShortTime(row.timestamp)}
             </div>
 
-            {/* Detail Cucian (Badge di Atas, Nama di Bawah) */}
-            <div className="flex-1 px-2 min-w-0 space-y-1">
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <span
-                  className={`px-1.5 py-0.5 rounded text-[9px] font-black tracking-wider uppercase shrink-0 ${
-                    isMasuk
-                      ? 'bg-blue-100 text-blue-800 border border-blue-200'
-                      : 'bg-purple-100 text-purple-800 border border-purple-200'
-                  }`}
-                >
-                  {isMasuk ? '📥 CUCIAN MASUK' : '📦 CUCIAN DIAMBIL'}
-                </span>
-
-                <span
-                  className={`text-[9px] px-1.5 py-0.5 rounded font-bold border ${
-                    isLunas
-                      ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                      : 'bg-rose-50 text-rose-800 border-rose-200'
-                  }`}
-                >
-                  {isLunas ? 'LUNAS' : 'BELUM LUNAS'}
-                </span>
+            {/* Detail Cucian (Nama di Kiri, Status Keterangan di Kanan) */}
+            <div className="flex-1 px-2 min-w-0 flex items-center justify-between gap-2">
+              <div className="font-bold text-slate-900 text-xs truncate min-w-0 flex-1">
+                {namaUtama}
               </div>
-
-              {/* Nama Pelanggan / Keterangan & Status Samping */}
-              <div className="flex items-center justify-between gap-2">
-                <div className="font-bold text-slate-900 text-xs sm:text-sm truncate min-w-0 flex-1">
-                  {namaUtama}
-                </div>
-                {statusKanan && (
-                  <span className="text-[10px] sm:text-xs font-semibold text-slate-500 shrink-0 bg-slate-100 px-1.5 py-0.5 rounded-md">
-                    {statusKanan}
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {/* Nilai Nota */}
-            <div className="w-24 text-right font-black font-mono shrink-0 text-xs sm:text-sm text-slate-700">
-              {formatRupiah(totalNilai)}
+              
+              {statusKanan && (
+                <span className={`text-[10px] font-semibold shrink-0 px-2 py-0.5 rounded-md border ${
+                  isMasuk 
+                    ? 'bg-emerald-100 text-emerald-900 border-emerald-200' 
+                    : 'bg-purple-100 text-purple-900 border-purple-200'
+                }`}>
+                  {statusKanan}
+                </span>
+              )}
             </div>
           </div>
         );
