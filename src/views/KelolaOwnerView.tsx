@@ -37,6 +37,7 @@ interface KelolaOwnerViewProps {
   onExtendSubscription: (packageName: string, cost: number, days: number) => void;
   onUpdateOwnerProfile?: (data: { displayName: string; nomorTelepon?: string | null }) => void;
   onOpenUpgradeModal?: (reason?: string) => void;
+  onOpenExpiredModal?: () => void;
 }
 
 export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
@@ -53,6 +54,7 @@ export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
   onExtendSubscription,
   onUpdateOwnerProfile,
   onOpenUpgradeModal,
+  onOpenExpiredModal,
 }) => {
   const toast = useToast();
   const { confirm } = useConfirm();
@@ -181,14 +183,26 @@ export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
           <div className="bg-[#1e293b] text-white rounded-2xl shadow-sm overflow-hidden border border-slate-700/80 flex flex-col justify-between">
             <div>
               {/* Header Masa Aktif */}
-              <div className="bg-[#800000] px-3.5 py-2 text-center text-xs font-bold flex items-center justify-center gap-1.5 shadow-inner">
+              <div
+                onClick={() => {
+                  if (sisaHari <= 0 && onOpenExpiredModal) {
+                    onOpenExpiredModal();
+                  }
+                }}
+                className={`px-3.5 py-2 text-center text-xs font-bold flex items-center justify-center gap-1.5 shadow-inner transition ${
+                  sisaHari <= 0
+                    ? 'bg-rose-700 hover:bg-rose-800 cursor-pointer text-white animate-pulse'
+                    : 'bg-[#800000] text-white'
+                }`}
+                title={sisaHari <= 0 ? 'Masa langganan habis! Klik untuk buka halaman perpanjangan' : undefined}
+              >
                 <Clock className="w-3.5 h-3.5" />
                 <span>
                   {isNewcomer
                     ? 'Masa Aktif: Paket Newcomer (Gratis Selamanya)'
                     : sisaHari > 0
                     ? `Masa Aktif: Aktif (${sisaHari} Hari Tersisa)`
-                    : 'Kedaluwarsa'}
+                    : 'Masa Langganan Habis (0 Hari) - Klik untuk Perpanjang'}
                 </span>
               </div>
 
@@ -222,13 +236,24 @@ export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
                   </div>
                   <button
                     onClick={handlePayBulanan}
-                               className="flex items-center gap-1 px-3 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-500 hover:to-emerald-600 text-white font-bold text-xs transition shadow-md active:scale-95 cursor-pointer"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Bayar</span>
-
+                    className="flex items-center gap-1 px-3 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-500 hover:to-emerald-600 text-white font-bold text-xs transition shadow-md active:scale-95 cursor-pointer shrink-0"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Bayar</span>
                   </button>
                 </div>
+
+                {/* Tombol Khusus Habis Hari Langganan jika sisaHari <= 0 */}
+                {sisaHari <= 0 && onOpenExpiredModal && (
+                  <button
+                    type="button"
+                    onClick={onOpenExpiredModal}
+                    className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-rose-600 via-rose-700 to-amber-600 hover:brightness-110 text-white font-black text-xs flex items-center justify-center gap-1.5 shadow-md transition active:scale-98 cursor-pointer animate-pulse"
+                  >
+                    <Clock className="w-3.5 h-3.5" />
+                    <span>Layar Habis Hari Langganan (Lihat Saldo &amp; Perpanjang)</span>
+                  </button>
+                )}
 
                 {/* Tombol Bandingkan Paket */}
                 <div className="pt-0">

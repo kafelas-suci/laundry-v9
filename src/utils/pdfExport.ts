@@ -15,6 +15,9 @@ export interface LaporanPdfData {
   totalWeight: number;
   countLunas: number;
   countBelumLunas: number;
+  uangMasukOrderBulanIni?: number;
+  uangPelunasanBulanLalu?: number;
+  totalPiutang?: number;
   comparison?: {
     prevPeriodeLabel: string;
     prevOmzet: number;
@@ -148,11 +151,20 @@ export function generateLaporanPdf(data: LaporanPdfData): string {
 
   y = drawTableRow('Total Pendapatan Kotor (Omzet)', formatRupiah(totalOmzet), y);
   y = drawTableRow('Total Arus Kas Masuk Kasir', formatRupiah(totalUangMasuk), y, true);
-  y = drawTableRow('- Pemasukan Transaksi Cucian', formatRupiah(totalUangMasukTrx), y);
+  if (data.uangMasukOrderBulanIni !== undefined) {
+    y = drawTableRow('  - Dari Order Periode Ini', formatRupiah(data.uangMasukOrderBulanIni), y);
+  }
+  if (data.uangPelunasanBulanLalu && data.uangPelunasanBulanLalu > 0) {
+    y = drawTableRow('  - Dari Pelunasan Order Bulan Lalu', `+${formatRupiah(data.uangPelunasanBulanLalu)}`, y);
+  }
+  if (data.totalPiutang && data.totalPiutang > 0) {
+    y = drawTableRow('Sisa Piutang Berjalan (Belum Lunas)', formatRupiah(data.totalPiutang), y);
+  }
   y = drawTableRow('Total Beban Biaya Operasional', formatRupiah(totalPengeluaran), y, true);
   y = drawTableRow('LABA BERSIH USAHA (Net Profit)', formatRupiah(labaBersih), y, true, true);
   y = drawTableRow('Total Order Masuk / Berat Cucian', `${totalTrx} Order (${totalWeight.toFixed(1)} Kg)`, y);
   y = drawTableRow('Status Pelunasan Nota', `${countLunas} Lunas, ${countBelumLunas} Menunggu Pelunasan`, y);
+  y = drawTableRow('Cut-off Waktu Ganti Hari', '00:00:00 Tengah Malam (Waktu Lokal)', y);
 
   y += 4;
 

@@ -24,6 +24,7 @@ export interface LaundrySubscriptionLimits {
 }
 
 export const EXTRA_BRANCH_PRICE = 25000;
+export const HARGA_BASIC_BULANAN = 27000;
 
 export const LAUNDRY_TIER_CONFIG: Record<LaundryTier, LaundrySubscriptionLimits> = {
   newcomer: {

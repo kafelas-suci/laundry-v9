@@ -26,16 +26,19 @@ import {
   Zap,
   Activity,
   Info,
+  Building2,
 } from 'lucide-react';
-import { Transaksi, Pengeluaran, SettingsData } from '../types';
-import { formatRupiah, formatShortDate, formatReceiptDate } from '../utils/formatters';
+import { Transaksi, Pengeluaran, SettingsData, Laundry } from '../types';
+import { formatRupiah, formatShortDate, formatReceiptDate, formatLocalDateKey, extractTransaksiCashInEntries } from '../utils/formatters';
 import { FirebaseSyncService } from '../utils/firebaseSync';
 import { StorageService, defaultSettings } from '../utils/storage';
+import { IndexedDbService } from '../utils/indexedDb';
 import { exportLaporanToExcel, LaporanSummaryExportData } from '../utils/excelExport';
 import { generateLaporanPdf, LaporanPdfData } from '../utils/pdfExport';
 import { ReportPdfModal } from '../components/ReportPdfModal';
 import { useToast } from '../components/NotificationContext';
 import { getLaundryLimits } from '../utils/subscription';
+import { BranchComparisonD3Chart, BranchPerformanceData } from '../components/BranchComparisonD3Chart';
 
 interface LaporanViewProps {
   onBack: () => void;
@@ -45,6 +48,9 @@ interface LaporanViewProps {
   laundryName?: string;
   currentTier?: string | null;
   onOpenUpgradeModal?: (reason?: string) => void;
+  laundries?: Laundry[];
+  onSelectBranch?: (branchId: string) => void;
+  allTransaksiList?: Transaksi[];
 }
 
 export const LaporanView: React.FC<LaporanViewProps> = ({
@@ -55,6 +61,9 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
   laundryName,
   currentTier,
   onOpenUpgradeModal,
+  laundries = [],
+  onSelectBranch,
+  allTransaksiList,
 }) => {
   const toast = useToast();
   const currentYear = new Date().getFullYear();
@@ -65,7 +74,7 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
   const canPdf = limits.canExportOfficialPdf;
   const canGrowth = limits.canViewComparisonGrowth;
 
-  const [activeTab, setActiveTab] = useState<'ringkasan' | 'komparasi'>('ringkasan');
+  const [activeTab, setActiveTab] = useState<'ringkasan' | 'komparasi' | 'cabang'>('ringkasan');
   const [compareChartMode, setCompareChartMode] = useState<'batang' | 'tren' | 'layanan' | 'rasio'>('batang');
   const [trendMetric, setTrendMetric] = useState<'omzet' | 'uangMasuk' | 'trx'>('omzet');
   const [hoveredPointIndex, setHoveredPointIndex] = useState<number | null>(null);
@@ -120,7 +129,12 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
         })
         .catch(console.warn);
     } else {
-      setMonthArchive([]);
+      // Jika "Semua Bulan (Tahunan)" dipilih, muat seluruh arsip laundry dari IndexedDB lokal
+      IndexedDbService.getAllArchive(activeLaundryId)
+        .then((list) => {
+          if (isMounted) setMonthArchive(list);
+        })
+        .catch(console.warn);
     }
     return () => {
       isMounted = false;
@@ -137,7 +151,11 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
         })
         .catch(console.warn);
     } else {
-      setPrevMonthArchive([]);
+      IndexedDbService.getAllArchive(activeLaundryId)
+        .then((list) => {
+          if (isMounted) setPrevMonthArchive(list);
+        })
+        .catch(console.warn);
     }
     return () => {
       isMounted = false;
@@ -148,128 +166,211 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
   const [expandLayanan, setExpandLayanan] = useState(true);
   const [expandPengeluaran, setExpandPengeluaran] = useState(true);
   const [expandPelanggan, setExpandPelanggan] = useState(true);
+  const [expandPelunasanLalu, setExpandPelunasanLalu] = useState(true);
 
-  // Filter transaksi & pengeluaran periode aktif
-  const { filteredTrx, filteredExp } = useMemo(() => {
+  // Helper pemeriksa apakah timestamp berada dalam periode tahun & bulan yang dipilih (Waktu Lokal)
+  const isTimestampInPeriod = (timestamp: number | null | undefined, year: number, month: number): boolean => {
+    if (!timestamp) return false;
+    const d = new Date(timestamp);
+    const matchYear = d.getFullYear() === year;
+    const matchMonth = month === -1 || d.getMonth() === month;
+    return matchYear && matchMonth;
+  };
+
+  // Kumpulan seluruh transaksi outlet aktif (aktif + arsip bulan terpilih + arsip pembanding)
+  const allCombinedBranchTrx = useMemo(() => {
     const map = new Map<string, Transaksi>();
     transaksiList.forEach((t) => map.set(t.id, t));
     monthArchive.forEach((t) => map.set(t.id, t));
-    const combinedTrx = Array.from(map.values());
+    prevMonthArchive.forEach((t) => map.set(t.id, t));
+    return Array.from(map.values()).filter((t) => t.laundryId === activeLaundryId);
+  }, [transaksiList, monthArchive, prevMonthArchive, activeLaundryId]);
 
-    const trx = combinedTrx.filter((t) => {
-      if (t.laundryId !== activeLaundryId) return false;
-      const d = new Date(t.tanggalMasuk);
-      const matchYear = d.getFullYear() === selectedYear;
-      const matchMonth = selectedMonth === -1 || d.getMonth() === selectedMonth;
-      return matchYear && matchMonth;
+  // Perhitungan Data Komparasi Kinerja Antar-Cabang (D3.js)
+  const branchComparisonData: BranchPerformanceData[] = useMemo(() => {
+    const effectiveLaundries = laundries && laundries.length > 0
+      ? laundries
+      : [{ id: activeLaundryId, ownerId: 'owner', namaLaundry: effectiveLaundryName }];
+
+    const sourceTrx = allTransaksiList && allTransaksiList.length > 0 ? allTransaksiList : transaksiList;
+
+    const isMatchBranch = (t: Transaksi, branchId: string) => {
+      if (t.laundryId === branchId) return true;
+      if (!t.laundryId && branchId === effectiveLaundries[0]?.id) return true;
+      return false;
+    };
+
+    // Filter transaksi berdasarkan periode aktif
+    const activePeriodTrx = sourceTrx.filter((t) => isTimestampInPeriod(t.tanggalMasuk, selectedYear, selectedMonth));
+    const totalBusinessOmzet = activePeriodTrx.reduce((sum, t) => sum + (t.totalHarga || 0), 0);
+
+    return effectiveLaundries.map((lnd) => {
+      const branchTrx = activePeriodTrx.filter((t) => isMatchBranch(t, lnd.id));
+      const totalOmzet = branchTrx.reduce((sum, t) => sum + (t.totalHarga || 0), 0);
+      const totalTrx = branchTrx.length;
+      const aov = totalTrx > 0 ? Math.round(totalOmzet / totalTrx) : 0;
+      const percentageContribution = totalBusinessOmzet > 0 ? (totalOmzet / totalBusinessOmzet) * 100 : 0;
+
+      // Hitung uang masuk kasir untuk cabang ini
+      let totalUangMasuk = 0;
+      sourceTrx.filter((t) => isMatchBranch(t, lnd.id)).forEach((t) => {
+        const entries = extractTransaksiCashInEntries(t);
+        entries.forEach((entry) => {
+          if (isTimestampInPeriod(entry.timestamp, selectedYear, selectedMonth)) {
+            totalUangMasuk += entry.amount;
+          }
+        });
+      });
+
+      return {
+        branchId: lnd.id,
+        branchName: lnd.namaLaundry,
+        totalOmzet,
+        totalUangMasuk,
+        totalTrx,
+        aov,
+        percentageContribution,
+        address: lnd.alamat,
+        phone: lnd.nomorTelepon,
+      };
     });
+  }, [laundries, activeLaundryId, effectiveLaundryName, allTransaksiList, transaksiList, selectedYear, selectedMonth]);
+
+  // Filter transaksi masuk & pengeluaran periode aktif
+  const { filteredTrx, filteredExp } = useMemo(() => {
+    const trx = allCombinedBranchTrx.filter((t) => isTimestampInPeriod(t.tanggalMasuk, selectedYear, selectedMonth));
 
     const exp = pengeluaranList.filter((p) => {
       if (p.laundryId !== activeLaundryId) return false;
-      const d = new Date(p.tanggal);
-      const matchYear = d.getFullYear() === selectedYear;
-      const matchMonth = selectedMonth === -1 || d.getMonth() === selectedMonth;
-      return matchYear && matchMonth;
+      return isTimestampInPeriod(p.tanggal, selectedYear, selectedMonth);
     });
 
     return { filteredTrx: trx, filteredExp: exp };
-  }, [transaksiList, pengeluaranList, activeLaundryId, selectedMonth, selectedYear, monthArchive]);
+  }, [allCombinedBranchTrx, pengeluaranList, activeLaundryId, selectedMonth, selectedYear]);
 
-  // Filter transaksi & pengeluaran periode sebelumnya (untuk komparasi historis)
+  // Filter transaksi masuk & pengeluaran periode sebelumnya (untuk komparasi historis)
   const { prevFilteredTrx, prevFilteredExp } = useMemo(() => {
-    const map = new Map<string, Transaksi>();
-    transaksiList.forEach((t) => map.set(t.id, t));
-    prevMonthArchive.forEach((t) => map.set(t.id, t));
-    const combinedTrx = Array.from(map.values());
-
-    const trx = combinedTrx.filter((t) => {
-      if (t.laundryId !== activeLaundryId) return false;
-      const d = new Date(t.tanggalMasuk);
-      const matchYear = d.getFullYear() === prevPeriodInfo.year;
-      const matchMonth = prevPeriodInfo.month === -1 || d.getMonth() === prevPeriodInfo.month;
-      return matchYear && matchMonth;
-    });
+    const trx = allCombinedBranchTrx.filter((t) => isTimestampInPeriod(t.tanggalMasuk, prevPeriodInfo.year, prevPeriodInfo.month));
 
     const exp = pengeluaranList.filter((p) => {
       if (p.laundryId !== activeLaundryId) return false;
-      const d = new Date(p.tanggal);
-      const matchYear = d.getFullYear() === prevPeriodInfo.year;
-      const matchMonth = prevPeriodInfo.month === -1 || d.getMonth() === prevPeriodInfo.month;
-      return matchYear && matchMonth;
+      return isTimestampInPeriod(p.tanggal, prevPeriodInfo.year, prevPeriodInfo.month);
     });
 
     return { prevFilteredTrx: trx, prevFilteredExp: exp };
-  }, [transaksiList, pengeluaranList, activeLaundryId, prevPeriodInfo, prevMonthArchive]);
+  }, [allCombinedBranchTrx, pengeluaranList, activeLaundryId, prevPeriodInfo]);
 
-  // Agregat Metrik Periode Berjalan
+  // Agregat Metrik Periode Berjalan (Arus Kas Riil & Pelunasan Lintas Bulan)
   const summary = useMemo(() => {
     let totalOmzet = 0;
-    let totalUangMasuk = 0;
-    let totalUangMasukTrx = 0;
     let countLunas = 0;
     let countBelumLunas = 0;
     let totalWeight = 0;
+    let totalPiutang = 0;
+
+    const serviceMap: Record<string, number> = {};
+    const customerMap: Record<string, number> = {};
+
+    // 1. Data Pesanan Cucian Masuk pada Periode Ini
+    const endOfPeriod = selectedMonth === -1
+      ? new Date(selectedYear, 11, 31, 23, 59, 59, 999).getTime()
+      : new Date(selectedYear, selectedMonth + 1, 0, 23, 59, 59, 999).getTime();
 
     filteredTrx.forEach((t) => {
-      totalOmzet += t.totalHarga;
-      if (t.statusPembayaran === 'Lunas') {
+      totalOmzet += t.totalHarga || 0;
+      const waktuPelunasan = t.tanggalPelunasan || t.tanggalPengambilan;
+      const isLunasInPeriod = t.statusPembayaran === 'Lunas' && (!waktuPelunasan || waktuPelunasan <= endOfPeriod);
+
+      if (isLunasInPeriod) {
         countLunas++;
-        totalUangMasuk += t.totalHarga;
-        totalUangMasukTrx += t.totalHarga;
       } else {
         countBelumLunas++;
-        totalUangMasuk += t.jumlahDp || 0;
-        totalUangMasukTrx += t.jumlahDp || 0;
+        const bayarAwal = Math.min(t.totalHarga || 0, t.jumlahDp || 0);
+        const sisa = Math.max(0, (t.totalHarga || 0) - bayarAwal);
+        totalPiutang += sisa;
       }
 
       (t.items || []).forEach((it) => {
-        totalWeight += it.berat || 0;
-      });
-    });
-
-    const totalPengeluaran = filteredExp.reduce((sum, p) => sum + p.jumlah, 0);
-    const labaBersih = totalUangMasuk - totalPengeluaran;
-
-    // Service Breakdown
-    const serviceMap: Record<string, number> = {};
-    filteredTrx.forEach((t) => {
-      (t.items || []).forEach((it) => {
         if (!it) return;
+        totalWeight += it.berat || 0;
         serviceMap[it.namaLayanan] = (serviceMap[it.namaLayanan] || 0) + (it.berat || 0);
       });
+
+      if (t.namaPelanggan) {
+        customerMap[t.namaPelanggan] = (customerMap[t.namaPelanggan] || 0) + 1;
+      }
     });
 
-    // Customer Breakdown
-    const customerMap: Record<string, number> = {};
-    filteredTrx.forEach((t) => {
-      customerMap[t.namaPelanggan] = (customerMap[t.namaPelanggan] || 0) + 1;
-    });
-
-    // Expense Breakdown
-    const expenseCategoryMap: Record<string, number> = {};
-    filteredExp.forEach((p) => {
-      expenseCategoryMap[p.keterangan || 'Operasional'] =
-        (expenseCategoryMap[p.keterangan || 'Operasional'] || 0) + p.jumlah;
-    });
-
-    // Daily breakdown table
+    // 2. Data Arus Kas Masuk Kasir Riil (Uang Masuk DP + Pelunasan yang diterima di bulan ini)
+    let totalUangMasuk = 0;
+    let uangMasukOrderBulanIni = 0;
+    let uangPelunasanBulanLalu = 0;
     const dailyMap: Record<string, { trxCount: number; masuk: number; keluar: number }> = {};
+    const pelunasanBulanLaluList: {
+      trx: Transaksi;
+      pelunasan: number;
+      waktuPelunasan: number;
+    }[] = [];
+
+    // Catat jumlah order masuk pada hari order masuk (Ganti hari lokal: 00:00 tengah malam)
     filteredTrx.forEach((t) => {
-      const dayKey = new Date(t.tanggalMasuk).toISOString().slice(0, 10);
+      const dayKey = formatLocalDateKey(t.tanggalMasuk);
       if (!dailyMap[dayKey]) dailyMap[dayKey] = { trxCount: 0, masuk: 0, keluar: 0 };
       dailyMap[dayKey].trxCount++;
-      dailyMap[dayKey].masuk += t.statusPembayaran === 'Lunas' ? t.totalHarga : t.jumlahDp || 0;
     });
+
+    // Evaluasi seluruh aliran uang masuk riil dari SEMUA transaksi
+    allCombinedBranchTrx.forEach((t) => {
+      const entries = extractTransaksiCashInEntries(t);
+      entries.forEach((entry) => {
+        if (isTimestampInPeriod(entry.timestamp, selectedYear, selectedMonth)) {
+          totalUangMasuk += entry.amount;
+
+          // Apakah uang ini berasal dari order yang masuk di bulan ini atau bulan sebelumnya?
+          const orderMasukDiBulanIni = isTimestampInPeriod(t.tanggalMasuk, selectedYear, selectedMonth);
+          if (orderMasukDiBulanIni) {
+            uangMasukOrderBulanIni += entry.amount;
+          } else {
+            uangPelunasanBulanLalu += entry.amount;
+            if (entry.type === 'pelunasan') {
+              pelunasanBulanLaluList.push({
+                trx: t,
+                pelunasan: entry.amount,
+                waktuPelunasan: entry.timestamp,
+              });
+            }
+          }
+
+          // Catat pemasukan kas pada hari uang tersebut fisik diterima di kasir
+          const dayKey = formatLocalDateKey(entry.timestamp);
+          if (!dailyMap[dayKey]) dailyMap[dayKey] = { trxCount: 0, masuk: 0, keluar: 0 };
+          dailyMap[dayKey].masuk += entry.amount;
+        }
+      });
+    });
+
+    // 3. Evaluasi Pengeluaran Operasional pada Periode Ini
+    const expenseCategoryMap: Record<string, number> = {};
+    let totalPengeluaran = 0;
     filteredExp.forEach((p) => {
-      const dayKey = new Date(p.tanggal).toISOString().slice(0, 10);
+      totalPengeluaran += p.jumlah;
+      expenseCategoryMap[p.keterangan || 'Operasional'] =
+        (expenseCategoryMap[p.keterangan || 'Operasional'] || 0) + p.jumlah;
+
+      const dayKey = formatLocalDateKey(p.tanggal);
       if (!dailyMap[dayKey]) dailyMap[dayKey] = { trxCount: 0, masuk: 0, keluar: 0 };
       dailyMap[dayKey].keluar += p.jumlah;
     });
 
+    const labaBersih = totalUangMasuk - totalPengeluaran;
+
     return {
       totalOmzet,
       totalUangMasuk,
-      totalUangMasukTrx,
+      totalUangMasukTrx: totalUangMasuk, // Seluruh uang kasir laundry yang diterima
+      uangMasukOrderBulanIni,
+      uangPelunasanBulanLalu,
+      totalPiutang,
       totalPengeluaran,
       labaBersih,
       totalTrx: filteredTrx.length,
@@ -281,24 +382,30 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
       customerList: Object.entries(customerMap).sort((a, b) => b[1] - a[1]),
       expenseList: Object.entries(expenseCategoryMap).sort((a, b) => b[1] - a[1]),
       dailyRows: Object.entries(dailyMap).sort((a, b) => a[0].localeCompare(b[0])),
+      pelunasanBulanLaluList: pelunasanBulanLaluList.sort((a, b) => b.waktuPelunasan - a.waktuPelunasan),
     };
-  }, [filteredTrx, filteredExp]);
+  }, [filteredTrx, filteredExp, allCombinedBranchTrx, selectedMonth, selectedYear]);
 
   // Agregat Metrik Periode Pembanding (Periode Lalu)
   const prevSummary = useMemo(() => {
     let totalOmzet = 0;
-    let totalUangMasuk = 0;
     let totalWeight = 0;
 
     prevFilteredTrx.forEach((t) => {
-      totalOmzet += t.totalHarga;
-      if (t.statusPembayaran === 'Lunas') {
-        totalUangMasuk += t.totalHarga;
-      } else {
-        totalUangMasuk += t.jumlahDp || 0;
-      }
+      totalOmzet += t.totalHarga || 0;
       (t.items || []).forEach((it) => {
         totalWeight += it.berat || 0;
+      });
+    });
+
+    // Hitung arus kas masuk riil periode pembanding
+    let totalUangMasuk = 0;
+    allCombinedBranchTrx.forEach((t) => {
+      const entries = extractTransaksiCashInEntries(t);
+      entries.forEach((entry) => {
+        if (isTimestampInPeriod(entry.timestamp, prevPeriodInfo.year, prevPeriodInfo.month)) {
+          totalUangMasuk += entry.amount;
+        }
       });
     });
 
@@ -323,7 +430,7 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
       totalWeight,
       serviceMap,
     };
-  }, [prevFilteredTrx, prevFilteredExp]);
+  }, [prevFilteredTrx, prevFilteredExp, allCombinedBranchTrx, prevPeriodInfo]);
 
   // Kalkulasi Pertumbuhan Komparatif (Growth Rates)
   const comparativeAnalytics = useMemo(() => {
@@ -387,28 +494,56 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
       prevPoints.push({ label, fullLabel: prevFullLabel, omzet: 0, uangMasuk: 0, trx: 0 });
     }
 
+    // 1. Omzet dan order masuk periode berjalan
     filteredTrx.forEach((t) => {
       const d = new Date(t.tanggalMasuk);
       const idx = isYearly ? d.getMonth() : d.getDate() - 1;
       if (idx >= 0 && idx < numPoints) {
         currentPoints[idx].omzet += t.totalHarga || 0;
-        currentPoints[idx].uangMasuk += t.statusPembayaran === 'Lunas' ? t.totalHarga : (t.jumlahDp || 0);
         currentPoints[idx].trx += 1;
       }
     });
 
+    // 2. Arus kas masuk riil periode berjalan
+    allCombinedBranchTrx.forEach((t) => {
+      const entries = extractTransaksiCashInEntries(t);
+      entries.forEach((entry) => {
+        if (isTimestampInPeriod(entry.timestamp, selectedYear, selectedMonth)) {
+          const d = new Date(entry.timestamp);
+          const idx = isYearly ? d.getMonth() : d.getDate() - 1;
+          if (idx >= 0 && idx < numPoints) {
+            currentPoints[idx].uangMasuk += entry.amount;
+          }
+        }
+      });
+    });
+
+    // 3. Omzet dan order masuk periode pembanding
     prevFilteredTrx.forEach((t) => {
       const d = new Date(t.tanggalMasuk);
       const idx = isYearly ? d.getMonth() : d.getDate() - 1;
       if (idx >= 0 && idx < numPoints) {
         prevPoints[idx].omzet += t.totalHarga || 0;
-        prevPoints[idx].uangMasuk += t.statusPembayaran === 'Lunas' ? t.totalHarga : (t.jumlahDp || 0);
         prevPoints[idx].trx += 1;
       }
     });
 
+    // 4. Arus kas masuk riil periode pembanding
+    allCombinedBranchTrx.forEach((t) => {
+      const entries = extractTransaksiCashInEntries(t);
+      entries.forEach((entry) => {
+        if (isTimestampInPeriod(entry.timestamp, prevPeriodInfo.year, prevPeriodInfo.month)) {
+          const d = new Date(entry.timestamp);
+          const idx = isYearly ? d.getMonth() : d.getDate() - 1;
+          if (idx >= 0 && idx < numPoints) {
+            prevPoints[idx].uangMasuk += entry.amount;
+          }
+        }
+      });
+    });
+
     return { isYearly, numPoints, currentPoints, prevPoints };
-  }, [filteredTrx, prevFilteredTrx, selectedMonth, selectedYear, prevPeriodInfo, monthNames]);
+  }, [filteredTrx, prevFilteredTrx, allCombinedBranchTrx, selectedMonth, selectedYear, prevPeriodInfo, monthNames]);
 
   // Data Perbandingan Kinerja Seluruh Layanan (Kg / Unit)
   const serviceComparisonList = useMemo(() => {
@@ -500,6 +635,10 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
         totalTrx: summary.totalTrx,
         countLunas: summary.countLunas,
         countBelumLunas: summary.countBelumLunas,
+        uangMasukOrderBulanIni: summary.uangMasukOrderBulanIni,
+        uangPelunasanBulanLalu: summary.uangPelunasanBulanLalu,
+        totalPiutang: summary.totalPiutang,
+        pelunasanBulanLaluList: summary.pelunasanBulanLaluList,
         comparison: {
           prevPeriodeLabel: prevPeriodInfo.label,
           prevOmzet: prevSummary.totalOmzet,
@@ -539,6 +678,9 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
     totalWeight: summary.totalWeight,
     countLunas: summary.countLunas,
     countBelumLunas: summary.countBelumLunas,
+    uangMasukOrderBulanIni: summary.uangMasukOrderBulanIni,
+    uangPelunasanBulanLalu: summary.uangPelunasanBulanLalu,
+    totalPiutang: summary.totalPiutang,
     comparison: {
       prevPeriodeLabel: prevPeriodInfo.label,
       prevOmzet: prevSummary.totalOmzet,
@@ -712,18 +854,18 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
             </div>
           </div>
 
-          {/* Tab Switcher: Ringkasan vs Analisis Komparasi */}
-          <div className="grid grid-cols-2 p-1 bg-slate-100 rounded-xl text-xs font-bold">
+          {/* Tab Switcher: Ringkasan vs Analisis Komparasi vs Performa Cabang */}
+          <div className="grid grid-cols-3 p-1 bg-slate-100 rounded-xl text-xs font-bold border border-slate-200/60">
             <button
               type="button"
               onClick={() => setActiveTab('ringkasan')}
-              className={`py-2 px-3 rounded-lg flex items-center justify-center gap-1.5 transition cursor-pointer ${
+              className={`py-2 px-1.5 sm:px-3 rounded-lg flex items-center justify-center gap-1.5 transition cursor-pointer ${
                 activeTab === 'ringkasan'
-                  ? 'bg-white text-slate-900 shadow-xs'
+                  ? 'bg-white text-slate-900 shadow-xs font-black'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              <span>📊 Ringkasan Keuangan</span>
+              <span className="truncate">📊 Ringkasan</span>
             </button>
 
             <button
@@ -735,18 +877,31 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                 }
                 setActiveTab('komparasi');
               }}
-              className={`py-2 px-3 rounded-lg flex items-center justify-center gap-1.5 transition cursor-pointer ${
+              className={`py-2 px-1.5 sm:px-3 rounded-lg flex items-center justify-center gap-1.5 transition cursor-pointer ${
                 activeTab === 'komparasi'
-                  ? 'bg-[#800000] text-white shadow-xs'
+                  ? 'bg-[#800000] text-white shadow-xs font-black'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               {!canGrowth ? (
-                <Lock className="w-3.5 h-3.5 text-amber-500" />
+                <Lock className="w-3.5 h-3.5 text-amber-500 shrink-0" />
               ) : (
-                <TrendingUp className="w-3.5 h-3.5 text-amber-400" />
+                <TrendingUp className="w-3.5 h-3.5 text-amber-400 shrink-0" />
               )}
-              <span>Analisis Komparasi {!canGrowth ? '(Basic)' : ''}</span>
+              <span className="truncate">📈 Komparasi {!canGrowth ? '(Basic)' : ''}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('cabang')}
+              className={`py-2 px-1.5 sm:px-3 rounded-lg flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                activeTab === 'cabang'
+                  ? 'bg-[#800000] text-white shadow-xs font-black'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Building2 className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <span className="truncate">🏢 Performa Cabang</span>
             </button>
           </div>
         </div>
@@ -760,10 +915,15 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
           <>
             {/* Data Keuangan Card */}
             <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-2xs space-y-3">
-              <div className="flex justify-between items-center">
-                <h2 className="text-xs font-extrabold text-[#800000] uppercase tracking-wider">
-                  Data Keuangan ({currentPeriodeLabel})
-                </h2>
+              <div className="flex justify-between items-start">
+                <div>
+                  <h2 className="text-xs font-extrabold text-[#800000] uppercase tracking-wider">
+                    Data Keuangan ({currentPeriodeLabel})
+                  </h2>
+                  <p className="text-[10px] text-slate-400 mt-0.5">
+                    Siklus Tutup Buku &amp; Ganti Hari: 00:00 Tengah Malam (Waktu Lokal)
+                  </p>
+                </div>
                 <span className="text-[11px] text-slate-500 font-medium">
                   {summary.totalTrx} Transaksi
                 </span>
@@ -778,16 +938,30 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                 </div>
 
                 <div className="flex justify-between items-center pt-2">
-                  <span className="text-slate-700 font-bold">Total Uang Masuk</span>
+                  <span className="text-slate-700 font-bold">Total Uang Masuk Kasir</span>
                   <span className="font-black text-emerald-700 tabular-nums">
                     {formatRupiah(summary.totalUangMasuk)}
                   </span>
                 </div>
 
                 <div className="flex justify-between items-center pt-1.5 pl-3 text-slate-500 text-[11px]">
-                  <span>- Pemasukan Transaksi Cucian</span>
-                  <span className="tabular-nums">{formatRupiah(summary.totalUangMasukTrx)}</span>
+                  <span>• Dari Order Masuk Periode Ini</span>
+                  <span className="tabular-nums font-medium">{formatRupiah(summary.uangMasukOrderBulanIni)}</span>
                 </div>
+
+                {summary.uangPelunasanBulanLalu > 0 && (
+                  <div className="flex justify-between items-center pt-1.5 pl-3 text-emerald-700 text-[11px] font-semibold bg-emerald-50/60 p-1.5 rounded-lg border border-emerald-100">
+                    <span>+ Pelunasan Order Bulan Lalu ({summary.pelunasanBulanLaluList.length} Nota)</span>
+                    <span className="tabular-nums font-bold">+{formatRupiah(summary.uangPelunasanBulanLalu)}</span>
+                  </div>
+                )}
+
+                {summary.totalPiutang > 0 && (
+                  <div className="flex justify-between items-center pt-1.5 pl-3 text-amber-700 text-[11px]">
+                    <span>• Piutang Berjalan (Belum Lunas)</span>
+                    <span className="tabular-nums font-medium">{formatRupiah(summary.totalPiutang)}</span>
+                  </div>
+                )}
 
                 <div className="flex justify-between items-center pt-2">
                   <span className="text-slate-700 font-bold">Total Pengeluaran Operasional</span>
@@ -808,6 +982,49 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                 </div>
               </div>
             </div>
+
+            {/* Kartu Khusus: Pelunasan Order Bulan Lalu yang Masuk Kas di Bulan Ini */}
+            {summary.pelunasanBulanLaluList.length > 0 && (
+              <div className="bg-emerald-50/80 rounded-2xl border border-emerald-200 p-4 shadow-2xs space-y-2">
+                <div
+                  onClick={() => setExpandPelunasanLalu(!expandPelunasanLalu)}
+                  className="flex justify-between items-center cursor-pointer select-none"
+                >
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    <h2 className="text-xs font-extrabold text-emerald-900 uppercase tracking-wider">
+                      Pelunasan Order Bulan Lalu Masuk Kas ({summary.pelunasanBulanLaluList.length} Nota)
+                    </h2>
+                  </div>
+                  <span className="text-xs font-black text-emerald-700 tabular-nums">
+                    +{formatRupiah(summary.uangPelunasanBulanLalu)}
+                  </span>
+                </div>
+
+                {expandPelunasanLalu && (
+                  <div className="divide-y divide-emerald-100 text-xs pt-2">
+                    {summary.pelunasanBulanLaluList.map(({ trx, pelunasan, waktuPelunasan }, idx) => (
+                      <div key={idx} className="py-2 flex justify-between items-center">
+                        <div>
+                          <div className="font-bold text-slate-900">
+                            {trx.namaPelanggan} <span className="text-slate-500 font-mono text-[11px]">({trx.nomorTransaksi || '-'})</span>
+                          </div>
+                          <div className="text-[11px] text-slate-500">
+                            Masuk: {formatShortDate(trx.tanggalMasuk)} • Lunas/Diambil: {formatReceiptDate(waktuPelunasan, true)}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span className="font-black text-emerald-700 text-sm tabular-nums">
+                            +{formatRupiah(pelunasan)}
+                          </span>
+                          <p className="text-[10px] text-emerald-600 font-bold uppercase">Masuk Kas {monthNames[new Date(waktuPelunasan).getMonth()]}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Data Transaksi Card */}
             <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-2xs space-y-2">
@@ -1892,6 +2109,101 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                     {summary.totalTrx > 0 ? (summary.totalWeight / summary.totalTrx).toFixed(1) : '0'} Kg
                   </strong>{' '}
                   per nota.
+                </li>
+              </ul>
+            </div>
+          </div>
+        )}
+
+        {/* ======================================================== */}
+        {/* TAB 3: DASBOR ANALITIK PERFORMA ANTAR-CABANG (D3.JS)     */}
+        {/* ======================================================== */}
+        {activeTab === 'cabang' && (
+          <div className="space-y-4">
+            {/* Header Eksekutif Multi-Cabang */}
+            <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-2xs space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-red-50 border border-red-200/60 text-[#800000] flex items-center justify-center shrink-0">
+                    <Building2 className="w-5 h-5 text-[#800000]" />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-black text-slate-900 tracking-tight">
+                      Dasbor Analitik Performa Antar-Cabang
+                    </h2>
+                    <p className="text-xs text-slate-500">
+                      Visualisasi D3.js perbandingan omzet, kas masuk riil, dan volume order antar-outlet periode {currentPeriodeLabel}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 self-start sm:self-auto">
+                  <span className="text-[11px] font-semibold text-slate-500">
+                    Cabang Terpilih:
+                  </span>
+                  <span className="text-xs font-bold text-[#800000] bg-red-50 border border-red-200/80 px-2.5 py-1 rounded-lg">
+                    {effectiveLaundryName}
+                  </span>
+                </div>
+              </div>
+
+              {/* 3 Kartu Ringkasan Konsolidasi Seluruh Cabang */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-3 space-y-1">
+                  <span className="text-[11px] font-semibold text-slate-500 block">Total Omzet Konsolidasi</span>
+                  <span className="text-base sm:text-lg font-black text-slate-900 font-mono tabular-nums">
+                    {formatRupiah(branchComparisonData.reduce((sum, b) => sum + b.totalOmzet, 0))}
+                  </span>
+                  <span className="text-[10px] text-slate-400 block">Semua cabang gabungan</span>
+                </div>
+
+                <div className="bg-emerald-50/60 border border-emerald-200/80 rounded-xl p-3 space-y-1">
+                  <span className="text-[11px] font-semibold text-emerald-800 block">Total Kas Masuk Riil</span>
+                  <span className="text-base sm:text-lg font-black text-emerald-700 font-mono tabular-nums">
+                    {formatRupiah(branchComparisonData.reduce((sum, b) => sum + b.totalUangMasuk, 0))}
+                  </span>
+                  <span className="text-[10px] text-emerald-600 block">Uang fisik kasir & transfer</span>
+                </div>
+
+                <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-3 space-y-1">
+                  <span className="text-[11px] font-semibold text-slate-500 block">Total Volume Pesanan</span>
+                  <span className="text-base sm:text-lg font-black text-slate-900 font-mono tabular-nums">
+                    {branchComparisonData.reduce((sum, b) => sum + b.totalTrx, 0)} Nota
+                  </span>
+                  <span className="text-[10px] text-slate-400 block">{branchComparisonData.length} outlet terdaftar</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Komponen Visualisasi D3.js Chart */}
+            <BranchComparisonD3Chart
+              data={branchComparisonData}
+              periodeLabel={currentPeriodeLabel}
+              onSelectBranch={(branchId) => {
+                if (onSelectBranch) {
+                  onSelectBranch(branchId);
+                  const targetLnd = laundries.find((l) => l.id === branchId);
+                  toast.success(`Beralih ke cabang: ${targetLnd?.namaLaundry || branchId}`);
+                }
+              }}
+              activeBranchId={activeLaundryId}
+            />
+
+            {/* Panduan Eksekutif untuk Owner */}
+            <div className="bg-amber-50/90 border border-amber-200/90 rounded-2xl p-4 text-xs text-amber-950 space-y-2 shadow-2xs">
+              <div className="flex items-center gap-2 font-black text-amber-900">
+                <Sparkles className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>Tips Eksekutif Pengelolaan Multi-Cabang:</span>
+              </div>
+              <ul className="space-y-1.5 text-amber-900/90 pl-5 list-disc leading-relaxed text-[11px]">
+                <li>
+                  <strong>Identifikasi Cabang Juara:</strong> Cabang dengan batang berwarna Marun tua adalah outlet paling produktif (peringkat #1) pada periode {currentPeriodeLabel}. Evaluasi SOP dan keramahan staf di cabang tersebut untuk diterapkan di cabang lainnya.
+                </li>
+                <li>
+                  <strong>Cek Selisih Omzet vs Kas Masuk:</strong> Gunakan tombol filter metrik <em>"Uang Kas Masuk"</em> untuk memastikan tidak ada piutang atau pembayaran tertunda yang terlalu besar pada cabang tertentu.
+                </li>
+                <li>
+                  <strong>Klik Baris atau Batang:</strong> Anda dapat langsung menyentuh/mengklik nama cabang atau baris tabel untuk beralih dan memeriksa pembukuan spesifik cabang tersebut.
                 </li>
               </ul>
             </div>

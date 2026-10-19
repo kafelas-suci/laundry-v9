@@ -213,6 +213,7 @@ export class FirebaseSyncService {
             dikerjakanOleh: data.dikerjakanOleh || null,
             tanggalStatusSelesai: data.tanggalStatusSelesai || null,
             tanggalPengambilan: data.tanggalPengambilan || null,
+            tanggalPelunasan: data.tanggalPelunasan || null,
             terakhirDieditPada: data.terakhirDieditPada || Date.now(),
           };
 
@@ -276,6 +277,7 @@ export class FirebaseSyncService {
           dikerjakanOleh: data.dikerjakanOleh || null,
           tanggalStatusSelesai: data.tanggalStatusSelesai || null,
           tanggalPengambilan: data.tanggalPengambilan || null,
+          tanggalPelunasan: data.tanggalPelunasan || null,
           terakhirDieditPada: data.terakhirDieditPada || Date.now(),
         };
 
@@ -330,8 +332,8 @@ export class FirebaseSyncService {
     const endOfMonth = new Date(year, month + 1, 0, 23, 59, 59, 999).getTime();
 
     try {
-      // Query filter spesifik berdasarkan tanggalMasuk bulan tersebut
-      const q = query(
+      // 1. Query arsip yang tanggal masuknya di bulan ini
+      const qMasuk = query(
         collection(db, path),
         where('status', '==', 'Diambil'),
         where('tanggalMasuk', '>=', startOfMonth),
@@ -339,12 +341,25 @@ export class FirebaseSyncService {
         limit(150)
       );
 
-      const snap = await getDocs(q);
-      const list: Transaksi[] = [];
+      // 2. Query arsip yang diambil / dilunasi pada bulan ini (meskipun masuk di bulan sebelumnya)
+      const qAmbil = query(
+        collection(db, path),
+        where('status', '==', 'Diambil'),
+        where('tanggalPengambilan', '>=', startOfMonth),
+        where('tanggalPengambilan', '<=', endOfMonth),
+        limit(150)
+      );
 
-      snap.forEach((d) => {
+      const [snapMasuk, snapAmbil] = await Promise.all([
+        getDocs(qMasuk).catch(() => null),
+        getDocs(qAmbil).catch(() => null),
+      ]);
+
+      const mapDocs = new Map<string, Transaksi>();
+
+      const processDoc = (d: any) => {
         const data = d.data() as Partial<Transaksi>;
-        list.push({
+        const tItem: Transaksi = {
           id: data.id || d.id,
           laundryId: data.laundryId || laundryId,
           namaPelanggan: data.namaPelanggan || 'Pelanggan',
@@ -364,9 +379,16 @@ export class FirebaseSyncService {
           dikerjakanOleh: data.dikerjakanOleh || null,
           tanggalStatusSelesai: data.tanggalStatusSelesai || null,
           tanggalPengambilan: data.tanggalPengambilan || data.tanggalMasuk || Date.now(),
+          tanggalPelunasan: data.tanggalPelunasan || null,
           terakhirDieditPada: data.terakhirDieditPada || Date.now(),
-        });
-      });
+        };
+        mapDocs.set(tItem.id, tItem);
+      };
+
+      if (snapMasuk) snapMasuk.forEach(processDoc);
+      if (snapAmbil) snapAmbil.forEach(processDoc);
+
+      const list = Array.from(mapDocs.values());
 
       // Simpan ke IndexedDB untuk bulan ini
       if (list.length > 0) {

@@ -34,7 +34,8 @@ import {
   X,
 } from 'lucide-react';
 import { Transaksi, SettingsData, User, Laundry, Pengeluaran } from '../types';
-import { formatRupiah, formatShortDate, formatShortTime } from '../utils/formatters';
+import { formatRupiah, formatShortDate, formatShortTime, extractTransaksiCashInEntries } from '../utils/formatters';
+import { IndexedDbService } from '../utils/indexedDb';
 import { PWAInstallButton } from '../components/PWAInstallButton';
 import { getLaundryLimits } from '../utils/subscription';
 import { QuickTransitionPickupModal, TransitionPickupData } from '../components/QuickTransitionPickupModal';
@@ -57,6 +58,7 @@ interface DashboardViewProps {
   };
   currentTier?: string | null;
   onOpenUpgradeModal?: (reason?: string) => void;
+  onOpenExpiredModal?: () => void;
   onOpenNewTransaksi: () => void;
   onOpenLimitModal?: () => void;
   onOpenDetailTransaksi: (transaksiId: string) => void;
@@ -89,6 +91,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   deviceInfo,
   currentTier,
   onOpenUpgradeModal,
+  onOpenExpiredModal,
   onOpenNewTransaksi,
   onOpenLimitModal,
   onOpenDetailTransaksi,
@@ -519,6 +522,43 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     }`}
                   >
                     Kelola Arsip Cepat
+                  </button>
+                </div>
+              )}
+
+              {/* Alert Banner Masa Langganan Habis (PC) */}
+              {isExpired && !isNewcomer && (
+                <div
+                  onClick={() => (onOpenExpiredModal || onOpenKelolaOwner)()}
+                  className="p-3.5 rounded-2xl bg-gradient-to-r from-rose-900 via-rose-800 to-[#800000] text-white border border-rose-500/40 shadow-sm cursor-pointer active:scale-98 transition flex items-center justify-between gap-3"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center shrink-0 text-amber-300">
+                      <Clock className="w-5 h-5 animate-pulse" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-black text-xs text-amber-300 tracking-wider uppercase">
+                          Masa Langganan Habis (0 Hari Tersisa)
+                        </span>
+                        <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded-md font-bold font-mono">
+                          Saldo Dompet: {formatRupiah(currentUser.walletBalance || 0)}
+                        </span>
+                      </div>
+                      <p className="text-xs text-rose-100 mt-0.5">
+                        Hari langganan akun Anda telah berakhir. Klik di sini untuk melihat saldo, mengisi saldo, dan perpanjang 30 hari.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      (onOpenExpiredModal || onOpenKelolaOwner)();
+                    }}
+                    className="px-4 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs shrink-0 shadow-sm transition active:scale-95 cursor-pointer"
+                  >
+                    Perpanjang 30 Hari
                   </button>
                 </div>
               )}
@@ -1096,6 +1136,43 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <div className="max-w-7xl mx-auto w-full space-y-3 pb-2">
               {/* PWA Install Banner */}
               <PWAInstallButton variant="banner" />
+
+              {/* Alert Banner Masa Langganan Habis (Mobile) */}
+              {isExpired && !isNewcomer && (
+                <div
+                  onClick={() => (onOpenExpiredModal || onOpenKelolaOwner)()}
+                  className="p-3 rounded-2xl bg-gradient-to-r from-rose-900 via-rose-800 to-[#800000] text-white border border-rose-500/40 shadow-sm cursor-pointer active:scale-98 transition flex items-center justify-between gap-2.5"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center shrink-0 text-amber-300">
+                      <Clock className="w-4 h-4 animate-pulse" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-black text-xs text-amber-300 tracking-wide uppercase">
+                          Masa Langganan Habis
+                        </span>
+                        <span className="text-[10px] bg-white/20 px-1.5 py-0.2 rounded font-bold font-mono">
+                          Saldo: {formatRupiah(currentUser.walletBalance || 0)}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-rose-100 truncate mt-0.5">
+                        Klik untuk lihat saldo, isi saldo, &amp; perpanjang 30 hari.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      (onOpenExpiredModal || onOpenKelolaOwner)();
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs shrink-0 shadow-sm transition active:scale-95 cursor-pointer"
+                  >
+                    Perpanjang
+                  </button>
+                </div>
+              )}
 
 
 

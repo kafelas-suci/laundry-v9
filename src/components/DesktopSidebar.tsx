@@ -56,6 +56,7 @@ interface DesktopSidebarProps {
   layananCount: number;
   currentTier?: string | null;
   onOpenUpgradeModal?: (reason?: string) => void;
+  onOpenExpiredModal?: () => void;
 }
 
 export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
@@ -73,6 +74,7 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
   layananCount,
   currentTier,
   onOpenUpgradeModal,
+  onOpenExpiredModal,
 }) => {
   const [collapsed, setCollapsed] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -372,7 +374,9 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
         {!collapsed && (
           <div
             onClick={() => {
-              if (onOpenUpgradeModal) {
+              if (subIsExpired && onOpenExpiredModal) {
+                onOpenExpiredModal();
+              } else if (onOpenUpgradeModal) {
                 onOpenUpgradeModal();
               } else {
                 onSelectView('kelola_owner');

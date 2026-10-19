@@ -144,8 +144,40 @@ export class IndexedDbService {
       const db = await this.getDB();
       const tx = db.transaction('transaksi_arsip', 'readonly');
       const store = tx.objectStore('transaksi_arsip');
-      const index = store.index('laundry_month');
-      const request = index.getAll(IDBKeyRange.only([laundryId, monthKey]));
+      const index = store.index('laundryId');
+      const request = index.getAll(IDBKeyRange.only(laundryId));
+
+      return new Promise<Transaksi[]>((resolve) => {
+        request.onsuccess = () => {
+          const list = (request.result || []) as (Transaksi & { monthKey?: string })[];
+          // Transaksi relevan jika:
+          // 1) monthKey tersimpan cocok
+          // 2) tanggalPengambilan jatuh pada bulan ini
+          // 3) tanggalMasuk jatuh pada bulan ini
+          // 4) tanggalPelunasan jatuh pada bulan ini
+          const matched = list.filter((trx) => {
+            if (trx.monthKey === monthKey) return true;
+            if (trx.tanggalPengambilan && IndexedDbService.getMonthKey(trx.tanggalPengambilan) === monthKey) return true;
+            if (trx.tanggalMasuk && IndexedDbService.getMonthKey(trx.tanggalMasuk) === monthKey) return true;
+            if (trx.tanggalPelunasan && IndexedDbService.getMonthKey(trx.tanggalPelunasan) === monthKey) return true;
+            return false;
+          });
+          resolve(matched.sort((a, b) => (b.tanggalPengambilan || b.tanggalMasuk) - (a.tanggalPengambilan || a.tanggalMasuk)));
+        };
+        request.onerror = () => resolve([]);
+      });
+    } catch {
+      return [];
+    }
+  }
+
+  static async getAllArchive(laundryId: string): Promise<Transaksi[]> {
+    try {
+      const db = await this.getDB();
+      const tx = db.transaction('transaksi_arsip', 'readonly');
+      const store = tx.objectStore('transaksi_arsip');
+      const index = store.index('laundryId');
+      const request = index.getAll(IDBKeyRange.only(laundryId));
 
       return new Promise<Transaksi[]>((resolve) => {
         request.onsuccess = () => {

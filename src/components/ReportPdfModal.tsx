@@ -155,12 +155,30 @@ export const ReportPdfModal: React.FC<ReportPdfModalProps> = ({
                         {formatRupiah(data.totalUangMasuk)}
                       </td>
                     </tr>
-                    <tr className="border-b border-slate-200">
-                      <td className="p-2 pl-4 text-slate-500 text-[11px]">- Pemasukan Transaksi Cucian</td>
-                      <td className="p-2 text-right text-slate-600 tabular-nums">
-                        {formatRupiah(data.totalUangMasukTrx)}
-                      </td>
-                    </tr>
+                    {data.uangMasukOrderBulanIni !== undefined && (
+                      <tr className="border-b border-slate-200">
+                        <td className="p-2 pl-4 text-slate-500 text-[11px]">• Dari Order Masuk Periode Ini</td>
+                        <td className="p-2 text-right text-slate-600 tabular-nums">
+                          {formatRupiah(data.uangMasukOrderBulanIni)}
+                        </td>
+                      </tr>
+                    )}
+                    {data.uangPelunasanBulanLalu !== undefined && data.uangPelunasanBulanLalu > 0 && (
+                      <tr className="border-b border-slate-200 bg-emerald-50/40">
+                        <td className="p-2 pl-4 text-emerald-700 font-semibold text-[11px]">+ Pelunasan Order Bulan Lalu</td>
+                        <td className="p-2 text-right font-bold text-emerald-700 tabular-nums">
+                          +{formatRupiah(data.uangPelunasanBulanLalu)}
+                        </td>
+                      </tr>
+                    )}
+                    {data.totalPiutang !== undefined && data.totalPiutang > 0 && (
+                      <tr className="border-b border-slate-200">
+                        <td className="p-2 pl-4 text-amber-700 text-[11px]">• Sisa Piutang Berjalan (Belum Lunas)</td>
+                        <td className="p-2 text-right text-amber-700 tabular-nums font-medium">
+                          {formatRupiah(data.totalPiutang)}
+                        </td>
+                      </tr>
+                    )}
                     <tr className="border-b border-slate-200">
                       <td className="p-2 font-medium text-slate-700">Total Beban Biaya Operasional</td>
                       <td className="p-2 text-right font-black text-red-600 tabular-nums">
@@ -183,10 +201,16 @@ export const ReportPdfModal: React.FC<ReportPdfModalProps> = ({
                         {data.totalTrx} Order ({data.totalWeight.toFixed(1)} Kg)
                       </td>
                     </tr>
-                    <tr>
+                    <tr className="border-b border-slate-200">
                       <td className="p-2 font-medium text-slate-700">Status Pelunasan Nota</td>
                       <td className="p-2 text-right font-semibold text-slate-900 tabular-nums">
                         {data.countLunas} Lunas, {data.countBelumLunas} Belum Lunas
+                      </td>
+                    </tr>
+                    <tr>
+                      <td className="p-2 text-slate-500 text-[11px]">Siklus Tutup Buku &amp; Ganti Hari</td>
+                      <td className="p-2 text-right text-slate-600 text-[11px] font-mono">
+                        00:00 Tengah Malam (Waktu Lokal)
                       </td>
                     </tr>
                   </tbody>

@@ -1,0 +1,6 @@
+{
+  "summary": "Rencana implementasi penyesuaian pengecekan pembaruan PWA & Service Worker yang sangat hemat (1 hari sekali) dan penambahan tombol manual 'Periksa Pembaruan' di Pengaturan:\n1. Mengubah interval pengecekan otomatis di src/main.tsx menjadi 24 jam (1 hari sekali) dan menghapus listener visibilitychange berulang agar benar-benar tenang, hemat kuota, dan hemat baterai.\n2. Menambahkan tombol 'Periksa Pembaruan Aplikasi' di SettingsView (menu Pengaturan) dengan indikator status versi dan feedback toast informatif saat kasir/owner ingin memeriksa versi baru secara manual kapan saja.\n3. Mempertahankan konfigurasi anti-cache HTTP pada firebase.json dan workbox agar saat pembaruan dirilis, aset baru langsung terpasang tanpa tertahan cache lama.",
+  "updatedAt": "2026-10-19T00:11:42.324043998Z",
+  "requestFeedback": true,
+  "userFacing": true
+}

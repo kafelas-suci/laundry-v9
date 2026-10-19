@@ -17,9 +17,10 @@ import {
   CheckCircle2,
   AlertCircle,
   Coins,
+  Clock,
 } from 'lucide-react';
 import { Transaksi, Pengeluaran, ArusKas } from '../types';
-import { formatRupiah, formatShortTime, formatDateIndo } from '../utils/formatters';
+import { formatRupiah, formatShortTime, formatDateIndo, formatTanggalIndo } from '../utils/formatters';
 import { FirebaseSyncService } from '../utils/firebaseSync';
 
 interface BukuKasViewProps {
@@ -178,48 +179,53 @@ export const BukuKasView: React.FC<BukuKasViewProps> = ({
         });
       }
 
-      // 2. Evaluasi Cucian yang Diambil di Hari Terpilih
+      // 2. Evaluasi Pelunasan Kas di Hari Terpilih (baik saat diambil atau pelunasan sisa)
+      const dp = Math.max(0, trx.jumlahDp || 0);
+      const total = Math.max(0, trx.totalHarga || 0);
+      const bayarAwal = Math.min(total, dp);
+      const sisa = Math.max(0, total - bayarAwal);
+      const waktuPelunasan = trx.tanggalPelunasan || trx.tanggalPengambilan;
+      const isLunasHariIni = trx.statusPembayaran === 'Lunas' && waktuPelunasan && waktuPelunasan >= startOfDay && waktuPelunasan <= endOfDay;
+      const isNonTunai = trx.metodePembayaran === 'Non-Tunai';
+
+      if (isLunasHariIni && sisa > 0) {
+        totalMasuk += sisa;
+        if (isNonTunai) {
+          totalMasukNonTunai += sisa;
+        } else {
+          totalMasukTunai += sisa;
+        }
+
+        const isOrderBedaHari = trx.tanggalMasuk < startOfDay;
+        cashList.push({
+          timestamp: waktuPelunasan,
+          keterangan: `${trx.namaPelanggan} (${trx.nomorTransaksi || '-'}) • Pelunasan Sisa${isOrderBedaHari ? ` (Order ${formatTanggalIndo(trx.tanggalMasuk, false)})` : ''}`,
+          jumlahMasuk: sisa,
+          jumlahKeluar: 0,
+          metodePembayaran: trx.metodePembayaran || 'Tunai',
+          transaksiId: trx.id,
+          logType: 'MASUK',
+          badgeText: isOrderBedaHari ? 'PELUNASAN LALU' : 'PELUNASAN SISA',
+        });
+      }
+
+      // 3. Evaluasi Logistik Cucian yang Diambil di Hari Terpilih
       if (
         trx.tanggalPengambilan &&
         trx.tanggalPengambilan >= startOfDay &&
         trx.tanggalPengambilan <= endOfDay
       ) {
         countBajuDiambil++;
-        const dp = trx.jumlahDp || 0;
-        const total = trx.totalHarga || 0;
-        const pelunasan = trx.statusPembayaran === 'Lunas' ? Math.max(0, total - dp) : 0;
-        const isNonTunai = trx.metodePembayaran === 'Non-Tunai';
-
-        if (pelunasan > 0) {
-          totalMasuk += pelunasan;
-          if (isNonTunai) {
-            totalMasukNonTunai += pelunasan;
-          } else {
-            totalMasukTunai += pelunasan;
-          }
-
-          cashList.push({
-            timestamp: trx.tanggalPengambilan,
-            keterangan: `${trx.namaPelanggan} (${trx.nomorTransaksi || '-'}) `,
-            jumlahMasuk: pelunasan,
-            jumlahKeluar: 0,
-            metodePembayaran: trx.metodePembayaran || 'Tunai',
-            transaksiId: trx.id,
-            logType: 'MASUK',
-            badgeText: 'PELUNASAN SISA',
-          });
-        }
-
-        // Catat ke Log Logistik Cucian Diambil
+        const pelunasanDiambil = trx.statusPembayaran === 'Lunas' ? sisa : 0;
         logList.push({
           timestamp: trx.tanggalPengambilan,
           keterangan: `${trx.namaPelanggan} (${trx.nomorTransaksi || '-'}) • Diambil Pelanggan`,
-          jumlahMasuk: pelunasan,
+          jumlahMasuk: pelunasanDiambil,
           jumlahKeluar: 0,
           metodePembayaran: trx.metodePembayaran,
           transaksiId: trx.id,
           logType: 'DIAMBIL',
-          badgeText: pelunasan > 0 ? `LUNAS (${formatRupiah(pelunasan)})` : 'SUDAH LUNAS',
+          badgeText: pelunasanDiambil > 0 ? `LUNAS (${formatRupiah(pelunasanDiambil)})` : 'SUDAH LUNAS',
           transaksi: trx,
         });
       }
@@ -399,6 +405,8 @@ export const BukuKasView: React.FC<BukuKasViewProps> = ({
 
       {/* 3. MAIN CONTAINER */}
       <main className="flex-1 p-2 sm:p-5 space-y-2 max-w-3xl mx-auto w-full">
+     
+
         {/* KARTU RINGKASAN KASIR (TUTUP KASIR FISIK) */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-2 space-y-2">
           {/* Baris 1: Kas Masuk, Keluar, dan Selisih Kas */}

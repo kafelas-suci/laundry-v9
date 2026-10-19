@@ -66,6 +66,7 @@ export interface Transaksi {
   status: 'Diterima' | 'Proses' | 'Selesai' | 'Diambil';
   statusPembayaran: 'Lunas' | 'Belum Lunas';
   tanggalPengambilan?: number | null;
+  tanggalPelunasan?: number | null;
   catatan?: string | null;
   metodePembayaran?: string | null; // "Tunai" | "Non-Tunai"
   metodePembayaranDetail?: string | null; // "QRIS" | "BCA" | "BRI" | "Mandiri" | "Lainnya"

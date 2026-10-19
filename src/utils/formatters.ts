@@ -64,6 +64,105 @@ export function formatJamWIB(timestamp: number | Date): string {
   return `${h}:${m} WIB`;
 }
 
+/**
+ * Format timestamp ke tanggal lokal YYYY-MM-DD (menghindari pergeseran zona waktu UTC).
+ * Menjamin pergantian hari (ganti hari) terjadi tepat pukul 00:00 tengah malam waktu lokal.
+ */
+export function formatLocalDateKey(timestamp: number | Date = Date.now()): string {
+  const d = new Date(timestamp);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+/**
+ * Format timestamp ke prefix invoice lokal YYMMDD (misal: 261019 untuk 19 Okt 2026)
+ */
+export function formatLocalInvoiceDateKey(timestamp: number | Date = Date.now()): string {
+  const d = new Date(timestamp);
+  const yy = String(d.getFullYear()).slice(-2);
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yy}${mm}${dd}`;
+}
+
+/**
+ * Label resmi siklus pergantian hari (ganti hari) Kafelas Laundry:
+ * Terjadi tepat pukul 00:00:00 tengah malam waktu lokal.
+ */
+export const WAKTU_GANTI_HARI_LABEL = '00:00 Tengah Malam (Waktu Lokal)';
+
+export interface PaymentCashInEntry {
+  type: 'awal' | 'pelunasan';
+  amount: number;
+  timestamp: number;
+  metodePembayaran: string;
+  transaksiId: string;
+  nomorTransaksi?: string | null;
+  namaPelanggan: string;
+  label: string;
+}
+
+/**
+ * Menguraikan seluruh aliran kas masuk (cash-in) yang riil dari suatu transaksi.
+ * Memisahkan secara presisi pembayaran DP/awal saat nota masuk dan pelunasan sisa saat diambil/lunas.
+ * Jika pelunasan dilakukan di beda hari atau beda bulan, tanggal pelunasan dicatat presisi pada waktu pelunasan terjadi.
+ */
+export function extractTransaksiCashInEntries(trx: {
+  id: string;
+  nomorTransaksi?: string | null;
+  namaPelanggan: string;
+  totalHarga: number;
+  jumlahDp: number;
+  tanggalMasuk: number;
+  tanggalPengambilan?: number | null;
+  tanggalPelunasan?: number | null;
+  statusPembayaran: string;
+  metodePembayaran?: string | null;
+}): PaymentCashInEntry[] {
+  const entries: PaymentCashInEntry[] = [];
+  const total = Math.max(0, Number(trx.totalHarga || 0));
+  const dp = Math.max(0, Number(trx.jumlahDp || 0));
+  const metode = trx.metodePembayaran || 'Tunai';
+
+  // 1. Uang muka / bayar di awal saat pakaian masuk
+  const bayarAwal = Math.min(total, dp);
+  if (bayarAwal > 0) {
+    entries.push({
+      type: 'awal',
+      amount: bayarAwal,
+      timestamp: trx.tanggalMasuk || Date.now(),
+      metodePembayaran: metode,
+      transaksiId: trx.id,
+      nomorTransaksi: trx.nomorTransaksi,
+      namaPelanggan: trx.namaPelanggan,
+      label: bayarAwal >= total ? 'Lunas di Awal' : 'Uang Muka (DP)',
+    });
+  }
+
+  // 2. Uang pelunasan sisa saat pesanan lunas / diambil
+  if (trx.statusPembayaran === 'Lunas') {
+    const sisa = Math.max(0, total - bayarAwal);
+    if (sisa > 0) {
+      // Waktu pelunasan riil: tanggalPelunasan -> tanggalPengambilan -> tanggalMasuk
+      const waktuPelunasan = trx.tanggalPelunasan || trx.tanggalPengambilan || trx.tanggalMasuk || Date.now();
+      entries.push({
+        type: 'pelunasan',
+        amount: sisa,
+        timestamp: waktuPelunasan,
+        metodePembayaran: metode,
+        transaksiId: trx.id,
+        nomorTransaksi: trx.nomorTransaksi,
+        namaPelanggan: trx.namaPelanggan,
+        label: 'Pelunasan Sisa',
+      });
+    }
+  }
+
+  return entries;
+}
+
 export function formatReceiptDate(timestamp: number, withTime = false): string {
   const d = new Date(timestamp);
   const day = String(d.getDate()).padStart(2, '0');

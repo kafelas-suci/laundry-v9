@@ -13,6 +13,14 @@ export interface LaporanSummaryExportData {
   totalTrx: number;
   countLunas: number;
   countBelumLunas: number;
+  uangMasukOrderBulanIni?: number;
+  uangPelunasanBulanLalu?: number;
+  totalPiutang?: number;
+  pelunasanBulanLaluList?: {
+    trx: Transaksi;
+    pelunasan: number;
+    waktuPelunasan: number;
+  }[];
   comparison?: {
     prevPeriodeLabel: string;
     prevOmzet: number;
@@ -42,17 +50,22 @@ export function exportLaporanToExcel(
     ['Nama Toko / Outlet:', summary.laundryName || 'Kafelas Laundry'],
     ['Periode:', summary.periodeLabel || 'Semua Periode'],
     ['Tanggal Unduh:', new Date().toLocaleString('id-ID')],
+    ['Cut-off Waktu Ganti Hari:', '00:00:00 Tengah Malam (Waktu Lokal Perangkat)'],
     [],
-    ['RINGKASAN UTAMA', 'NOMINAL (RP)', 'KETERANGAN'],
-    ['Total Pendapatan (Omzet)', Number(summary.totalOmzet || 0), 'Nilai kotor seluruh order masuk'],
-    ['Total Uang Masuk Tunai/Transfer', Number(summary.totalUangMasuk || 0), 'Arus kas riil yang sudah diterima'],
+    ['RINGKASAN UTAMA KEUANGAN', 'NOMINAL (RP)', 'KETERANGAN'],
+    ['Total Pendapatan (Omzet)', Number(summary.totalOmzet || 0), 'Nilai kotor seluruh order masuk periode ini'],
+    ['Total Uang Masuk Kasir (Arus Kas Riil)', Number(summary.totalUangMasuk || 0), 'Uang fisik & transfer yang riil diterima di kasir'],
+    ['  - Dari Order Masuk Periode Ini', Number(summary.uangMasukOrderBulanIni ?? summary.totalUangMasukTrx ?? 0), 'Pembayaran awal/lunas dari order periode berjalan'],
+    ['  - Dari Pelunasan Order Bulan Lalu', Number(summary.uangPelunasanBulanLalu || 0), 'Pelunasan piutang/pengambilan dari order periode sebelumnya'],
+    ['Piutang Berjalan (Belum Lunas)', Number(summary.totalPiutang || 0), 'Tagihan pelanggan yang belum dilunasi'],
     ['Total Pengeluaran Operasional', Number(summary.totalPengeluaran || 0), 'Biaya operasional, listrik, deterjen, dll'],
-    ['Laba Bersih', Number(summary.labaBersih || 0), 'Uang Masuk - Pengeluaran'],
+    ['Laba Bersih', Number(summary.labaBersih || 0), 'Uang Masuk Kasir - Total Pengeluaran'],
     [],
     ['STATISTIK TRANSAKSI', 'JUMLAH', 'STATUS'],
-    ['Total Order Cucian', Number(summary.totalTrx || 0), 'Nota'],
-    ['Transaksi Lunas', Number(summary.countLunas || 0), 'Order lunas'],
+    ['Total Order Cucian Masuk', Number(summary.totalTrx || 0), 'Nota'],
+    ['Transaksi Lunas', Number(summary.countLunas || 0), 'Order berstatus lunas'],
     ['Transaksi Belum Lunas', Number(summary.countBelumLunas || 0), 'Menunggu pelunasan / DP'],
+    ['Pelunasan Lintas Bulan Diterima', Number(summary.pelunasanBulanLaluList?.length || 0), 'Nota bulan lalu yang dilunasi periode ini'],
   ];
 
   if (summary.comparison) {
@@ -141,6 +154,47 @@ export function exportLaporanToExcel(
     { wch: 14 },
   ];
   XLSX.utils.book_append_sheet(wb, wsTrx, 'Data Transaksi Cucian');
+
+  // SHEET KHUSUS: PELUNASAN ORDER BULAN LALU (Uang kas masuk periode ini dari order masa lalu)
+  if (summary.pelunasanBulanLaluList && summary.pelunasanBulanLaluList.length > 0) {
+    const pelunasanHeaders = [
+      'No. Nota / ID',
+      'Tanggal Order Masuk',
+      'Tanggal Pelunasan / Ambil',
+      'Nama Pelanggan',
+      'No. Telepon',
+      'Total Nota Asli (Rp)',
+      'Pelunasan Diterima (Rp)',
+      'Metode Pembayaran',
+      'Catatan / Keterangan',
+    ];
+
+    const pelunasanData = summary.pelunasanBulanLaluList.map(({ trx, pelunasan, waktuPelunasan }) => [
+      trx.nomorTransaksi || trx.id || '-',
+      formatReceiptDate(trx.tanggalMasuk),
+      formatReceiptDate(waktuPelunasan),
+      trx.namaPelanggan || '-',
+      trx.nomorTelepon || '-',
+      Number(trx.totalHarga || 0),
+      Number(pelunasan || 0),
+      trx.metodePembayaran || 'Tunai',
+      trx.catatan || (trx.isTransisi ? 'Transisi Nota Lama' : 'Pelunasan piutang bulan lalu'),
+    ]);
+
+    const wsPelunasan = XLSX.utils.aoa_to_sheet([pelunasanHeaders, ...pelunasanData]);
+    wsPelunasan['!cols'] = [
+      { wch: 18 },
+      { wch: 20 },
+      { wch: 22 },
+      { wch: 22 },
+      { wch: 16 },
+      { wch: 18 },
+      { wch: 22 },
+      { wch: 18 },
+      { wch: 30 },
+    ];
+    XLSX.utils.book_append_sheet(wb, wsPelunasan, 'Pelunasan Bulan Lalu');
+  }
 
   // 3. SHEET 3: DAFTAR PENGELUARAN OPERASIONAL
   const expHeaders = ['Tanggal', 'Keterangan / Deskripsi Biaya', 'Nominal Biaya (Rp)'];

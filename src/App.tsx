@@ -42,9 +42,10 @@ import { LimitTransaksiModal } from './components/LimitTransaksiModal';
 import { AssignStaffModal } from './components/AssignStaffModal';
 import { ReceiptModal } from './components/ReceiptModal';
 import { UpgradePlanModal } from './components/UpgradePlanModal';
+import { SubscriptionExpiredModal } from './components/SubscriptionExpiredModal';
 import { TransitionPickupData } from './components/QuickTransitionPickupModal';
 import { LaundryTier, normalizeTier, getLaundryLimits, EXTRA_BRANCH_PRICE } from './utils/subscription';
-import { formatRupiah } from './utils/formatters';
+import { formatRupiah, formatLocalInvoiceDateKey } from './utils/formatters';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { DesktopSidebar } from './components/DesktopSidebar';
 import { DemoBanner } from './components/DemoBanner';
@@ -196,7 +197,22 @@ export default function App() {
     return normalizeTier(currentUser?.subscriptionType);
   });
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
+  const [isExpiredModalOpen, setIsExpiredModalOpen] = useState(false);
   const [upgradeTriggerReason, setUpgradeTriggerReason] = useState<string | undefined>(undefined);
+
+  // Otomatis tampilkan layar habis hari langganan jika akun telah kedaluwarsa (1x per sesi)
+  useEffect(() => {
+    if (!currentUser || activeTier === 'newcomer') return;
+    const now = Date.now();
+    const subEnd = currentUser.subscriptionEndDate || 0;
+    if (subEnd > 0 && subEnd <= now) {
+      const hasPrompted = sessionStorage.getItem('expired_sub_prompted');
+      if (!hasPrompted) {
+        setIsExpiredModalOpen(true);
+        sessionStorage.setItem('expired_sub_prompted', '1');
+      }
+    }
+  }, [currentUser, activeTier]);
 
   const handleOpenUpgradeModal = (reason?: string) => {
     if (activeTier === 'newcomer' && reason) {
@@ -526,9 +542,27 @@ export default function App() {
     data: Omit<Transaksi, 'id'> & { id?: string },
     items: LayananItem[]
   ) => {
+    const now = Date.now();
     if (data.id) {
       // Edit existing
-      const updatedTrx = { ...data, id: data.id } as Transaksi;
+      const oldTrx = transaksiList.find((t) => t.id === data.id);
+      const isNowLunas = data.statusPembayaran === 'Lunas';
+      const wasLunas = oldTrx?.statusPembayaran === 'Lunas';
+      let tanggalPelunasan = data.tanggalPelunasan;
+      if (isNowLunas && !wasLunas) {
+        tanggalPelunasan = now;
+      } else if (!isNowLunas) {
+        tanggalPelunasan = null;
+      } else if (isNowLunas && wasLunas && !tanggalPelunasan) {
+        tanggalPelunasan = oldTrx?.tanggalPelunasan || oldTrx?.tanggalMasuk || now;
+      }
+
+      const updatedTrx = {
+        ...data,
+        id: data.id,
+        tanggalPelunasan,
+      } as Transaksi;
+
       const updatedList = transaksiList.map((t) =>
         t.id === data.id ? updatedTrx : t
       );
@@ -549,15 +583,16 @@ export default function App() {
         return;
       }
 
-      const dateKey = new Date().toISOString().slice(2, 10).replace(/-/g, '');
+      const dateKey = formatLocalInvoiceDateKey(now);
       const countToday =
         transaksiList.filter((t) => t.nomorTransaksi?.startsWith(dateKey)).length + 1;
       const newInvoice = `${dateKey}/${countToday}`;
 
       const newTrx: Transaksi = {
         ...data,
-        id: `trx-${Date.now()}`,
+        id: `trx-${now}`,
         nomorTransaksi: newInvoice,
+        tanggalPelunasan: data.statusPembayaran === 'Lunas' ? now : null,
         items,
       };
 
@@ -619,11 +654,13 @@ export default function App() {
   };
 
   const handleAmbilTransaksi = (trx: Transaksi) => {
-    const updated = {
+    const now = Date.now();
+    const updated: Transaksi = {
       ...trx,
       status: 'Diambil' as const,
       statusPembayaran: 'Lunas' as const,
-      tanggalPengambilan: Date.now(),
+      tanggalPengambilan: now,
+      tanggalPelunasan: trx.statusPembayaran === 'Lunas' ? (trx.tanggalPelunasan || trx.tanggalMasuk) : now,
     };
     updateTransaksiList(
       transaksiList.map((t) => (t.id === trx.id ? updated : t))
@@ -642,6 +679,7 @@ export default function App() {
           status: 'Diambil' as const,
           statusPembayaran: 'Lunas' as const,
           tanggalPengambilan: now,
+          tanggalPelunasan: t.statusPembayaran === 'Lunas' ? (t.tanggalPelunasan || t.tanggalMasuk) : now,
         };
       }
       return t;
@@ -653,6 +691,7 @@ export default function App() {
         status: 'Diambil',
         statusPembayaran: 'Lunas',
         tanggalPengambilan: now,
+        tanggalPelunasan: t.statusPembayaran === 'Lunas' ? (t.tanggalPelunasan || t.tanggalMasuk) : now,
       }).catch(console.error);
     });
   };
@@ -681,6 +720,7 @@ export default function App() {
       tanggalMasuk: now,
       tanggalSelesai: now,
       tanggalPengambilan: now,
+      tanggalPelunasan: isLunasStatus ? now : null,
       status: 'Diambil',
       statusPembayaran: isLunasStatus ? 'Lunas' : 'Belum Lunas',
       metodePembayaran: data.metodePembayaran,
@@ -1205,6 +1245,7 @@ export default function App() {
             layananCount={layananList.filter((l) => l.laundryId === activeLaundryId).length || layananList.length}
             currentTier={activeTier}
             onOpenUpgradeModal={handleOpenUpgradeModal}
+            onOpenExpiredModal={() => setIsExpiredModalOpen(true)}
           />
         )}
 
@@ -1268,6 +1309,7 @@ export default function App() {
             deviceInfo={device}
             currentTier={activeTier}
             onOpenUpgradeModal={handleOpenUpgradeModal}
+            onOpenExpiredModal={() => setIsExpiredModalOpen(true)}
             onOpenNewTransaksi={handleRequestNewTransaksi}
             onOpenLimitModal={() => setIsLimitModalOpen(true)}
             onOpenDetailTransaksi={(id) => {
@@ -1445,6 +1487,9 @@ export default function App() {
             laundryName={activeLaundry?.namaLaundry || settings.headerStruk || "Kafelas Laundry"}
             currentTier={activeTier}
             onOpenUpgradeModal={handleOpenUpgradeModal}
+            laundries={laundries}
+            onSelectBranch={handleSelectBranch}
+            allTransaksiList={transaksiList}
           />
         )}
 
@@ -1530,6 +1575,7 @@ export default function App() {
               onExtendSubscription={handleExtendSubscription}
               onUpdateOwnerProfile={handleUpdateOwnerProfile}
               onOpenUpgradeModal={handleOpenUpgradeModal}
+              onOpenExpiredModal={() => setIsExpiredModalOpen(true)}
             />
           )
         )}
@@ -1619,6 +1665,21 @@ export default function App() {
           triggerReason={upgradeTriggerReason}
           onSwitchTier={handleSwitchTier}
         />
+
+        {/* Modal / Halaman Habis Hari Langganan (Lihat Saldo, Isi Saldo & Perpanjang) */}
+        {currentUser && (
+          <SubscriptionExpiredModal
+            isOpen={isExpiredModalOpen}
+            onClose={() => setIsExpiredModalOpen(false)}
+            currentUser={currentUser}
+            onTopUpWallet={handleTopUpWallet}
+            onExtendSubscription={handleExtendSubscription}
+            sisaHari={Math.max(
+              0,
+              Math.ceil(((currentUser.subscriptionEndDate || Date.now()) - Date.now()) / (1000 * 60 * 60 * 24))
+            )}
+          />
+        )}
 
         <ApkPlaystoreModal
           isOpen={isApkModalOpen}
