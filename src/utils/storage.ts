@@ -364,7 +364,47 @@ export class StorageService {
   static get<T>(key: string, defaultValue: T): T {
     try {
       const data = localStorage.getItem(STORAGE_KEY_PREFIX + key);
-      return data ? (JSON.parse(data) as T) : defaultValue;
+      if (!data) return defaultValue;
+      const parsed = JSON.parse(data);
+
+      if (key === 'laundries' && Array.isArray(parsed)) {
+        return parsed.map((l: any) => {
+          let name = l?.namaLaundry;
+          while (typeof name === 'object' && name !== null) {
+            name = name.namaLaundry || name.name || "Kafela's Laundry";
+          }
+          return {
+            ...l,
+            namaLaundry: typeof name === 'string' && name.trim() ? name : "Kafela's Laundry",
+            alamat: typeof l?.alamat === 'string' ? l.alamat : '',
+            nomorTelepon: typeof l?.nomorTelepon === 'string' ? l.nomorTelepon : '',
+          };
+        }) as T;
+      }
+
+      if (key === 'active_user' && parsed && typeof parsed === 'object') {
+        let name = (parsed as any).displayName;
+        while (typeof name === 'object' && name !== null) {
+          name = name.namaLaundry || name.displayName || name.name || 'Owner';
+        }
+        return {
+          ...parsed,
+          displayName: typeof name === 'string' && name.trim() ? name : 'Owner',
+        } as T;
+      }
+
+      if (key === 'settings' && parsed && typeof parsed === 'object') {
+        let header = (parsed as any).headerStruk;
+        while (typeof header === 'object' && header !== null) {
+          header = header.namaLaundry || header.headerStruk || "Kafela's Laundry";
+        }
+        return {
+          ...parsed,
+          headerStruk: typeof header === 'string' && header.trim() ? header : "Kafela's Laundry",
+        } as T;
+      }
+
+      return parsed as T;
     } catch {
       return defaultValue;
     }

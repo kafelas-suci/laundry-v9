@@ -251,7 +251,9 @@ export const KelolaKasirView: React.FC<KelolaKasirViewProps> = ({
                           <div className="text-[10px] text-slate-500 truncate">{admin.emailOrPhone}</div>
                           <div className="text-[9px] text-blue-600 font-semibold flex items-center gap-1">
                             <Building2 className="w-3 h-3" />
-                            <span className="truncate">{branch ? branch.namaLaundry : 'Semua Cabang'}</span>
+                            <span className="truncate">
+                              {branch ? (typeof branch.namaLaundry === 'object' ? (branch.namaLaundry as any)?.namaLaundry || "Cabang" : branch.namaLaundry) : 'Semua Cabang'}
+                            </span>
                           </div>
                         </div>
                         <button

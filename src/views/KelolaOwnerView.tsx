@@ -341,7 +341,9 @@ export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
                             {isActive && (
                               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
                             )}
-                            <span className="font-bold text-xs text-slate-900 truncate">{lnd.namaLaundry}</span>
+                            <span className="font-bold text-xs text-slate-900 truncate">
+                              {typeof lnd.namaLaundry === 'object' ? (lnd.namaLaundry as any)?.namaLaundry || "Kafela's Laundry" : (lnd.namaLaundry || "Kafela's Laundry")}
+                            </span>
                             {isActive && (
                               <span className="text-[9px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold shrink-0">
                                 Aktif

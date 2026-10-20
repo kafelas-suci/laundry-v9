@@ -90,7 +90,10 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
     return StorageService.get<SettingsData>('settings', defaultSettings);
   }, []);
 
-  const effectiveLaundryName = laundryName || settings.headerStruk || settings.appTitle || "Kafelas Laundry";
+  const rawLaundryName = laundryName || settings.headerStruk || settings.appTitle;
+  const effectiveLaundryName = typeof rawLaundryName === 'object' && rawLaundryName !== null
+    ? (rawLaundryName as any).namaLaundry || "Kafelas Laundry"
+    : (rawLaundryName || "Kafelas Laundry");
 
   const monthNames = [
     'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
@@ -188,9 +191,9 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
 
   // Perhitungan Data Komparasi Kinerja Antar-Cabang (D3.js)
   const branchComparisonData: BranchPerformanceData[] = useMemo(() => {
-    const effectiveLaundries = laundries && laundries.length > 0
+    const effectiveLaundries: Laundry[] = laundries && laundries.length > 0
       ? laundries
-      : [{ id: activeLaundryId, ownerId: 'owner', namaLaundry: effectiveLaundryName }];
+      : [{ id: activeLaundryId, ownerId: 'owner', namaLaundry: effectiveLaundryName, alamat: '', nomorTelepon: '' }];
 
     const sourceTrx = allTransaksiList && allTransaksiList.length > 0 ? allTransaksiList : transaksiList;
 

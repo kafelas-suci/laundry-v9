@@ -62,7 +62,9 @@ export const SwitchBranchModal: React.FC<SwitchBranchModalProps> = ({
                   }`}
                 >
                   <div>
-                    <div className="text-sm">{lnd.namaLaundry}</div>
+                    <div className="text-sm">
+                      {typeof lnd.namaLaundry === 'object' ? (lnd.namaLaundry as any)?.namaLaundry || "Kafela's Laundry" : (lnd.namaLaundry || "Kafela's Laundry")}
+                    </div>
                     {lnd.alamat && <div className="text-[11px] text-slate-500 font-normal">{lnd.alamat}</div>}
                   </div>
                   {isActive && (

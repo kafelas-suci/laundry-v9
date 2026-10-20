@@ -566,12 +566,9 @@ export const StatusPengerjaanView: React.FC<StatusPengerjaanViewProps> = ({
                   <div className="shrink-0 flex flex-col items-end justify-between self-stretch border-l border-slate-100 pl-1 min-w-[72px]">
                     <div className="text-right">
                       <div
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded-lg inline-block ${
+                        className={`text-[10px] font-bold px-2 py-0  ${
                           isOverdue
-                            ? 'bg-red-100 text-red-700'
-                            : diffDays === 0
-                            ? 'bg-amber-100 text-amber-700'
-                            : 'bg-emerald-100 text-emerald-700'
+                           
                         }`}
                       >
                         {isOverdue ? 'Lewat' : diffDays === 0 ? 'Hari Ini' : `${diffDays} hari`}
@@ -585,7 +582,7 @@ export const StatusPengerjaanView: React.FC<StatusPengerjaanViewProps> = ({
                           className="px-2.5 py-1 rounded-xl text-white text-[10px] font-bold flex items-center gap-1 shadow-2xs active:scale-90 transition cursor-pointer bg-rose-600 hover:bg-rose-700"
                         >
                           <Clock className="w-3 h-3" />
-                          <span>{settings.selesaikanSaatDitugaskan ? 'Selesai' : hasRegisteredStaff ? 'Tugaskan' : 'Proses'}</span>
+                          <span>{settings.selesaikanSaatDitugaskan ? 'Proses' : hasRegisteredStaff ? 'Tugaskan' : 'Proses'}</span>
                         </button>
                       ) : (
                         <button

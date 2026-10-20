@@ -417,18 +417,32 @@ export default function App() {
 
   // Active branch entity - selalu pastikan id konsisten dengan activeLaundryId
   const activeLaundry = useMemo(() => {
+    const sanitizeBranch = (item: any): Laundry => {
+      let nama = item?.namaLaundry;
+      while (typeof nama === 'object' && nama !== null) {
+        nama = nama.namaLaundry || nama.name || "Kafela's Laundry";
+      }
+      return {
+        id: typeof item?.id === 'string' ? item.id : activeLaundryId || 'lnd-1',
+        ownerId: typeof item?.ownerId === 'string' ? item.ownerId : (currentUser?.uid || 'own-1'),
+        namaLaundry: typeof nama === 'string' && nama.trim() ? nama : (typeof settings?.headerStruk === 'string' && settings.headerStruk) || "Kafela's Laundry",
+        alamat: typeof item?.alamat === 'string' ? item.alamat : (typeof settings?.address === 'string' ? settings.address : ''),
+        nomorTelepon: typeof item?.nomorTelepon === 'string' ? item.nomorTelepon : (typeof settings?.phoneNumber === 'string' ? settings.phoneNumber : ''),
+      };
+    };
+
     const found = laundries.find((l) => l.id === activeLaundryId);
-    if (found) return found;
+    if (found) return sanitizeBranch(found);
     if (laundries.length > 0) {
-      return { ...laundries[0], id: activeLaundryId };
+      return sanitizeBranch({ ...laundries[0], id: activeLaundryId });
     }
-    return {
+    return sanitizeBranch({
       id: activeLaundryId || 'lnd-1',
       ownerId: currentUser?.uid || 'own-1',
-      namaLaundry: settings.headerStruk || "Kafela's Laundry",
-      alamat: settings.address,
-      nomorTelepon: settings.phoneNumber,
-    };
+      namaLaundry: settings?.headerStruk || "Kafela's Laundry",
+      alamat: settings?.address || '',
+      nomorTelepon: settings?.phoneNumber || '',
+    });
   }, [laundries, activeLaundryId, currentUser?.uid, settings.headerStruk, settings.address, settings.phoneNumber]);
 
   // Sync state helpers
@@ -500,12 +514,16 @@ export default function App() {
       if (finalLaundries.length > 0) {
         updateLaundries(finalLaundries);
       } else {
+        let initialName = settings.headerStruk;
+        if (typeof initialName !== 'string' || !initialName.trim()) {
+          initialName = typeof user.displayName === 'string' ? user.displayName : "Kafela's Laundry";
+        }
         const defaultBranch: Laundry = {
           id: targetLaundryId,
           ownerId: user.uid,
-          namaLaundry: settings.headerStruk || user.displayName || (user as any).namaLaundry || "Kafela's Laundry",
-          alamat: settings.address || '',
-          nomorTelepon: settings.phoneNumber || user.nomorTelepon || '',
+          namaLaundry: initialName,
+          alamat: typeof settings.address === 'string' ? settings.address : '',
+          nomorTelepon: typeof settings.phoneNumber === 'string' ? settings.phoneNumber : (typeof user.nomorTelepon === 'string' ? user.nomorTelepon : ''),
         };
         updateLaundries([defaultBranch]);
       }

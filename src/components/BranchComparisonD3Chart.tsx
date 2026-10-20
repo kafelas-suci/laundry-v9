@@ -463,7 +463,9 @@ export const BranchComparisonD3Chart: React.FC<BranchComparisonD3ChartProps> = (
             }}
           >
             <div className="font-extrabold text-white text-xs border-b border-slate-700/80 pb-1 flex items-center justify-between gap-2">
-              <span className="truncate">{hoveredBranch.branchName}</span>
+              <span className="truncate">
+                {typeof hoveredBranch.branchName === 'object' ? (hoveredBranch.branchName as any)?.namaLaundry || "Cabang" : hoveredBranch.branchName}
+              </span>
               <span className="text-amber-400 font-mono text-[10px]">
                 {hoveredBranch.percentageContribution.toFixed(1)}%
               </span>
@@ -535,7 +537,7 @@ export const BranchComparisonD3Chart: React.FC<BranchComparisonD3ChartProps> = (
 
                   <div className="min-w-0">
                     <div className="font-bold text-slate-900 text-xs sm:text-sm flex items-center gap-1.5 truncate">
-                      <span>{branch.branchName}</span>
+                      <span>{typeof branch.branchName === 'object' ? (branch.branchName as any)?.namaLaundry || "Cabang" : branch.branchName}</span>
                       {isWinner && (
                         <span className="text-[9px] font-black uppercase px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 border border-amber-300 shrink-0">
                           Top #1

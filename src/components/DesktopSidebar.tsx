@@ -202,7 +202,7 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
               type="button"
               onClick={laundries.length > 1 ? onOpenSwitchBranch : () => onSelectView('dashboard')}
               className="flex items-center gap-2.5 min-w-0 flex-1 text-left py-1 px-1.5 rounded-xl hover:bg-white/10 transition group"
-              title={laundries.length > 1 ? 'Klik untuk ganti cabang laundry' : activeLaundry.namaLaundry}
+              title={laundries.length > 1 ? 'Klik untuk ganti cabang laundry' : (typeof activeLaundry.namaLaundry === 'object' ? (activeLaundry.namaLaundry as any)?.namaLaundry || "Kafela's Laundry" : activeLaundry.namaLaundry)}
             >
               <div className="w-9 h-9 rounded-xl bg-white/15 border border-white/25 flex items-center justify-center shrink-0 shadow-2xs">
                 <Sparkles className="w-4 h-4 text-amber-300" />
@@ -210,7 +210,7 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1">
                   <span className="font-black text-sm tracking-tight truncate text-white">
-                    {activeLaundry.namaLaundry}
+                    {typeof activeLaundry.namaLaundry === 'object' ? (activeLaundry.namaLaundry as any)?.namaLaundry || "Kafela's Laundry" : (activeLaundry.namaLaundry || "Kafela's Laundry")}
                   </span>
                   {laundries.length > 1 && (
                     <ChevronDown className="w-3.5 h-3.5 text-white/80 shrink-0 group-hover:translate-y-0.5 transition-transform" />
@@ -442,7 +442,7 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
               </div>
               <div className="min-w-0">
                 <div className="font-bold text-xs text-slate-900 truncate">
-                  {currentUser.displayName}
+                  {typeof currentUser.displayName === 'object' ? (currentUser.displayName as any)?.displayName || (currentUser.displayName as any)?.namaLaundry || 'Owner' : (currentUser.displayName || 'Owner')}
                 </div>
                 <div className="text-[10px] text-slate-500 font-semibold flex items-center gap-1">
                   <span className="capitalize">{isOwner ? 'Owner Utama' : 'Kasir Cabang'}</span>

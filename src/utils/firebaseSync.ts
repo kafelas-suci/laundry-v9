@@ -57,7 +57,15 @@ export class FirebaseSyncService {
     try {
       const snap = await getDoc(userDocRef);
       if (snap.exists()) {
-        const user = snap.data() as User;
+        const rawUser = snap.data() as any;
+        let displayName = rawUser.displayName;
+        while (typeof displayName === 'object' && displayName !== null) {
+          displayName = displayName.namaLaundry || displayName.displayName || displayName.name || 'Owner';
+        }
+        const user: User = {
+          ...rawUser,
+          displayName: typeof displayName === 'string' && displayName.trim() ? displayName : (userName || 'Owner'),
+        };
         StorageService.set('active_user', user);
         return user;
       }
@@ -128,9 +136,18 @@ export class FirebaseSyncService {
       const snap = await getDocs(q);
       const list: Laundry[] = [];
       snap.forEach((d) => {
-        const data = d.data() as Laundry;
+        const data = d.data() as any;
         if (data.ownerId === ownerId) {
-          list.push(data);
+          let nama = data.namaLaundry;
+          while (typeof nama === 'object' && nama !== null) {
+            nama = nama.namaLaundry || nama.name || "Kafela's Laundry";
+          }
+          list.push({
+            ...data,
+            namaLaundry: typeof nama === 'string' && nama.trim() ? nama : "Kafela's Laundry",
+            alamat: typeof data.alamat === 'string' ? data.alamat : '',
+            nomorTelepon: typeof data.nomorTelepon === 'string' ? data.nomorTelepon : '',
+          });
         }
       });
       return list.length > 0 ? list : validCached;
@@ -605,7 +622,15 @@ export class FirebaseSyncService {
     try {
       const snap = await getDoc(doc(db, 'laundries', laundryId, 'settings', 'main'));
       if (snap.exists()) {
-        return snap.data() as SettingsData;
+        const st = snap.data() as any;
+        let header = st?.headerStruk;
+        while (typeof header === 'object' && header !== null) {
+          header = header.namaLaundry || header.headerStruk || "Kafela's Laundry";
+        }
+        return {
+          ...st,
+          headerStruk: typeof header === 'string' && header.trim() ? header : "Kafela's Laundry",
+        } as SettingsData;
       }
       return cached;
     } catch (e) {

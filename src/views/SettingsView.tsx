@@ -259,7 +259,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       </span>
                     </div>
                     <p className="text-[10px] text-slate-400 truncate leading-tight mt-0.5">
-                      {currentUser.role === 'owner' ? 'Owner Utama' : 'Kasir Cabang'} • {currentUser.emailOrPhone || currentUser.nomorTelepon || activeLaundry.namaLaundry}
+                      {currentUser.role === 'owner' ? 'Owner Utama' : 'Kasir Cabang'} • {currentUser.emailOrPhone || currentUser.nomorTelepon || (typeof activeLaundry.namaLaundry === 'object' ? (activeLaundry.namaLaundry as any)?.namaLaundry || "Kafela's Laundry" : activeLaundry.namaLaundry)}
                     </p>
                   </div>
                 </div>

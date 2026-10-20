@@ -343,7 +343,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     Dashboard Antrean & Kasir
                   </h1>
                   <span className="px-2 py-0.5 rounded-md bg-rose-50 text-[#800000] border border-rose-200/80 text-[11px] font-bold">
-                    {activeLaundry.namaLaundry}
+                    {typeof activeLaundry.namaLaundry === 'object' ? (activeLaundry.namaLaundry as any)?.namaLaundry || "Kafela's Laundry" : (activeLaundry.namaLaundry || "Kafela's Laundry")}
                   </span>
                 </div>
                 <p className="text-xs text-slate-500 font-medium capitalize mt-0.5">
@@ -998,7 +998,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         <p className="text-[11px] text-slate-500 capitalize mt-0.5">{formattedToday}</p>
                       </div>
                       <span className="text-[11px] font-bold bg-slate-100 text-slate-700 px-2.5 py-1 rounded-lg truncate max-w-[120px]">
-                        {currentUser.displayName}
+                        {typeof currentUser.displayName === 'object' ? (currentUser.displayName as any)?.displayName || (currentUser.displayName as any)?.namaLaundry || 'Owner' : (currentUser.displayName || 'Owner')}
                       </span>
                     </div>
 
@@ -1092,7 +1092,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 >
                   <div className="flex items-center gap-1">
                     <span className="font-bold text-sl truncate text-white tracking-wide">
-                      {activeLaundry.namaLaundry}
+                      {typeof activeLaundry.namaLaundry === 'object' ? (activeLaundry.namaLaundry as any)?.namaLaundry || "Kafela's Laundry" : (activeLaundry.namaLaundry || "Kafela's Laundry")}
                     </span>
                     {laundries.length > 1 && (
                       <ChevronDown className="w-3.5 h-3.5 text-white/80 shrink-0" />
@@ -1447,9 +1447,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                                     type="button"
                                     onClick={() => onSelesaikanTransaksi(trx)}
                                     title="Langsung Selesai & Siap Ambil"
-                                    className="w-10 min-h-[20px] rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white flex flex-col items-center justify-center gap-1 shadow-2xs active:scale-95 transition"
+                                    className="w-10 min-h-[20px] rounded-xl bg-rose-600 hover:bg-rose-700 text-white flex flex-col items-center justify-center gap-1 shadow-2xs active:scale-95 transition"
                                   >
-                                    <CheckCircle className="w-4 h-4" />
+                                    <Clock className="w-4 h-4" />
                                   </button>
                                 ) : (
                                   <button
@@ -1570,7 +1570,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
                   <div className="flex items-center gap-1.5">
                     <span className="text-[10px] font-semibold bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md truncate max-w-[130px]">
-                      {currentUser.displayName}
+                      {typeof currentUser.displayName === 'object' ? (currentUser.displayName as any)?.displayName || (currentUser.displayName as any)?.namaLaundry || 'Owner' : (currentUser.displayName || 'Owner')}
                     </span>
 
                     <button
