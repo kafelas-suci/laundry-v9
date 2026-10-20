@@ -1,0 +1,6 @@
+{
+  "summary": "Rencana implementasi audit keamanan proaktif menyeluruh untuk semua koleksi data (transaksi, pelanggan, layanan, pengeluaran, settings, dan laundries) guna menjamin isolasi multi-tenant 100% aman dan validasi kepemilikan di sisi client & Firestore Security Rules.",
+  "updatedAt": "2026-10-19T14:07:07.303285612Z",
+  "requestFeedback": true,
+  "userFacing": true
+}

@@ -7,7 +7,7 @@ import { useToast } from './NotificationContext';
 interface AturKasModalProps {
   isOpen: boolean;
   onClose: () => void;
-  isPemasukanEnabled: boolean;
+  isPemasukanEnabled?: boolean;
   daftarJenisPengeluaran: JenisPengeluaran[];
   daftarJenisPemasukan: JenisPemasukan[];
   onSavePengeluaran: (pengeluaran: Omit<Pengeluaran, 'id'>) => void;
@@ -92,39 +92,37 @@ export const AturKasModal: React.FC<AturKasModalProps> = ({
 
         {/* Form Body */}
         <div className="p-5 space-y-4">
-          {/* Radio Switch: Pengeluaran vs Pemasukan */}
-          {isPemasukanEnabled && (
-            <div className="flex rounded-xl bg-slate-100 p-1 border border-slate-200">
-              <button
-                type="button"
-                onClick={() => {
-                  setTipe('pengeluaran');
-                  setKeterangan('');
-                  setHargaSatuan(0);
-                }}
-                className={`flex-1 py-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${
-                  tipe === 'pengeluaran' ? 'bg-red-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <MinusCircle className="w-3.5 h-3.5" />
-                Pengeluaran Kas
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setTipe('pemasukan');
-                  setKeterangan('');
-                  setHargaSatuan(0);
-                }}
-                className={`flex-1 py-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${
-                  tipe === 'pemasukan' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <PlusCircle className="w-3.5 h-3.5" />
-                Pemasukan Kas
-              </button>
-            </div>
-          )}
+          {/* Radio Switch: Pengeluaran vs Pemasukan (Selalu Aktif) */}
+          <div className="flex rounded-xl bg-slate-100 p-1 border border-slate-200">
+            <button
+              type="button"
+              onClick={() => {
+                setTipe('pengeluaran');
+                setKeterangan('');
+                setHargaSatuan(0);
+              }}
+              className={`flex-1 py-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                tipe === 'pengeluaran' ? 'bg-red-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <MinusCircle className="w-3.5 h-3.5" />
+              Pengeluaran Kas
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setTipe('pemasukan');
+                setKeterangan('');
+                setHargaSatuan(0);
+              }}
+              className={`flex-1 py-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                tipe === 'pemasukan' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <PlusCircle className="w-3.5 h-3.5" />
+              Pemasukan Kas
+            </button>
+          </div>
 
           {/* Quick Category Chips */}
           <div>

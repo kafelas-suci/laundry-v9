@@ -1,6 +1,6 @@
 {
-  "name": "Kafelas Laundry",
-  "description": "tanpa sistem poin",
+  "name": "Remix Remix laundry-v9",
+  "description": "Imported from GitHub",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"

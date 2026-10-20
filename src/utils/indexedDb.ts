@@ -92,6 +92,28 @@ export class IndexedDbService {
     }
   }
 
+  // Simpan / update 1 transaksi aktif tanpa menghapus transaksi lainnya di IndexedDB
+  static async putSingleActiveTransaksi(laundryId: string, trx: Transaksi): Promise<void> {
+    try {
+      const db = await this.getDB();
+      const tx = db.transaction('transaksi_aktif', 'readwrite');
+      const store = tx.objectStore('transaksi_aktif');
+
+      if (trx.status === 'Diambil') {
+        store.delete(trx.id);
+      } else {
+        store.put({ ...trx, laundryId });
+      }
+
+      await new Promise<void>((resolve, reject) => {
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    } catch (e) {
+      console.warn('Gagal put single active trx ke IndexedDB:', e);
+    }
+  }
+
   static async getActiveTransaksi(laundryId: string): Promise<Transaksi[]> {
     try {
       const db = await this.getDB();

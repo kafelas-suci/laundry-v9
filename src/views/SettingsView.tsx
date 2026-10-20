@@ -131,12 +131,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     }
   };
 
-  // Toggle Features State
-  const [pemasukanManual, setPemasukanManual] = useState(settings.pemasukanManualEnabled);
-  const [estimasiPerItem, setEstimasiPerItem] = useState(settings.estimasiDisplayMode === 0);
-  const [waNotification, setWaNotification] = useState(settings.waNotificationEnabled);
-  const [selesaikanOtomatis, setSelesaikanOtomatis] = useState(settings.selesaikanSaatDitugaskan);
-  const [ambilTanpaSelesai, setAmbilTanpaSelesai] = useState(settings.pengambilanTanpaSelesai);
+  // Toggle Features State (Hanya fitur yang benar-benar aktif & berdampak)
+  const [waNotification, setWaNotification] = useState(settings.waNotificationEnabled ?? true);
+  const [selesaikanOtomatis, setSelesaikanOtomatis] = useState(settings.selesaikanSaatDitugaskan ?? true);
   const [tampilkanAmbilNotaLama, setTampilkanAmbilNotaLama] = useState(settings.tampilkanTombolAmbilNotaLama ?? true);
   const [hitungKerjaStaf, setHitungKerjaStaf] = useState(settings.hitungKerjaStaf ?? true);
 
@@ -171,15 +168,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const handleSaveFeatureSettings = () => {
     onUpdateSettings({
       ...settings,
-      pemasukanManualEnabled: pemasukanManual,
-      estimasiDisplayMode: estimasiPerItem ? 0 : 1,
+      pemasukanManualEnabled: true,
+      estimasiDisplayMode: 0,
+      pengambilanTanpaSelesai: true,
       waNotificationEnabled: waNotification,
       selesaikanSaatDitugaskan: selesaikanOtomatis,
-      pengambilanTanpaSelesai: ambilTanpaSelesai,
       tampilkanTombolAmbilNotaLama: tampilkanAmbilNotaLama,
       hitungKerjaStaf: hitungKerjaStaf,
       poinSystemEnabled: false,
     });
+    StorageService.set('has_customized_settings', true);
     setShowFeatureSettingsModal(false);
     toast.success('Pengaturan fitur aplikasi berhasil disimpan!');
   };
@@ -448,11 +446,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             <button
               type="button"
               onClick={() => {
-                setPemasukanManual(settings.pemasukanManualEnabled);
-                setEstimasiPerItem(settings.estimasiDisplayMode === 0);
-                setWaNotification(settings.waNotificationEnabled);
-                setSelesaikanOtomatis(settings.selesaikanSaatDitugaskan);
-                setAmbilTanpaSelesai(settings.pengambilanTanpaSelesai);
+                setWaNotification(settings.waNotificationEnabled ?? true);
+                setSelesaikanOtomatis(settings.selesaikanSaatDitugaskan ?? true);
                 setTampilkanAmbilNotaLama(settings.tampilkanTombolAmbilNotaLama ?? true);
                 setHitungKerjaStaf(settings.hitungKerjaStaf ?? true);
                 setShowFeatureSettingsModal(true);
@@ -465,7 +460,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </div>
                 <div className="min-w-0">
                   <div className="text-xs font-bold text-slate-900">Pengaturan Fitur & Kebijakan</div>
-                  <div className="text-[11px] text-slate-500 truncate">Notifikasi WA, kas manual, dan alur nota</div>
+                  <div className="text-[11px] text-slate-500 truncate">Notifikasi WA, alur pengerjaan, dan beban staf</div>
                 </div>
               </div>
               <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 ml-2" />
@@ -718,62 +713,38 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </div>
 
             <div className="space-y-3 text-xs">
-              <label className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 bg-slate-50 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={pemasukanManual}
-                  onChange={(e) => setPemasukanManual(e.target.checked)}
-                  className="w-4 h-4 accent-[#800000]"
-                />
-                <span className="font-bold text-slate-800">● Aktifkan Catat Pemasukan Manual</span>
-              </label>
-
-              <label className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 bg-slate-50 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={estimasiPerItem}
-                  onChange={(e) => setEstimasiPerItem(e.target.checked)}
-                  className="w-4 h-4 accent-[#800000]"
-                />
-                <span className="font-bold text-slate-800">
-                  ● Tampilkan estimasi selesai pada setiap item layanan
-                </span>
-              </label>
-
-              <label className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 bg-slate-50 cursor-pointer">
+              <label className="flex items-start gap-3 p-3 rounded-xl border border-slate-200 bg-slate-50 cursor-pointer hover:bg-slate-100 transition">
                 <input
                   type="checkbox"
                   checked={waNotification}
                   onChange={(e) => setWaNotification(e.target.checked)}
-                  className="w-4 h-4 accent-[#800000]"
+                  className="w-4 h-4 accent-[#800000] mt-0.5 cursor-pointer"
                 />
-                <span className="font-bold text-slate-800">
-                  ● Konfirmasi kirim pesan WhatsApp saat cucian selesai
-                </span>
+                <div>
+                  <span className="font-bold text-slate-800 text-xs block">
+                    ● Konfirmasi kirim pesan WhatsApp saat cucian selesai
+                  </span>
+                  <span className="text-[11px] text-slate-500 block mt-0.5 leading-relaxed">
+                    Membuka konfirmasi kirim pesan WA ke pelanggan otomatis ketika status pesanan diubah ke Selesai.
+                  </span>
+                </div>
               </label>
 
-              <label className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 bg-slate-50 cursor-pointer">
+              <label className="flex items-start gap-3 p-3 rounded-xl border border-slate-200 bg-slate-50 cursor-pointer hover:bg-slate-100 transition">
                 <input
                   type="checkbox"
                   checked={selesaikanOtomatis}
                   onChange={(e) => setSelesaikanOtomatis(e.target.checked)}
-                  className="w-4 h-4 accent-[#800000]"
+                  className="w-4 h-4 accent-[#800000] mt-0.5 cursor-pointer"
                 />
-                <span className="font-bold text-slate-800">
-                  ● Selesaikan status pengerjaan otomatis saat ditugaskan
-                </span>
-              </label>
-
-              <label className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 bg-slate-50 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={ambilTanpaSelesai}
-                  onChange={(e) => setAmbilTanpaSelesai(e.target.checked)}
-                  className="w-4 h-4 accent-[#800000]"
-                />
-                <span className="font-bold text-slate-800">
-                  ● Izinkan ambil cucian tanpa menunggu status selesai
-                </span>
+                <div>
+                  <span className="font-bold text-slate-800 text-xs block">
+                    ● Selesaikan status pengerjaan otomatis saat ditugaskan
+                  </span>
+                  <span className="text-[11px] text-slate-500 block mt-0.5 leading-relaxed">
+                    Saat staf pengerjaan dipilih/ditugaskan, pesanan langsung ditandai Selesai (cocok untuk alur kerja cepat 1 langkah).
+                  </span>
+                </div>
               </label>
 
               <label className="flex items-start gap-3 p-3 rounded-xl border border-amber-200 bg-amber-50/50 cursor-pointer">

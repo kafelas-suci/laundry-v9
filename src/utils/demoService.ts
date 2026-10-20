@@ -72,7 +72,7 @@ export const demoSettings: SettingsData = {
   pengambilanTanpaSelesai: true,
   tampilkanTombolCetak: true,
   tampilkanRincianBayar: true,
-  selesaikanSaatDitugaskan: false,
+  selesaikanSaatDitugaskan: true,
   poinSystemEnabled: false,
   rupiahPerPoin: 10,
   nilaiTukarPoin: 1,

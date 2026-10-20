@@ -84,7 +84,14 @@ type ViewType =
 export default function App() {
   const toast = useToast();
   // Application State
-  const [activeView, setActiveView] = useState<ViewType>('splash');
+  const [activeView, setActiveView] = useState<ViewType>(() => {
+    const hasSeenSplash = typeof window !== 'undefined' && sessionStorage.getItem('has_seen_splash');
+    const storedUser = StorageService.get<User | null>('active_user', null);
+    if (hasSeenSplash) {
+      return storedUser ? 'dashboard' : 'auth';
+    }
+    return 'splash';
+  });
   const [isDemoMode, setIsDemoMode] = useState<boolean>(() =>
     StorageService.get<boolean>('is_demo_mode', false)
   );
@@ -93,13 +100,31 @@ export default function App() {
     StorageService.get<User | null>('active_user', null)
   );
 
-  const [settings, setSettings] = useState<SettingsData>(() =>
-    StorageService.get<SettingsData>('settings', defaultSettings)
-  );
+  const [settings, setSettings] = useState<SettingsData>(() => {
+    const raw = StorageService.get<SettingsData>('settings', defaultSettings);
+    const hasCustomized = StorageService.get<boolean>('has_customized_settings', false);
+    if (!hasCustomized && raw && raw.selesaikanSaatDitugaskan === false) {
+      const updated = { ...defaultSettings, ...raw, selesaikanSaatDitugaskan: true };
+      StorageService.set('settings', updated);
+      return updated;
+    }
+    return {
+      ...defaultSettings,
+      ...raw,
+      selesaikanSaatDitugaskan: raw?.selesaikanSaatDitugaskan ?? true,
+    };
+  });
 
-  const [laundries, setLaundries] = useState<Laundry[]>(() =>
-    StorageService.get<Laundry[]>('laundries', [])
-  );
+  const [laundries, setLaundries] = useState<Laundry[]>(() => {
+    const raw = StorageService.get<Laundry[]>('laundries', []);
+    const isDemo = StorageService.get<boolean>('is_demo_mode', false);
+    const user = StorageService.get<User | null>('active_user', null);
+    if (!isDemo && user && user.uid && !user.uid.startsWith('demo')) {
+      const filtered = raw.filter(l => l.id !== 'lnd-1' && l.id !== 'demo-lnd-1');
+      return filtered.length > 0 ? filtered : raw;
+    }
+    return raw;
+  });
 
   const [activeLaundryId, setActiveLaundryId] = useState<string>(() =>
     StorageService.get<string>('current_laundry_id', 'lnd-1')
@@ -390,16 +415,21 @@ export default function App() {
     }
   }, [activeView]);
 
-  // Active branch entity
-  const activeLaundry =
-    laundries.find((l) => l.id === activeLaundryId) ||
-    laundries[0] || {
-      id: 'lnd-1',
-      ownerId: 'own-1',
-      namaLaundry: settings.headerStruk || 'Kafelas Laundry',
+  // Active branch entity - selalu pastikan id konsisten dengan activeLaundryId
+  const activeLaundry = useMemo(() => {
+    const found = laundries.find((l) => l.id === activeLaundryId);
+    if (found) return found;
+    if (laundries.length > 0) {
+      return { ...laundries[0], id: activeLaundryId };
+    }
+    return {
+      id: activeLaundryId || 'lnd-1',
+      ownerId: currentUser?.uid || 'own-1',
+      namaLaundry: settings.headerStruk || "Kafela's Laundry",
       alamat: settings.address,
       nomorTelepon: settings.phoneNumber,
     };
+  }, [laundries, activeLaundryId, currentUser?.uid, settings.headerStruk, settings.address, settings.phoneNumber]);
 
   // Sync state helpers
   const updateSettings = (newSettings: SettingsData) => {
@@ -462,11 +492,25 @@ export default function App() {
 
     try {
       const userLaundries = await FirebaseSyncService.fetchLaundries(user.uid, laundries);
-      const targetLaundryId = userLaundries[0]?.id || user.laundryId || `lnd-${user.uid}`;
-      if (userLaundries.length > 0) {
-        updateLaundries(userLaundries);
+      const cleanLaundries = !isDemoMode && user && user.uid && !user.uid.startsWith('demo')
+        ? userLaundries.filter(l => l.id !== 'lnd-1' && l.id !== 'demo-lnd-1')
+        : userLaundries;
+      const finalLaundries = cleanLaundries.length > 0 ? cleanLaundries : userLaundries;
+      const targetLaundryId = finalLaundries[0]?.id || user.laundryId || `lnd-${user.uid}`;
+      if (finalLaundries.length > 0) {
+        updateLaundries(finalLaundries);
+      } else {
+        const defaultBranch: Laundry = {
+          id: targetLaundryId,
+          ownerId: user.uid,
+          namaLaundry: settings.headerStruk || user.displayName || (user as any).namaLaundry || "Kafela's Laundry",
+          alamat: settings.address || '',
+          nomorTelepon: settings.phoneNumber || user.nomorTelepon || '',
+        };
+        updateLaundries([defaultBranch]);
       }
       setActiveLaundryId(targetLaundryId);
+      StorageService.set('current_laundry_id', targetLaundryId);
 
       // 1. Delta Sync transaksi AKTIF saja (0 Reads jika sudah di-cache / tidak ada perubahan)
       const currentCachedTrx = transaksiList.length > 0 ? transaksiList : StorageService.get<Transaksi[]>('transaksi', []);
@@ -588,9 +632,11 @@ export default function App() {
         transaksiList.filter((t) => t.nomorTransaksi?.startsWith(dateKey)).length + 1;
       const newInvoice = `${dateKey}/${countToday}`;
 
+      const currentBranchId = data.laundryId || activeLaundryId || activeLaundry.id || 'lnd-1';
       const newTrx: Transaksi = {
         ...data,
         id: `trx-${now}`,
+        laundryId: currentBranchId,
         nomorTransaksi: newInvoice,
         tanggalPelunasan: data.statusPembayaran === 'Lunas' ? now : null,
         items,
@@ -1261,6 +1307,9 @@ export default function App() {
           <SplashView
             appName={settings.headerStruk || "Kafela's Laundry"}
             onFinish={() => {
+              if (typeof window !== 'undefined') {
+                sessionStorage.setItem('has_seen_splash', '1');
+              }
               if (currentUser) {
                 setActiveView('dashboard');
               } else {
@@ -1303,6 +1352,7 @@ export default function App() {
             settings={settings}
             currentUser={currentUser}
             activeLaundry={activeLaundry}
+            activeLaundryId={activeLaundryId}
             laundries={laundries}
             pengeluaranList={pengeluaranList}
             isMobile={isEffectiveMobile}
@@ -1346,6 +1396,11 @@ export default function App() {
                   updateTransaksiList(
                     transaksiList.map((t) => (t.id === trx.id ? updated : t))
                   );
+                  if (autoFinish) {
+                    toast.success(`Pesanan ${trx.nomorTransaksi || trx.namaPelanggan} selesai & siap diambil!`);
+                  } else {
+                    toast.success(`Pesanan ${trx.nomorTransaksi || trx.namaPelanggan} mulai dikerjakan!`);
+                  }
                 }
               } else if (trx.status === 'Proses') {
                 const updated = {
@@ -1356,6 +1411,7 @@ export default function App() {
                 updateTransaksiList(
                   transaksiList.map((t) => (t.id === trx.id ? updated : t))
                 );
+                toast.success(`Pesanan ${trx.nomorTransaksi || trx.namaPelanggan} selesai & siap diambil!`);
               }
             }}
             onAmbilTransaksi={handleAmbilTransaksi}

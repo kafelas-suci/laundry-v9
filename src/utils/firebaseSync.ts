@@ -25,7 +25,6 @@ import { defaultLayananList, defaultSettings, StorageService } from './storage';
 import { IndexedDbService } from './indexedDb';
 
 export class FirebaseSyncService {
-  // 1. Get or create user profile (Hemat Kuota: Cek cache lokal terlebih dahulu)
   static async getOrCreateUserProfile(firebaseUser: {
     uid: string;
     email?: string | null;
@@ -34,12 +33,6 @@ export class FirebaseSyncService {
     username?: string | null;
     namaLaundry?: string | null;
   }): Promise<User> {
-    // Cek cache lokal
-    const cachedUser = StorageService.get<User | null>('active_user', null);
-    if (cachedUser && cachedUser.uid === firebaseUser.uid) {
-      return cachedUser;
-    }
-
     const defaultLaundryId = `lnd-${firebaseUser.uid}`;
     const branchName = firebaseUser.namaLaundry?.trim() || firebaseUser.displayName?.trim() || "Laundry";
     const userName = firebaseUser.displayName?.trim() || firebaseUser.username?.trim() || 'Owner';
@@ -120,24 +113,30 @@ export class FirebaseSyncService {
     }
   }
 
-  // 2. Fetch Laundries for User (0 Reads jika sudah ada di cache)
+  // 2. Fetch Laundries for User (Strict ownerId validation)
   static async fetchLaundries(ownerId: string, cached: Laundry[] = []): Promise<Laundry[]> {
     if (!auth.currentUser) {
-      return cached;
+      return cached.filter((l) => l.ownerId === ownerId);
     }
-    if (cached && cached.length > 0 && cached.some((l) => l.ownerId === ownerId || l.id)) {
-      return cached;
+    const validCached = cached.filter((l) => l.ownerId === ownerId);
+    if (validCached.length > 0) {
+      return validCached;
     }
     const laundriesRef = collection(db, 'laundries');
     try {
       const q = query(laundriesRef, where('ownerId', '==', ownerId), limit(10));
       const snap = await getDocs(q);
       const list: Laundry[] = [];
-      snap.forEach((d) => list.push(d.data() as Laundry));
+      snap.forEach((d) => {
+        const data = d.data() as Laundry;
+        if (data.ownerId === ownerId) {
+          list.push(data);
+        }
+      });
       return list;
     } catch (e) {
       console.warn('Gagal fetch laundries dari server, gunakan cache:', e);
-      return cached;
+      return cached.filter((l) => l.ownerId === ownerId);
     }
   }
 
@@ -459,7 +458,7 @@ export class FirebaseSyncService {
     if (trx.status === 'Diambil') {
       IndexedDbService.moveToArchive(trx.laundryId, payload).catch(console.error);
     } else {
-      IndexedDbService.saveActiveTransaksi(trx.laundryId, [payload]).catch(console.error);
+      IndexedDbService.putSingleActiveTransaksi(trx.laundryId, payload).catch(console.error);
     }
 
     // Jika user belum login dengan Firebase Auth, simpan lokal saja (tidak memicu permission error)
@@ -487,13 +486,9 @@ export class FirebaseSyncService {
     }
   }
 
-  // 8. FETCH PELANGGAN DENGAN SMART CACHING (0 Reads jika sudah ada)
+  // 8. FETCH PELANGGAN LANGSUNG DARI SERVER (Multi-user sync)
   static async fetchPelanggan(laundryId: string, cached: Pelanggan[] = []): Promise<Pelanggan[]> {
     if (!auth.currentUser) {
-      return cached;
-    }
-    const lastSync = StorageService.get<number>(`last_sync_pel_${laundryId}`, 0);
-    if (cached && cached.length > 0 && Date.now() - lastSync < 30 * 60 * 1000) {
       return cached;
     }
     const path = `laundries/${laundryId}/pelanggan`;
@@ -502,7 +497,6 @@ export class FirebaseSyncService {
       const snap = await getDocs(q);
       const list: Pelanggan[] = [];
       snap.forEach((d) => list.push(d.data() as Pelanggan));
-      StorageService.set(`last_sync_pel_${laundryId}`, Date.now());
       return list;
     } catch (e) {
       console.warn('Gagal fetch pelanggan:', e);
@@ -522,13 +516,9 @@ export class FirebaseSyncService {
     }
   }
 
-  // 9. FETCH LAYANAN DENGAN SMART CACHING
+  // 9. FETCH LAYANAN LANGSUNG DARI SERVER (Multi-user sync)
   static async fetchLayanan(laundryId: string, cached: Layanan[] = []): Promise<Layanan[]> {
     if (!auth.currentUser) {
-      return cached;
-    }
-    const lastSync = StorageService.get<number>(`last_sync_lay_${laundryId}`, 0);
-    if (cached && cached.length > 0 && Date.now() - lastSync < 30 * 60 * 1000) {
       return cached;
     }
     const path = `laundries/${laundryId}/layanan`;
@@ -536,7 +526,6 @@ export class FirebaseSyncService {
       const snap = await getDocs(collection(db, path));
       const list: Layanan[] = [];
       snap.forEach((d) => list.push(d.data() as Layanan));
-      StorageService.set(`last_sync_lay_${laundryId}`, Date.now());
       return list.sort((a, b) => a.urutan - b.urutan);
     } catch (e) {
       console.warn('Gagal fetch layanan:', e);
@@ -568,13 +557,9 @@ export class FirebaseSyncService {
     }
   }
 
-  // 10. FETCH PENGELUARAN DENGAN SMART CACHING
+  // 10. FETCH PENGELUARAN LANGSUNG DARI SERVER (Multi-user sync)
   static async fetchPengeluaran(laundryId: string, cached: Pengeluaran[] = []): Promise<Pengeluaran[]> {
     if (!auth.currentUser) {
-      return cached;
-    }
-    const lastSync = StorageService.get<number>(`last_sync_peng_${laundryId}`, 0);
-    if (cached && cached.length > 0 && Date.now() - lastSync < 30 * 60 * 1000) {
       return cached;
     }
     const path = `laundries/${laundryId}/pengeluaran`;
@@ -583,7 +568,6 @@ export class FirebaseSyncService {
       const snap = await getDocs(q);
       const list: Pengeluaran[] = [];
       snap.forEach((d) => list.push(d.data() as Pengeluaran));
-      StorageService.set(`last_sync_peng_${laundryId}`, Date.now());
       return list.sort((a, b) => b.tanggal - a.tanggal);
     } catch (e) {
       console.warn('Gagal fetch pengeluaran:', e);
@@ -603,20 +587,15 @@ export class FirebaseSyncService {
     }
   }
 
-  // 11. FETCH SETTINGS DENGAN SMART CACHING
+  // 11. FETCH SETTINGS LANGSUNG DARI SERVER (Multi-user sync)
   static async fetchSettings(laundryId: string, cached: SettingsData | null = null): Promise<SettingsData | null> {
     if (!auth.currentUser) {
-      return cached;
-    }
-    const lastSync = StorageService.get<number>(`last_sync_settings_${laundryId}`, 0);
-    if (cached && Date.now() - lastSync < 60 * 60 * 1000) {
       return cached;
     }
     const path = `laundries/${laundryId}/settings/main`;
     try {
       const snap = await getDoc(doc(db, 'laundries', laundryId, 'settings', 'main'));
       if (snap.exists()) {
-        StorageService.set(`last_sync_settings_${laundryId}`, Date.now());
         return snap.data() as SettingsData;
       }
       return cached;

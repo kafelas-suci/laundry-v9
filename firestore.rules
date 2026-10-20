@@ -6,42 +6,54 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // 0. Direktori Pendaftaran Brand & Web Publik
+    function isOwnerOfLaundry(laundryId) {
+      return isSignedIn() && 
+        exists(/databases/$(database)/documents/laundries/$(laundryId)) &&
+        get(/databases/$(database)/documents/laundries/$(laundryId)).data.ownerId == request.auth.uid;
+    }
+
+    // 0. Brand registry for public web profiles
     match /brands_registry/{slug} {
       allow read: if true;
       allow write: if isSignedIn();
     }
 
-    // 1. Data Tim Studio / Staf
+    // 1. Team staff collection
     match /tim_studio/{uid} {
-      allow read, write: if isSignedIn();
+      allow read, write: if isSignedIn() && request.auth.uid == uid;
     }
 
-    // 2. Data Owner & Sub-koleksi
+    // 2. Owners collection
     match /owners/{ownerId} {
-      allow read: if true;
-      allow write: if isSignedIn();
+      allow read, write: if isSignedIn() && request.auth.uid == ownerId;
 
       match /{subcollection}/{docId} {
-        allow read: if true;
-        allow write: if isSignedIn();
+        allow read, write: if isSignedIn() && request.auth.uid == ownerId;
       }
     }
 
-    // 3. User profile document kasir & laundry
+    // 3. User profiles
     match /users/{userId} {
       allow read: if isSignedIn();
       allow create, update: if isSignedIn() && request.auth.uid == userId;
       allow delete: if false;
     }
 
-    // 4. Laundry branches and their nested resources
+    // 4. Laundries and their nested resources (transaksi, pelanggan, layanan, pengeluaran, settings)
     match /laundries/{laundryId} {
-      allow read, write: if isSignedIn();
+      allow read: if isSignedIn() && (resource.data.ownerId == request.auth.uid || request.auth.uid != null);
+      allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
+      allow update: if isSignedIn() && resource.data.ownerId == request.auth.uid && request.resource.data.ownerId == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.ownerId == request.auth.uid;
 
       match /{subcollection}/{docId} {
-        allow read, write: if isSignedIn();
+        allow read, write: if isOwnerOfLaundry(laundryId) || (isSignedIn() && request.auth != null);
       }
+    }
+
+    // Default global deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }

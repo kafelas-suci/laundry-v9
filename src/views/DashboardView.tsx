@@ -172,21 +172,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     };
   }, [activeBranchTrx]);
 
-  // Tab 'Sedang Dikerjakan' disembunyikan jika alur langsung selesai diaktifkan dan tidak ada transaksi proses
+  // Alur langsung selesai (tanpa melalui status kuning / sedang dikerjakan):
+  // 1. Tab Jam Merah ('Baru Masuk') SELALU DITAMPILKAN
+  // 2. Tab 'Sedang Dikerjakan' (kuning) DIHILANGKAN jika opsi ini aktif (kecuali jika masih ada data cucian lama yang berstatus proses)
   const showSedangDikerjakanTab =
     !settings?.selesaikanSaatDitugaskan || filterCounts.sedangDikerjakan > 0;
-
-  // Filter jam merah ('Baru Masuk') juga disembunyikan jika tombol alur langsung selesai diaktifkan
-  const showBaruMasukTab = !settings?.selesaikanSaatDitugaskan;
+  const showBaruMasukTab = true;
 
   useEffect(() => {
     if (!showSedangDikerjakanTab && filterStatus === 'sedang_dikerjakan') {
       setFilterStatus('semua');
     }
-    if (!showBaruMasukTab && filterStatus === 'baru_masuk') {
-      setFilterStatus('semua');
-    }
-  }, [showSedangDikerjakanTab, showBaruMasukTab, filterStatus]);
+  }, [showSedangDikerjakanTab, filterStatus]);
 
   // Search & Status Filter
   const displayedTrx = useMemo(() => {
@@ -868,10 +865,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                                     <button
                                       type="button"
                                       onClick={() => onSelesaikanTransaksi(trx)}
-                                      title="Selesaikan & Siap Ambil"
-                                      className="px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold flex items-center gap-1.5 shadow-2xs active:scale-95 transition"
+                                      title="Langsung Selesai & Siap Ambil"
+                                      className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-2xs active:scale-95 transition"
                                     >
-                                      <Sparkles className="w-3.5 h-3.5" />
+                                      <CheckCircle className="w-3.5 h-3.5" />
                                       <span>Selesai</span>
                                     </button>
                                   ) : (
@@ -890,9 +887,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                                     type="button"
                                     onClick={() => onSelesaikanTransaksi(trx)}
                                     title="Tandai Selesai"
-                                    className="px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold flex items-center gap-1.5 shadow-2xs active:scale-95 transition"
+                                    className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-2xs active:scale-95 transition"
                                   >
-                                    <Sparkles className="w-3.5 h-3.5" />
+                                    <CheckCircle className="w-3.5 h-3.5" />
                                     <span>Selesai</span>
                                   </button>
                                 ) : (
@@ -1266,7 +1263,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     </button>
                   </div>
                 )}
-                <div className="grid grid-cols-2 gap-1 items-center">
+                <div className="flex grid grid-cols-2 gap-1 items-center">
                   {/* Kolom 1: Kolom Pencarian */}
                   <div className="relative w-full">
                     <input
@@ -1288,49 +1285,27 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     )}
                   </div>
 
-                  {/* Kolom 2: Tombol Filter */}
-                  <div className={`grid ${
-                    (showBaruMasukTab ? 1 : 1) + (showSedangDikerjakanTab ? 1 : 0) + 1 === 3
-                      ? 'grid-cols-3'
-                      : 'grid-cols-2'
-                  } gap-1 w-full`}>
-                    {/* Jika filter jam merah (Baru Masuk) disembunyikan, tampilkan tombol Semua agar di HP tetap ada filter Semua vs Selesai */}
-                    {!showBaruMasukTab && (
-                      <button
-                        type="button"
-                        onClick={() => setFilterStatus('semua')}
-                        className={`py-2 px-1 rounded-xl font-bold text-xs flex items-center justify-center gap-1 transition ${
-                          filterStatus === 'semua'
-                            ? 'bg-slate-800 text-white shadow-sm ring-2 ring-slate-300'
-                            : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
-                        }`}
-                      >
-                        <span className="text-[11px]">Semua</span>
-                        <span className="text-[10px] px-1 rounded-full font-black bg-slate-200 text-slate-800">
-                          {filterCounts.semua}
-                        </span>
-                      </button>
-                    )}
+                  {/* Kolom 2: Tombol Filter (Mobile) */}
+                  <div className={`grid ${showSedangDikerjakanTab ? 'grid-cols-3' : 'grid-cols-2'} gap-1 w-full`}>
+                  
 
                     {/* Tombol 1: Baru Masuk (Filter Jam Merah) */}
-                    {showBaruMasukTab && (
-                      <button
-                        type="button"
-                        onClick={() => setFilterStatus(filterStatus === 'baru_masuk' ? 'semua' : 'baru_masuk')}
-                        className={`py-2 px-1 rounded-xl font-bold text-xs flex items-center justify-center gap-1 transition ${
-                          filterStatus === 'baru_masuk'
-                            ? 'bg-rose-700 text-white shadow-sm ring-2 ring-rose-300'
-                            : 'bg-rose-50/80 hover:bg-rose-100 text-rose-800 border border-rose-200'
-                        }`}
-                      >
-                        <Clock className="w-3.5 h-3.5 shrink-0" />
-                        <span className="text-[10px] px-1 rounded-full font-black bg-rose-200 text-rose-900">
-                          {filterCounts.baruMasuk}
-                        </span>
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      onClick={() => setFilterStatus(filterStatus === 'baru_masuk' ? 'semua' : 'baru_masuk')}
+                      className={`py-2 px-1 rounded-xl font-bold text-xs flex items-center justify-center gap-1 transition ${
+                        filterStatus === 'baru_masuk'
+                          ? 'bg-rose-700 text-white shadow-sm ring-2 ring-rose-300'
+                          : 'bg-rose-50/80 hover:bg-rose-100 text-rose-800 border border-rose-200'
+                      }`}
+                    >
+                      <Clock className="w-3.5 h-3.5 shrink-0" />
+                      <span className="text-[10px] px-1 rounded-full font-black bg-rose-200 text-rose-900">
+                        {filterCounts.baruMasuk}
+                      </span>
+                    </button>
 
-                    {/* Tombol 2: Sedang Dikerjakan */}
+                    {/* Tombol 2: Sedang Dikerjakan (Kuning) - Disembunyikan saat alur langsung selesai */}
                     {showSedangDikerjakanTab && (
                       <button
                         type="button"
@@ -1348,7 +1323,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       </button>
                     )}
 
-                    {/* Tombol 3: Selesai */}
+                    {/* Tombol 3: Selesai / Siap Ambil (Centang Hijau) */}
                     <button
                       type="button"
                       onClick={() => setFilterStatus(filterStatus === 'selesai' ? 'semua' : 'selesai')}
@@ -1471,10 +1446,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                                   <button
                                     type="button"
                                     onClick={() => onSelesaikanTransaksi(trx)}
-                                    title="Selesaikan & Siap Ambil"
-                                    className="w-10 min-h-[20px] rounded-xl bg-amber-500 hover:bg-amber-600 text-white flex flex-col items-center justify-center gap-1 shadow-2xs active:scale-95 transition"
+                                    title="Langsung Selesai & Siap Ambil"
+                                    className="w-10 min-h-[20px] rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white flex flex-col items-center justify-center gap-1 shadow-2xs active:scale-95 transition"
                                   >
-                                    <Sparkles className="w-4 h-4" />
+                                    <CheckCircle className="w-4 h-4" />
                                   </button>
                                 ) : (
                                   <button
@@ -1491,9 +1466,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                                   type="button"
                                   onClick={() => onSelesaikanTransaksi(trx)}
                                   title="Tandai Selesai"
-                                  className="w-10 min-h-[20px] rounded-xl bg-amber-500 hover:bg-amber-600 text-white flex flex-col items-center justify-center gap-1 shadow-2xs active:scale-95 transition"
+                                  className="w-10 min-h-[20px] rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white flex flex-col items-center justify-center gap-1 shadow-2xs active:scale-95 transition"
                                 >
-                                  <Sparkles className="w-4 h-4" />
+                                  <CheckCircle className="w-4 h-4" />
                                 </button>
                               ) : (
                                 <button
@@ -1502,7 +1477,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                                   title="Ambil / Serahkan ke Pelanggan"
                                   className="w-10 min-h-[20px] rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white flex flex-col items-center justify-center gap-1 shadow-2xs active:scale-95 transition"
                                 >
-                                  <Truck className="w-4 h-4" />
+                                  <CheckCircle className="w-4 h-4" />
                                 </button>
                               )}
                             </div>

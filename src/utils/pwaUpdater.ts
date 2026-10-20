@@ -4,7 +4,7 @@ let swRegistration: ServiceWorkerRegistration | undefined;
 let updateSWFn: ((reloadPage?: boolean) => Promise<void>) | undefined;
 
 /**
- * Inisialisasi Service Worker PWA dengan pengecekan hemat (1 hari sekali)
+ * Inisialisasi Service Worker PWA tanpa auto-reload atau background interval
  */
 export function initPWA() {
   if (typeof window === 'undefined') return;
@@ -13,18 +13,9 @@ export function initPWA() {
     immediate: true,
     onRegisteredSW(_swUrl, registration) {
       swRegistration = registration;
-      if (registration) {
-        // Pengecekan otomatis hanya 1 hari sekali (24 jam = 86.400.000 ms) agar sangat hemat kuota & baterai
-        setInterval(() => {
-          registration.update().catch(() => {});
-        }, 24 * 60 * 60 * 1000);
-      }
     },
     onNeedRefresh() {
-      // Saat versi baru terdeteksi, aktifkan dan muat versi terbaru
-      if (updateSWFn) {
-        updateSWFn(true);
-      }
+      // Tidak melakukan auto-reload otomatis sesuai permintaan pengguna
     },
   });
 }
@@ -49,26 +40,12 @@ export async function checkAppUpdateManually(): Promise<{ hasUpdate: boolean; me
       };
     }
 
-    // Minta browser memverifikasi versi terbaru ke server
     await reg.update();
 
     if (reg.waiting) {
-      if (updateSWFn) {
-        await updateSWFn(true);
-      } else {
-        reg.waiting.postMessage({ type: 'SKIP_WAITING' });
-        window.location.reload();
-      }
       return {
         hasUpdate: true,
-        message: 'Versi baru ditemukan! Aplikasi sedang disegarkan ke versi terbaru...',
-      };
-    }
-
-    if (reg.installing) {
-      return {
-        hasUpdate: true,
-        message: 'Versi baru sedang diunduh di latar belakang. Silakan buka kembali sesaat lagi.',
+        message: 'Versi baru tersedia. Silakan refresh halaman jika ingin memperbarui.',
       };
     }
 
