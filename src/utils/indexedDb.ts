@@ -134,6 +134,95 @@ export class IndexedDbService {
     }
   }
 
+  // Ambil SEMUA transaksi cabang (baik aktif maupun diambil/arsip) tanpa ada yang terhapus
+  static async getAllLaundryTransaksi(laundryId: string): Promise<Transaksi[]> {
+    try {
+      const db = await this.getDB();
+      const tx = db.transaction(['transaksi_aktif', 'transaksi_arsip'], 'readonly');
+      const storeAktif = tx.objectStore('transaksi_aktif');
+      const storeArsip = tx.objectStore('transaksi_arsip');
+
+      const reqAktif = storeAktif.index('laundryId').getAll(IDBKeyRange.only(laundryId));
+      const reqArsip = storeArsip.index('laundryId').getAll(IDBKeyRange.only(laundryId));
+
+      return new Promise<Transaksi[]>((resolve) => {
+        let listAktif: Transaksi[] = [];
+        let listArsip: Transaksi[] = [];
+        let doneAktif = false;
+        let doneArsip = false;
+
+        const tryFinish = () => {
+          if (doneAktif && doneArsip) {
+            const map = new Map<string, Transaksi>();
+            listArsip.forEach((t) => map.set(t.id, t));
+            listAktif.forEach((t) => map.set(t.id, t));
+            const all = Array.from(map.values()).sort(
+              (a, b) => b.tanggalMasuk - a.tanggalMasuk
+            );
+            resolve(all);
+          }
+        };
+
+        reqAktif.onsuccess = () => {
+          listAktif = (reqAktif.result || []) as Transaksi[];
+          doneAktif = true;
+          tryFinish();
+        };
+        reqAktif.onerror = () => {
+          doneAktif = true;
+          tryFinish();
+        };
+
+        reqArsip.onsuccess = () => {
+          listArsip = (reqArsip.result || []) as Transaksi[];
+          doneArsip = true;
+          tryFinish();
+        };
+        reqArsip.onerror = () => {
+          doneArsip = true;
+          tryFinish();
+        };
+      });
+    } catch (e) {
+      console.warn('Gagal getAllLaundryTransaksi dari IndexedDB:', e);
+      return [];
+    }
+  }
+
+  // Simpan kumpulan transaksi secara aman (aktif ke transaksi_aktif, diambil ke transaksi_arsip)
+  static async saveAllTransaksi(laundryId: string, list: Transaksi[]): Promise<void> {
+    try {
+      const db = await this.getDB();
+      const tx = db.transaction(['transaksi_aktif', 'transaksi_arsip'], 'readwrite');
+      const storeAktif = tx.objectStore('transaksi_aktif');
+      const storeArsip = tx.objectStore('transaksi_arsip');
+
+      list.forEach((trx) => {
+        if (trx.status === 'Diambil') {
+          const time = trx.tanggalPengambilan || trx.tanggalMasuk || Date.now();
+          const monthKey = this.getMonthKey(time);
+          storeArsip.put({
+            ...trx,
+            laundryId,
+            monthKey,
+            status: 'Diambil',
+            tanggalPengambilan: time,
+          });
+          storeAktif.delete(trx.id);
+        } else {
+          storeAktif.put({ ...trx, laundryId });
+        }
+      });
+
+      await new Promise<void>((resolve, reject) => {
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    } catch (e) {
+      console.warn('Gagal saveAllTransaksi ke IndexedDB:', e);
+    }
+  }
+
   // --- ARCHIVE TRANSACTIONS ---
   static async saveArchiveTransaksi(laundryId: string, list: Transaksi[]): Promise<void> {
     try {

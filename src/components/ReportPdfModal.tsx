@@ -371,6 +371,37 @@ export const ReportPdfModal: React.FC<ReportPdfModalProps> = ({
                   </table>
                 </div>
               </div>
+
+              {/* 5. Rekapitulasi Kinerja Staf & Operator */}
+              {data.staffList && data.staffList.length > 0 && (
+                <div>
+                  <h3 className="text-xs font-black uppercase text-[#800000] border-b border-slate-300 pb-1 mb-2">
+                    5. Rekapitulasi Kinerja Staf &amp; Operator
+                  </h3>
+                  <table className="w-full text-xs border border-slate-300 border-collapse">
+                    <thead>
+                      <tr className="bg-slate-100 border-b border-slate-300 font-bold text-slate-800">
+                        <th className="p-1.5 text-left">Nama Staf / Kasir</th>
+                        <th className="p-1.5 text-center">Total Order</th>
+                        <th className="p-1.5 text-center">Volume (Kg/Unit)</th>
+                        <th className="p-1.5 text-right">Nilai Dikelola (Rp)</th>
+                        <th className="p-1.5 text-center">Selesai / Lunas</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.staffList.slice(0, 6).map((staf, idx) => (
+                        <tr key={idx} className="border-b border-slate-200">
+                          <td className="p-1.5 font-bold text-slate-800">• {staf.nama}</td>
+                          <td className="p-1.5 text-center text-slate-700 tabular-nums">{staf.totalTrx} Order</td>
+                          <td className="p-1.5 text-center text-slate-700 tabular-nums">{staf.totalKg.toFixed(1)}</td>
+                          <td className="p-1.5 text-right font-semibold text-slate-900 tabular-nums">{formatRupiah(staf.totalOmzet)}</td>
+                          <td className="p-1.5 text-center font-bold text-emerald-700 tabular-nums">{staf.countSelesai}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
 
             {/* Lembar Tanda Tangan Pengesahan Dokumen */}

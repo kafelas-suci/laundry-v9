@@ -20,6 +20,8 @@ import {
   Clock,
   Crown,
   Lock,
+    Plus,
+
 } from 'lucide-react';
 import { SettingsData, User, Laundry } from '../types';
 import { PWAInstallButton } from '../components/PWAInstallButton';
@@ -230,54 +232,74 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       {/* 2. MAIN SCROLL CONTAINER */}
       <main className="flex-1 p-3.5 sm:p-5 space-y-4 overflow-y-auto max-w-xl md:max-w-2xl mx-auto w-full">
    {/* KARTU RINGKAS PROFIL OWNER, SALDO & KELOLA LANGGANAN */}
+   
 {/* KARTU RINGKAS PROFIL OWNER, SALDO & KELOLA LANGGANAN */}
         {(() => {
           const limits = getLaundryLimits(currentTier || currentUser.subscriptionType);
           const isNewcomer = limits.tier === 'newcomer';
 
           return (
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-3 space-y-2.5">
-              {/* Profil Header Compact */}
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-8 h-8 rounded-xl bg-[#800000] text-white flex items-center justify-center font-black text-xs shrink-0 shadow-xs">
-                    {(currentUser.displayName || 'O').charAt(0).toUpperCase()}
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <h2 className="font-extrabold text-xs text-slate-900 truncate">
-                        {currentUser.displayName || 'Owner Laundry'}
-                      </h2>
-                      <span
-                        className={`px-1.5 py-0.2 rounded-md border text-[9px] font-black uppercase tracking-wider shrink-0 ${
-                          isNewcomer
-                            ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                            : 'bg-sky-100 text-sky-800 border-sky-300'
-                        }`}
-                      >
-                        {limits.label}
-                      </span>
-                    </div>
-                    <p className="text-[10px] text-slate-400 truncate leading-tight mt-0.5">
-                      {currentUser.role === 'owner' ? 'Owner Utama' : 'Kasir Cabang'} • {currentUser.emailOrPhone || currentUser.nomorTelepon || (typeof activeLaundry.namaLaundry === 'object' ? (activeLaundry.namaLaundry as any)?.namaLaundry || "Kafela's Laundry" : activeLaundry.namaLaundry)}
-                    </p>
-                  </div>
-                </div>
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm px-3 py-2 space-y-1">
+<div className="flex items-center justify-between gap-2">
+  <div className="flex items-center gap-2.5 min-w-0 flex-1">
+    
+    {/* Tombol Edit Profil (Ikon Pensil di Kiri) */}
+    {isOwner ? (
+      <button
+        type="button"
+        onClick={() => {
+          setEditDisplayName(currentUser.displayName || '');
+          setEditNomorTelepon(currentUser.nomorTelepon || '');
+          setShowEditOwnerModal(true);
+        }}
+        title="Edit Profil"
+        className="w-8 h-8 rounded-xl bg-[#800000] hover:bg-[#660000] text-white flex items-center justify-center shrink-0 shadow-xs transition active:scale-95 cursor-pointer"
+      >
+        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+        </svg>
+      </button>
+    ) : (
+      <div className="w-8 h-8 rounded-xl bg-[#800000] text-white flex items-center justify-center font-black text-xs shrink-0 shadow-xs">
+        {(currentUser.displayName || 'O').charAt(0).toUpperCase()}
+      </div>
+    )}
 
-                {isOwner && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEditDisplayName(currentUser.displayName || '');
-                      setEditNomorTelepon(currentUser.nomorTelepon || '');
-                      setShowEditOwnerModal(true);
-                    }}
-                    className="py-1 px-2.5 rounded-lg border border-slate-200 text-slate-600 hover:text-slate-900 font-bold text-[10px] shrink-0 transition active:scale-95 cursor-pointer"
-                  >
-                    Edit Profil
-                  </button>
-                )}
-              </div>
+    {/* Detail Info Nama & Keterangan */}
+    <div className="min-w-0 flex-1">
+      <h2 className="font-extrabold text-xs text-slate-900 truncate">
+        {currentUser.displayName || 'Owner Laundry'}
+      </h2>
+
+      <p className="text-[10px] text-slate-400 truncate leading-tight mt-0.5">
+        {currentUser.role === 'owner' ? 'Owner Utama' : 'Kasir Cabang'} •{' '}
+        {currentUser.emailOrPhone ||
+          currentUser.nomorTelepon ||
+          (typeof activeLaundry?.namaLaundry === 'object'
+            ? (activeLaundry.namaLaundry as any)?.namaLaundry || "Kafela's Laundry"
+            : activeLaundry?.namaLaundry || "Kafela's Laundry")}
+      </p>
+    </div>
+  </div>
+
+  {/* Sisa Hari & Badge Paket (Ditata Vertikal di Ujung Kanan agar Proporsional) */}
+  <div className="flex flex-col items-end shrink-0 text-right gap-0.5">
+    {/* Sisa Hari */}
+    <div className="text-xl font-bold leading-none">
+      {isNewcomer ? (
+        <span className="text-emerald-700 font-extrabold">Aktif (Gratis)</span>
+      ) : sisaHari > 0 ? (
+        <span className={sisaHari <= 5 ? 'text-amber-700 font-black' : 'text-slate-800 font-black'}>
+          {sisaHari} <span className="text-[12px] font-semibold text-slate-500 font-sans">Hari</span>
+        </span>
+      ) : (
+        <span className="text-rose-700 font-black">Habis (0 Hari)</span>
+      )}
+    </div>
+
+  </div>
+</div>
+              
 
               {/* Strip Saldo Berani & Terhubung ke Tombol */}
               <div className="border-t border-slate-100 pt-0 flex items-center justify-between gap-2">
@@ -290,7 +312,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   <span className="text-base sm:text-lg font-black text-[#800000] font-mono tracking-tight tabular-nums truncate">
                     {formatRupiah(currentUser.walletBalance || 0)}
                   </span>
+                  
+                  
                 </div>
+
+                
 
                 {/* Tombol Aksi Tambah Saldo Langsung */}
                 {isOwner && (
@@ -308,6 +334,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </div>
           );
         })()}
+
+        
 
         {/* SECTION 1: MANAJEMEN OUTLET & KASIR (Owner Only) */}
         {isOwner && (

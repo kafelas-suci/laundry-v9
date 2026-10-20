@@ -1,0 +1,6 @@
+{
+  "summary": "Rencana arsitektur perbaikan menyeluruh sinkronisasi data transaksi anti-hilang dan real-time multi-user untuk Kafelas Laundry:\n1. Memperbaiki bug kritis penimpaan transaksi: Menghentikan pembersihan data transaksi 'Diambil' dari state utama dan localStorage sehingga seluruh riwayat keuangan di Laporan, Buku Kas, dan ringkasan Dashboard tidak pernah hilang.\n2. Sinkronisasi Real-Time Multi-User (Firestore onSnapshot): Menggantikan sinkronisasi manual/cooldown 3 menit dengan listener real-time pada transaksi cabang aktif agar perubahan di HP kasir langsung muncul seketika di HP kasir lain dan owner.\n3. Arsitektur Dual-Layer Cache & Persistence (Local IndexedDB + Cloud Firestore): Menjamin data tetap aman saat offline dan langsung tersinkron saat online tanpa risiko duplikasi atau data hilang.\n4. Penjaminan Eksistensi Dokumen Cabang (Laundries) di Firestore agar tidak memicu permission-denied.\n5. Indikator status sinkronisasi cloud real-time di UI untuk transparansi multi-user.",
+  "updatedAt": "2026-10-20T08:56:20.502944170Z",
+  "requestFeedback": true,
+  "userFacing": true
+}

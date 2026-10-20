@@ -10,6 +10,7 @@ import {
   orderBy,
   where,
   limit,
+  onSnapshot,
 } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../firebase';
 import {
@@ -157,9 +158,110 @@ export class FirebaseSyncService {
     }
   }
 
-  // 3. FETCH TRANSAKSI AKTIF (HEMAT KUOTA MAKSIMAL)
-  // Hanya mengambil transaksi yang BELUM DIAMBIL (status != 'Diambil')
-  // Transaksi arsip 1000+ dokumen TIDAK AKAN PERNAH tersentuh saat startup/reload!
+  // Helper parser dokumen transaksi seragam
+  static parseTransaksiDoc(id: string, laundryId: string, data: Partial<Transaksi>): Transaksi {
+    return {
+      id: data.id || id,
+      laundryId: data.laundryId || laundryId,
+      namaPelanggan: data.namaPelanggan || 'Pelanggan',
+      namaPelanggan_lowercase: data.namaPelanggan_lowercase || (data.namaPelanggan || 'Pelanggan').toLowerCase(),
+      totalHarga: typeof data.totalHarga === 'number' ? data.totalHarga : 0,
+      jumlahDp: typeof data.jumlahDp === 'number' ? data.jumlahDp : 0,
+      tanggalMasuk: typeof data.tanggalMasuk === 'number' ? data.tanggalMasuk : Date.now(),
+      tanggalSelesai: data.tanggalSelesai || null,
+      status: (data.status as any) || 'Diterima',
+      statusPembayaran: (data.statusPembayaran as any) || 'Belum Lunas',
+      items: Array.isArray(data.items) ? data.items : [],
+      nomorTransaksi: data.nomorTransaksi || null,
+      nomorTelepon: data.nomorTelepon || null,
+      alamat: data.alamat || null,
+      catatan: data.catatan || null,
+      metodePembayaran: data.metodePembayaran || null,
+      metodePembayaranDetail: data.metodePembayaranDetail || null,
+      dikerjakanOleh: data.dikerjakanOleh || null,
+      tanggalDitugaskan: data.tanggalDitugaskan || null,
+      tanggalStatusSelesai: data.tanggalStatusSelesai || null,
+      tanggalPengambilan: data.tanggalPengambilan || null,
+      tanggalPelunasan: data.tanggalPelunasan || null,
+      terakhirDieditPada: data.terakhirDieditPada || Date.now(),
+      isTransisi: data.isTransisi || false,
+      noNotaLama: data.noNotaLama || undefined,
+    };
+  }
+
+  // 3.0 SINKRONISASI REAL-TIME MULTI-USER (FIRESTORE ONSNAPSHOT)
+  // Setiap ada input transaksi baru dari Kasir A, HP Kasir B & Owner langsung terupdate otomatis!
+  static subscribeTransaksi(
+    laundryId: string,
+    onUpdate: (list: Transaksi[]) => void,
+    onError?: (error: any) => void
+  ): () => void {
+    if (!laundryId) return () => {};
+
+    const path = `laundries/${laundryId}/transaksi`;
+    if (!auth.currentUser) {
+      return () => {};
+    }
+
+    let unsub: (() => void) | null = null;
+    let isFallback = false;
+
+    const attachListener = (useOrderBy = true) => {
+      try {
+        const q = useOrderBy
+          ? query(collection(db, path), orderBy('tanggalMasuk', 'desc'), limit(300))
+          : query(collection(db, path), limit(300));
+
+        unsub = onSnapshot(
+          q,
+          (snapshot) => {
+            const list: Transaksi[] = [];
+            snapshot.forEach((d) => {
+              list.push(FirebaseSyncService.parseTransaksiDoc(d.id, laundryId, d.data() as Partial<Transaksi>));
+            });
+            list.sort((a, b) => b.tanggalMasuk - a.tanggalMasuk);
+
+            // Simpan otomatis ke IndexedDB & LocalStorage untuk cadangan offline
+            IndexedDbService.saveAllTransaksi(laundryId, list).catch(console.warn);
+
+            onUpdate(list);
+          },
+          (error) => {
+            console.warn('Firestore subscription onSnapshot error:', error);
+            if (useOrderBy && !isFallback) {
+              isFallback = true;
+              attachListener(false);
+            } else if (onError) {
+              onError(error);
+            }
+          }
+        );
+      } catch (e) {
+        console.warn('Gagal attach onSnapshot:', e);
+        if (useOrderBy && !isFallback) {
+          isFallback = true;
+          attachListener(false);
+        } else if (onError) {
+          onError(e);
+        }
+      }
+    };
+
+    attachListener(true);
+
+    return () => {
+      if (unsub) {
+        try {
+          unsub();
+        } catch {
+          // ignore
+        }
+      }
+    };
+  }
+
+  // 3.1 FETCH TRANSAKSI (ANTI-HILANG & FULL AUDIT RETENTION)
+  // Mengambil transaksi aktif dan riwayat terkini tanpa pernah menghapus transaksi 'Diambil'!
   static async fetchTransaksiAktif(
     laundryId: string,
     existingList: Transaksi[] = [],
@@ -167,21 +269,14 @@ export class FirebaseSyncService {
   ): Promise<Transaksi[]> {
     const path = `laundries/${laundryId}/transaksi`;
     const syncKey = `last_sync_active_trx_${laundryId}`;
-    const lastSync = StorageService.get<number>(syncKey, 0);
 
-    // 3.1 Coba baca dari IndexedDB lokal terlebih dahulu
-    let localList = existingList.filter((t) => t.laundryId === laundryId && t.status !== 'Diambil');
+    // Coba baca dari IndexedDB lokal terlebih dahulu (lengkap aktif + arsip)
+    let localList = existingList.filter((t) => t.laundryId === laundryId);
     if (localList.length === 0) {
-      const idbList = await IndexedDbService.getActiveTransaksi(laundryId);
+      const idbList = await IndexedDbService.getAllLaundryTransaksi(laundryId);
       if (idbList.length > 0) {
         localList = idbList;
       }
-    }
-
-    // Cooldown 3 menit: Jika sudah tersinkron baru saja dan tidak dipaksa, 0 READS FIRESTORE!
-    if (!forceFullSync && localList.length > 0 && lastSync > 0 && Date.now() - lastSync < 3 * 60 * 1000) {
-      console.log('⚡ Menggunakan Transaksi Aktif dari Cache Lokal (0 Reads Firestore)');
-      return localList;
     }
 
     if (!auth.currentUser) {
@@ -189,134 +284,59 @@ export class FirebaseSyncService {
     }
 
     try {
-      // 3.2 DELTA SYNC: Jika ada data lokal, hanya cari data yang berubah dalam rentang waktu terakhir
-      if (localList.length > 0 && lastSync > 0 && !forceFullSync) {
-        const cutoffTime = Math.max(0, lastSync - 120000);
-        const deltaQuery = query(
-          collection(db, path),
-          where('terakhirDieditPada', '>=', cutoffTime)
-        );
-
-        const snap = await getDocs(deltaQuery);
-        // Jika tidak ada yang diedit sejak sync terakhir: 0 DOKUMEN READS DITAMBAHKAN!
-        if (snap.empty) {
-          StorageService.set(syncKey, Date.now());
-          return localList;
-        }
-
-        const map = new Map<string, Transaksi>();
-        localList.forEach((t) => map.set(t.id, t));
-
-        snap.forEach((d) => {
-          const data = d.data() as Partial<Transaksi>;
-          const trxItem: Transaksi = {
-            id: data.id || d.id,
-            laundryId: data.laundryId || laundryId,
-            namaPelanggan: data.namaPelanggan || 'Pelanggan',
-            totalHarga: typeof data.totalHarga === 'number' ? data.totalHarga : 0,
-            jumlahDp: typeof data.jumlahDp === 'number' ? data.jumlahDp : 0,
-            tanggalMasuk: typeof data.tanggalMasuk === 'number' ? data.tanggalMasuk : Date.now(),
-            tanggalSelesai: data.tanggalSelesai || null,
-            status: (data.status as any) || 'Diterima',
-            statusPembayaran: (data.statusPembayaran as any) || 'Belum Lunas',
-            items: Array.isArray(data.items) ? data.items : [],
-            nomorTransaksi: data.nomorTransaksi || null,
-            nomorTelepon: data.nomorTelepon || null,
-            alamat: data.alamat || null,
-            catatan: data.catatan || null,
-            metodePembayaran: data.metodePembayaran || null,
-            metodePembayaranDetail: data.metodePembayaranDetail || null,
-            dikerjakanOleh: data.dikerjakanOleh || null,
-            tanggalStatusSelesai: data.tanggalStatusSelesai || null,
-            tanggalPengambilan: data.tanggalPengambilan || null,
-            tanggalPelunasan: data.tanggalPelunasan || null,
-            terakhirDieditPada: data.terakhirDieditPada || Date.now(),
-          };
-
-          // Jika statusnya sekarang sudah Diambil, pindahkan ke arsip lokal
-          if (trxItem.status === 'Diambil') {
-            map.delete(trxItem.id);
-            IndexedDbService.moveToArchive(laundryId, trxItem).catch(console.error);
-          } else {
-            map.set(trxItem.id, trxItem);
-          }
-        });
-
-        const updated = Array.from(map.values()).sort((a, b) => b.tanggalMasuk - a.tanggalMasuk);
-        StorageService.set(syncKey, Date.now());
-        IndexedDbService.saveActiveTransaksi(laundryId, updated).catch(console.error);
-        return updated;
-      }
-
-      // 3.3 COLD START / FIRST LOAD: HANYA QUERY TRANSAKSI AKTIF (STATUS IN ['Diterima', 'Proses', 'Selesai'])
-      // Mencegah query membaca 1000+ dokumen arsip!
       let snap;
       try {
-        const qActive = query(
+        const q = query(
           collection(db, path),
-          where('status', 'in', ['Diterima', 'Proses', 'Selesai']),
-          limit(250)
+          orderBy('tanggalMasuk', 'desc'),
+          limit(300)
         );
-        snap = await getDocs(qActive);
+        snap = await getDocs(q);
       } catch (err) {
-        // Fallback jika database belum ada index status: ambil query tanpa orderBy
+        // Fallback jika belum ter-index tanggalMasuk
         try {
-          const qFallback = query(collection(db, path), limit(150));
+          const qFallback = query(collection(db, path), limit(300));
           snap = await getDocs(qFallback);
         } catch (e2) {
-          console.warn('Fallback query error:', e2);
+          console.warn('Fallback getDocs error:', e2);
           return localList;
         }
       }
 
-      const activeList: Transaksi[] = [];
-      const archiveList: Transaksi[] = [];
+      const map = new Map<string, Transaksi>();
+      // Masukkan localList dulu agar tidak ada data yang tercecer
+      localList.forEach((t) => map.set(t.id, t));
 
+      // Timpa / tambahkan dari server Firestore
       snap.forEach((d) => {
-        const data = d.data() as Partial<Transaksi>;
-        const trxItem: Transaksi = {
-          id: data.id || d.id,
-          laundryId: data.laundryId || laundryId,
-          namaPelanggan: data.namaPelanggan || 'Pelanggan',
-          totalHarga: typeof data.totalHarga === 'number' ? data.totalHarga : 0,
-          jumlahDp: typeof data.jumlahDp === 'number' ? data.jumlahDp : 0,
-          tanggalMasuk: typeof data.tanggalMasuk === 'number' ? data.tanggalMasuk : Date.now(),
-          tanggalSelesai: data.tanggalSelesai || null,
-          status: (data.status as any) || 'Diterima',
-          statusPembayaran: (data.statusPembayaran as any) || 'Belum Lunas',
-          items: Array.isArray(data.items) ? data.items : [],
-          nomorTransaksi: data.nomorTransaksi || null,
-          nomorTelepon: data.nomorTelepon || null,
-          alamat: data.alamat || null,
-          catatan: data.catatan || null,
-          metodePembayaran: data.metodePembayaran || null,
-          metodePembayaranDetail: data.metodePembayaranDetail || null,
-          dikerjakanOleh: data.dikerjakanOleh || null,
-          tanggalStatusSelesai: data.tanggalStatusSelesai || null,
-          tanggalPengambilan: data.tanggalPengambilan || null,
-          tanggalPelunasan: data.tanggalPelunasan || null,
-          terakhirDieditPada: data.terakhirDieditPada || Date.now(),
-        };
-
-        if (trxItem.status === 'Diambil') {
-          archiveList.push(trxItem);
-        } else {
-          activeList.push(trxItem);
-        }
+        const trxItem = FirebaseSyncService.parseTransaksiDoc(d.id, laundryId, d.data() as Partial<Transaksi>);
+        map.set(trxItem.id, trxItem);
       });
 
-      // Simpan arsip yang kebetulan ikut terbawa ke IndexedDB arsip
-      if (archiveList.length > 0) {
-        IndexedDbService.saveArchiveTransaksi(laundryId, archiveList).catch(console.error);
-      }
-
-      const sortedActive = activeList.sort((a, b) => b.tanggalMasuk - a.tanggalMasuk);
+      const allList = Array.from(map.values()).sort((a, b) => b.tanggalMasuk - a.tanggalMasuk);
       StorageService.set(syncKey, Date.now());
-      IndexedDbService.saveActiveTransaksi(laundryId, sortedActive).catch(console.error);
-      return sortedActive;
+      IndexedDbService.saveAllTransaksi(laundryId, allList).catch(console.error);
+      return allList;
     } catch (e) {
-      console.warn('Gagal sync transaksi aktif dari cloud, menggunakan data lokal:', e);
+      console.warn('Gagal sync transaksi dari cloud, gunakan data lokal:', e);
       return localList.length > 0 ? localList : [];
+    }
+  }
+
+  // 3.2 PASTIKAN DOKUMEN CABANG TERDAFTAR DI FIRESTORE (Mencegah permission-denied)
+  static async saveLaundry(laundry: Laundry): Promise<void> {
+    if (!laundry || !laundry.id || !auth.currentUser) return;
+    try {
+      const branchRef = doc(db, 'laundries', laundry.id);
+      await setDoc(branchRef, {
+        id: laundry.id,
+        ownerId: laundry.ownerId || auth.currentUser.uid,
+        namaLaundry: laundry.namaLaundry || "Kafela's Laundry",
+        alamat: laundry.alamat || '',
+        nomorTelepon: laundry.nomorTelepon || '',
+      }, { merge: true });
+    } catch (e) {
+      console.warn('Gagal memastikan dokumen cabang di Firestore:', e);
     }
   }
 

@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx';
-import { Transaksi, Pengeluaran } from '../types';
+import { Transaksi, Pengeluaran, StaffPerformanceSummary } from '../types';
 import { formatReceiptDate } from './formatters';
 
 export interface LaporanSummaryExportData {
@@ -34,6 +34,7 @@ export interface LaporanSummaryExportData {
   serviceList: [string, number][];
   customerList: [string, number][];
   expenseList: [string, number][];
+  staffList?: StaffPerformanceSummary[];
   dailyRows: [string, { trxCount: number; masuk: number; keluar: number }][];
 }
 
@@ -218,6 +219,42 @@ export function exportLaporanToExcel(
   const wsServices = XLSX.utils.aoa_to_sheet([serviceHeader, ...serviceData]);
   wsServices['!cols'] = [{ wch: 30 }, { wch: 25 }];
   XLSX.utils.book_append_sheet(wb, wsServices, 'Rekap Layanan');
+
+  // SHEET KHUSUS: KINERJA STAF / KASIR
+  if (summary.staffList && summary.staffList.length > 0) {
+    const staffHeaders = [
+      'Peringkat',
+      'Nama Staf / Kasir',
+      'Total Order Ditangani',
+      'Total Volume (Kg/Unit)',
+      'Nilai Transaksi Dikelola (Rp)',
+      'Order Selesai / Diambil',
+      'Order Dalam Proses',
+      'Order Baru Masuk',
+    ];
+    const staffData = summary.staffList.map((staf, idx) => [
+      `#${idx + 1}`,
+      staf.nama,
+      staf.totalTrx,
+      Number((staf.totalKg || 0).toFixed(1)),
+      staf.totalOmzet,
+      staf.countSelesai,
+      staf.countProses,
+      staf.countDiterima,
+    ]);
+    const wsStaff = XLSX.utils.aoa_to_sheet([staffHeaders, ...staffData]);
+    wsStaff['!cols'] = [
+      { wch: 12 },
+      { wch: 26 },
+      { wch: 22 },
+      { wch: 24 },
+      { wch: 28 },
+      { wch: 24 },
+      { wch: 20 },
+      { wch: 18 },
+    ];
+    XLSX.utils.book_append_sheet(wb, wsStaff, 'Kinerja Staf');
+  }
 
   // 5. SHEET 5: REKAP HARIAN (DAILY BREAKDOWN)
   const dailyHeader = [

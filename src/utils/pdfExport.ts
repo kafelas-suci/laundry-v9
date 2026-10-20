@@ -1,5 +1,6 @@
 import { jsPDF } from 'jspdf';
 import { formatRupiah } from './formatters';
+import { StaffPerformanceSummary } from '../types';
 
 export interface LaporanPdfData {
   laundryName: string;
@@ -32,6 +33,7 @@ export interface LaporanPdfData {
   };
   serviceList: [string, number][];
   expenseList: [string, number][];
+  staffList?: StaffPerformanceSummary[];
 }
 
 /**
@@ -327,7 +329,34 @@ export function generateLaporanPdf(data: LaporanPdfData): string {
     y += 3.8;
   }
 
-  // 6. LEMBAR PENGESAHAN TANDA TANGAN
+  // 6. SEKSI: KINERJA STAF & OPERATOR CUCIAN (Jika ada)
+  if (Array.isArray(data.staffList) && data.staffList.length > 0 && y < 220) {
+    y += 2;
+    y = drawSectionHeader('4. REKAPITULASI KINERJA STAF & OPERATOR CUCIAN', y);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    doc.setTextColor(60, 60, 60);
+    doc.text('Nama Staf', margin + 2, y + 2.5);
+    doc.text('Total Order', margin + 70, y + 2.5, { align: 'center' });
+    doc.text('Volume (Kg/Unit)', margin + 115, y + 2.5, { align: 'center' });
+    doc.text('Nilai Dikelola', margin + contentWidth - 2, y + 2.5, { align: 'right' });
+    y += 4;
+
+    const topStaff = data.staffList.slice(0, 4);
+    topStaff.forEach((staf, idx) => {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.2);
+      doc.setTextColor(50, 50, 50);
+      const sName = staf.nama.length > 24 ? staf.nama.substring(0, 22) + '...' : staf.nama;
+      doc.text(`${idx + 1}. ${sName}`, margin + 2, y + 2.5);
+      doc.text(`${staf.totalTrx} Order (${staf.countSelesai} Selesai)`, margin + 70, y + 2.5, { align: 'center' });
+      doc.text(`${staf.totalKg.toFixed(1)} Kg`, margin + 115, y + 2.5, { align: 'center' });
+      doc.text(formatRupiah(staf.totalOmzet), margin + contentWidth - 2, y + 2.5, { align: 'right' });
+      y += 3.6;
+    });
+  }
+
+  // 7. LEMBAR PENGESAHAN TANDA TANGAN
   const sigY = Math.min(Math.max(y + 8, 235), pageHeight - 35);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);

@@ -186,3 +186,13 @@ export interface OperationalStaff {
   laundryId: string;
   nama: string;
 }
+
+export interface StaffPerformanceSummary {
+  nama: string;
+  totalTrx: number;
+  totalKg: number;
+  totalOmzet: number;
+  countSelesai: number;
+  countProses: number;
+  countDiterima: number;
+}

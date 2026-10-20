@@ -138,15 +138,51 @@ export default function App() {
     }));
   });
 
-  // Initialize sample data if first load and hydrate from IndexedDB
+  // Initialize sample data if first load and hydrate from IndexedDB (FULL DATASET: aktif + arsip)
   useEffect(() => {
     StorageService.initData();
-    IndexedDbService.getActiveTransaksi(activeLaundryId).then((idbList) => {
-      if (idbList && idbList.length > 0 && transaksiList.length === 0) {
-        setTransaksiList(idbList);
+    IndexedDbService.getAllLaundryTransaksi(activeLaundryId).then((idbList) => {
+      if (idbList && idbList.length > 0) {
+        setTransaksiList((prev) => {
+          if (prev.length === 0) return idbList;
+          const map = new Map<string, Transaksi>();
+          idbList.forEach((t) => map.set(t.id, t));
+          prev.forEach((t) => map.set(t.id, t));
+          return Array.from(map.values()).sort((a, b) => b.tanggalMasuk - a.tanggalMasuk);
+        });
       }
     }).catch(console.warn);
   }, [activeLaundryId]);
+
+  // Real-time Live Synchronization untuk Multi-User Kasir & Owner
+  useEffect(() => {
+    if (isDemoMode || !auth.currentUser || !activeLaundryId) return;
+
+    const unsubscribe = FirebaseSyncService.subscribeTransaksi(
+      activeLaundryId,
+      (liveList) => {
+        setTransaksiList((prev) => {
+          const map = new Map<string, Transaksi>();
+          // Gabungkan data lama di memori
+          prev.forEach((t) => map.set(t.id, t));
+          // Timpa / sisipkan pembaruan terbaru dari Firestore
+          liveList.forEach((t) => map.set(t.id, t));
+          const merged = Array.from(map.values()).sort(
+            (a, b) => b.tanggalMasuk - a.tanggalMasuk
+          );
+          StorageService.set('transaksi', merged);
+          return merged;
+        });
+      },
+      (err) => {
+        console.warn('Real-time sync listener error (tetap menggunakan cache lokal):', err);
+      }
+    );
+
+    return () => {
+      unsubscribe();
+    };
+  }, [activeLaundryId, isDemoMode, currentUser?.uid]);
 
   const [layananList, setLayananList] = useState<Layanan[]>(() =>
     StorageService.get<Layanan[]>('layanan', [])
@@ -461,6 +497,9 @@ export default function App() {
     }));
     setTransaksiList(safeList);
     StorageService.set('transaksi', safeList);
+    if (activeLaundryId) {
+      IndexedDbService.saveAllTransaksi(activeLaundryId, safeList).catch(console.warn);
+    }
   };
 
   const updatePengeluaranList = (newList: Pengeluaran[]) => {
@@ -488,21 +527,12 @@ export default function App() {
     StorageService.set('staff', newList);
   };
 
-  // Load real user and real Firestore data when authenticated (DENGAN PENGHEMATAN KUOTA OTOMATIS)
+  // Load real user and real Firestore data when authenticated
   const loadFirestoreData = async (user: User, forceSync = false) => {
     if (isDemoMode || !auth.currentUser) {
       return;
     }
-    // Cooldown Guard: Jika data lokal sudah ada dan baru saja tersinkron < 3 menit lalu,
-    // jangan panggil server Firestore berulang-ulang saat reload halaman!
     const now = Date.now();
-    const lastGlobalSync = StorageService.get<number>('last_global_sync', 0);
-    const hasLocalData = transaksiList.length > 0 || StorageService.get<Transaksi[]>('transaksi', []).length > 0;
-
-    if (!forceSync && hasLocalData && now - lastGlobalSync < 3 * 60 * 1000) {
-      console.log('⚡ Penghematan Kuota Aktif: Menggunakan cache lokal (0 Reads Firestore)');
-      return;
-    }
 
     try {
       const userLaundries = await FirebaseSyncService.fetchLaundries(user.uid, laundries, forceSync);
@@ -513,6 +543,7 @@ export default function App() {
       const targetLaundryId = finalLaundries[0]?.id || user.laundryId || `lnd-${user.uid}`;
       if (finalLaundries.length > 0) {
         updateLaundries(finalLaundries);
+        FirebaseSyncService.saveLaundry(finalLaundries[0]).catch(console.warn);
       } else {
         let initialName = settings.headerStruk;
         if (typeof initialName !== 'string' || !initialName.trim()) {
@@ -526,12 +557,13 @@ export default function App() {
           nomorTelepon: typeof settings.phoneNumber === 'string' ? settings.phoneNumber : (typeof user.nomorTelepon === 'string' ? user.nomorTelepon : ''),
         };
         updateLaundries([defaultBranch]);
+        FirebaseSyncService.saveLaundry(defaultBranch).catch(console.warn);
       }
       setActiveLaundryId(targetLaundryId);
       StorageService.set('current_laundry_id', targetLaundryId);
 
-      // 1. Delta Sync transaksi AKTIF saja
-      const currentCachedTrx = forceSync ? [] : (transaksiList.length > 0 ? transaksiList : StorageService.get<Transaksi[]>('transaksi', []));
+      // 1. Sync Transaksi (Lengkap: aktif + riwayat anti-hilang)
+      const currentCachedTrx = transaksiList.length > 0 ? transaksiList : StorageService.get<Transaksi[]>('transaksi', []);
       const trxs = await FirebaseSyncService.fetchTransaksiAktif(targetLaundryId, currentCachedTrx, forceSync);
       updateTransaksiList(trxs);
 
@@ -989,6 +1021,9 @@ export default function App() {
       nomorTelepon: telepon || null,
     };
     updateLaundries([...laundries, newLnd]);
+    if (!isDemoMode) {
+      FirebaseSyncService.saveLaundry(newLnd).catch(console.warn);
+    }
 
     // Copy services if requested
     if (copyFromId) {
@@ -1011,6 +1046,9 @@ export default function App() {
 
   const handleUpdateLaundry = (lnd: Laundry) => {
     updateLaundries(laundries.map((l) => (l.id === lnd.id ? lnd : l)));
+    if (!isDemoMode) {
+      FirebaseSyncService.saveLaundry(lnd).catch(console.warn);
+    }
   };
 
   const handleDeleteLaundry = (laundryId: string) => {

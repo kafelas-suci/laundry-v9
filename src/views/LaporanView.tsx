@@ -27,8 +27,9 @@ import {
   Activity,
   Info,
   Building2,
+  Users,
 } from 'lucide-react';
-import { Transaksi, Pengeluaran, SettingsData, Laundry } from '../types';
+import { Transaksi, Pengeluaran, SettingsData, Laundry, StaffPerformanceSummary } from '../types';
 import { formatRupiah, formatShortDate, formatReceiptDate, formatLocalDateKey, extractTransaksiCashInEntries } from '../utils/formatters';
 import { FirebaseSyncService } from '../utils/firebaseSync';
 import { StorageService, defaultSettings } from '../utils/storage';
@@ -75,7 +76,7 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
   const canGrowth = limits.canViewComparisonGrowth;
 
   const [activeTab, setActiveTab] = useState<'ringkasan' | 'komparasi' | 'cabang'>('ringkasan');
-  const [compareChartMode, setCompareChartMode] = useState<'batang' | 'tren' | 'layanan' | 'rasio'>('batang');
+  const [compareChartMode, setCompareChartMode] = useState<'batang' | 'tren' | 'layanan' | 'staf' | 'rasio'>('batang');
   const [trendMetric, setTrendMetric] = useState<'omzet' | 'uangMasuk' | 'trx'>('omzet');
   const [hoveredPointIndex, setHoveredPointIndex] = useState<number | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<number>(currentMonth); // 0-11, or -1 for All
@@ -167,9 +168,17 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
 
   // Collapsible section toggles
   const [expandLayanan, setExpandLayanan] = useState(true);
+  const [expandStaf, setExpandStaf] = useState(true);
   const [expandPengeluaran, setExpandPengeluaran] = useState(true);
   const [expandPelanggan, setExpandPelanggan] = useState(true);
   const [expandPelunasanLalu, setExpandPelunasanLalu] = useState(true);
+
+  // Toggle tampilkan semua baris (melebihi 3 baris teratas)
+  const [showAllLayanan, setShowAllLayanan] = useState<boolean>(false);
+  const [showAllStaf, setShowAllStaf] = useState<boolean>(false);
+  const [showAllPengeluaran, setShowAllPengeluaran] = useState<boolean>(false);
+  const [showAllPelanggan, setShowAllPelanggan] = useState<boolean>(false);
+  const [showAllPelunasanLalu, setShowAllPelunasanLalu] = useState<boolean>(false);
 
   // Helper pemeriksa apakah timestamp berada dalam periode tahun & bulan yang dipilih (Waktu Lokal)
   const isTimestampInPeriod = (timestamp: number | null | undefined, year: number, month: number): boolean => {
@@ -273,6 +282,7 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
 
     const serviceMap: Record<string, number> = {};
     const customerMap: Record<string, number> = {};
+    const staffMap: Record<string, StaffPerformanceSummary> = {};
 
     // 1. Data Pesanan Cucian Masuk pada Periode Ini
     const endOfPeriod = selectedMonth === -1
@@ -301,6 +311,38 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
 
       if (t.namaPelanggan) {
         customerMap[t.namaPelanggan] = (customerMap[t.namaPelanggan] || 0) + 1;
+      }
+
+      // Evaluasi Kinerja Staf / Kasir
+      const rawStaff = t.dikerjakanOleh && t.dikerjakanOleh.trim()
+        ? t.dikerjakanOleh.trim()
+        : 'Kasir / Belum Ditugaskan';
+
+      if (!staffMap[rawStaff]) {
+        staffMap[rawStaff] = {
+          nama: rawStaff,
+          totalTrx: 0,
+          totalKg: 0,
+          totalOmzet: 0,
+          countSelesai: 0,
+          countProses: 0,
+          countDiterima: 0,
+        };
+      }
+
+      staffMap[rawStaff].totalTrx += 1;
+      staffMap[rawStaff].totalOmzet += t.totalHarga || 0;
+      (t.items || []).forEach((it) => {
+        if (!it) return;
+        staffMap[rawStaff].totalKg += it.berat || 0;
+      });
+
+      if (t.status === 'Selesai' || t.status === 'Diambil') {
+        staffMap[rawStaff].countSelesai += 1;
+      } else if (t.status === 'Proses') {
+        staffMap[rawStaff].countProses += 1;
+      } else {
+        staffMap[rawStaff].countDiterima += 1;
       }
     });
 
@@ -367,6 +409,11 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
 
     const labaBersih = totalUangMasuk - totalPengeluaran;
 
+    const staffList = Object.values(staffMap).sort((a, b) => {
+      if (b.totalTrx !== a.totalTrx) return b.totalTrx - a.totalTrx;
+      return b.totalKg - a.totalKg;
+    });
+
     return {
       totalOmzet,
       totalUangMasuk,
@@ -382,6 +429,7 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
       countBelumLunas,
       serviceMap,
       serviceList: Object.entries(serviceMap).sort((a, b) => b[1] - a[1]),
+      staffList,
       customerList: Object.entries(customerMap).sort((a, b) => b[1] - a[1]),
       expenseList: Object.entries(expenseCategoryMap).sort((a, b) => b[1] - a[1]),
       dailyRows: Object.entries(dailyMap).sort((a, b) => a[0].localeCompare(b[0])),
@@ -655,6 +703,7 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
         serviceList: summary.serviceList,
         customerList: summary.customerList,
         expenseList: summary.expenseList,
+        staffList: summary.staffList,
         dailyRows: summary.dailyRows,
       };
 
@@ -698,6 +747,7 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
     },
     serviceList: summary.serviceList,
     expenseList: summary.expenseList,
+    staffList: summary.staffList,
   }), [
     effectiveLaundryName,
     settings.address,
@@ -737,7 +787,7 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-slate-100 text-slate-800 pb-16">
+    <div className="flex flex-col max-h-screen bg-slate-100 text-slate-800 pb-16">
       {/* Top Header */}
       <header className="bg-[#800000] text-white shadow-md sticky top-0 z-30 flex items-center justify-between px-3 sm:px-6 h-14 no-print">
         <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
@@ -1005,25 +1055,47 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                 </div>
 
                 {expandPelunasanLalu && (
-                  <div className="divide-y divide-emerald-100 text-xs pt-2">
-                    {summary.pelunasanBulanLaluList.map(({ trx, pelunasan, waktuPelunasan }, idx) => (
-                      <div key={idx} className="py-2 flex justify-between items-center">
-                        <div>
-                          <div className="font-bold text-slate-900">
-                            {trx.namaPelanggan} <span className="text-slate-500 font-mono text-[11px]">({trx.nomorTransaksi || '-'})</span>
+                  <div className="pt-2">
+                    <div className="divide-y divide-emerald-100 text-xs">
+                      {(showAllPelunasanLalu ? summary.pelunasanBulanLaluList : summary.pelunasanBulanLaluList.slice(0, 3)).map(({ trx, pelunasan, waktuPelunasan }, idx) => (
+                        <div key={idx} className="py-2 flex justify-between items-center">
+                          <div>
+                            <div className="font-bold text-slate-900">
+                              {trx.namaPelanggan} <span className="text-slate-500 font-mono text-[11px]">({trx.nomorTransaksi || '-'})</span>
+                            </div>
+                            <div className="text-[11px] text-slate-500">
+                              Masuk: {formatShortDate(trx.tanggalMasuk)} • Lunas/Diambil: {formatReceiptDate(waktuPelunasan, true)}
+                            </div>
                           </div>
-                          <div className="text-[11px] text-slate-500">
-                            Masuk: {formatShortDate(trx.tanggalMasuk)} • Lunas/Diambil: {formatReceiptDate(waktuPelunasan, true)}
+                          <div className="text-right">
+                            <span className="font-black text-emerald-700 text-sm tabular-nums">
+                              +{formatRupiah(pelunasan)}
+                            </span>
+                            <p className="text-[10px] text-emerald-600 font-bold uppercase">Masuk Kas {monthNames[new Date(waktuPelunasan).getMonth()]}</p>
                           </div>
                         </div>
-                        <div className="text-right">
-                          <span className="font-black text-emerald-700 text-sm tabular-nums">
-                            +{formatRupiah(pelunasan)}
-                          </span>
-                          <p className="text-[10px] text-emerald-600 font-bold uppercase">Masuk Kas {monthNames[new Date(waktuPelunasan).getMonth()]}</p>
-                        </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
+
+                    {summary.pelunasanBulanLaluList.length > 3 && (
+                      <button
+                        type="button"
+                        onClick={() => setShowAllPelunasanLalu(!showAllPelunasanLalu)}
+                        className="w-full mt-2.5 py-1.5 px-2 bg-emerald-100/70 hover:bg-emerald-100 text-emerald-900 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition cursor-pointer border border-emerald-200"
+                      >
+                        {showAllPelunasanLalu ? (
+                          <>
+                            <span>Tutup (Hanya 3 Teratas)</span>
+                            <ChevronUp className="w-3.5 h-3.5 text-emerald-700" />
+                          </>
+                        ) : (
+                          <>
+                            <span>Lihat Semua (+{summary.pelunasanBulanLaluList.length - 3} nota lainnya)</span>
+                            <ChevronDown className="w-3.5 h-3.5 text-emerald-700" />
+                          </>
+                        )}
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -1050,17 +1122,20 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
               </div>
             </div>
 
-            {/* Grid Rekapitulasi (1 kolom di HP, 3 kolom di PC) */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4 items-start">
-              {/* Rekapitulasi Layanan */}
+            {/* Grid Rekapitulasi (1 kolom di HP, 2 di tablet, 4 di PC) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 items-start">
+              {/* 1. Rekapitulasi Layanan */}
               <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-2xs space-y-2">
                 <div
                   onClick={() => setExpandLayanan(!expandLayanan)}
                   className="flex justify-between items-center cursor-pointer select-none"
                 >
-                  <h2 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">
-                    Rekapitulasi Layanan ({summary.serviceList.length})
-                  </h2>
+                  <div className="flex items-center gap-1.5">
+                    <Layers className="w-3.5 h-3.5 text-amber-600" />
+                    <h2 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">
+                      Rekap Layanan ({summary.serviceList.length})
+                    </h2>
+                  </div>
                   {expandLayanan ? (
                     <ChevronUp className="w-4 h-4 text-slate-400" />
                   ) : (
@@ -1069,32 +1144,138 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                 </div>
 
                 {expandLayanan && (
-                  <div className="divide-y divide-slate-100 text-xs pt-1">
+                  <div className="pt-1">
                     {summary.serviceList.length === 0 ? (
-                      <p className="text-slate-400 italic text-center py-2">Belum ada data layanan</p>
+                      <p className="text-slate-400 italic text-center py-2 text-xs">Belum ada data layanan</p>
                     ) : (
-                      summary.serviceList.map(([name, weight], idx) => (
-                        <div key={idx} className="py-1.5 flex justify-between">
-                          <span className="text-slate-700">- {name}</span>
-                          <span className="font-bold text-slate-900 tabular-nums">
-                            {weight.toFixed(1)} Unit/Kg
-                          </span>
+                      <>
+                        <div className="divide-y divide-slate-100 text-xs">
+                          {(showAllLayanan ? summary.serviceList : summary.serviceList.slice(0, 3)).map(([name, weight], idx) => (
+                            <div key={idx} className="py-2 flex justify-between items-center">
+                              <span className="text-slate-700 truncate pr-2 font-medium">
+                                <span className="text-slate-400 font-bold mr-1">{idx + 1}.</span> {name}
+                              </span>
+                              <span className="font-bold text-slate-900 tabular-nums shrink-0">
+                                {weight.toFixed(1)} <span className="text-[10px] text-slate-500 font-normal">Kg/Unit</span>
+                              </span>
+                            </div>
+                          ))}
                         </div>
-                      ))
+
+                        {summary.serviceList.length > 3 && (
+                          <button
+                            type="button"
+                            onClick={() => setShowAllLayanan(!showAllLayanan)}
+                            className="w-full mt-2.5 py-1.5 px-2 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition cursor-pointer border border-slate-200"
+                          >
+                            {showAllLayanan ? (
+                              <>
+                                <span>Tutup (Hanya 3 Teratas)</span>
+                                <ChevronUp className="w-3.5 h-3.5 text-slate-500" />
+                              </>
+                            ) : (
+                              <>
+                                <span>Lihat Semua (+{summary.serviceList.length - 3} layanan lainnya)</span>
+                                <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
+                              </>
+                            )}
+                          </button>
+                        )}
+                      </>
                     )}
                   </div>
                 )}
               </div>
 
-              {/* Rekapitulasi Pengeluaran */}
+              {/* 2. Ringkasan Kinerja Staf */}
+              <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-2xs space-y-2">
+                <div
+                  onClick={() => setExpandStaf(!expandStaf)}
+                  className="flex justify-between items-center cursor-pointer select-none"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <Users className="w-3.5 h-3.5 text-blue-600" />
+                    <h2 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">
+                      Kinerja Staf ({summary.staffList.length})
+                    </h2>
+                  </div>
+                  {expandStaf ? (
+                    <ChevronUp className="w-4 h-4 text-slate-400" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4 text-slate-400" />
+                  )}
+                </div>
+
+                {expandStaf && (
+                  <div className="pt-1">
+                    {summary.staffList.length === 0 ? (
+                      <p className="text-slate-400 italic text-center py-2 text-xs">Belum ada staf bertugas</p>
+                    ) : (
+                      <>
+                        <div className="divide-y divide-slate-100 text-xs">
+                          {(showAllStaf ? summary.staffList : summary.staffList.slice(0, 3)).map((staf, idx) => (
+                            <div key={idx} className="py-2 space-y-1">
+                              <div className="flex justify-between items-center">
+                                <span className="font-bold text-slate-800 truncate pr-2 flex items-center gap-1.5">
+                                  <span className={`inline-flex items-center justify-center w-4 h-4 rounded-full text-[9px] font-black ${
+                                    idx === 0 ? 'bg-amber-100 text-amber-800 border border-amber-300' :
+                                    idx === 1 ? 'bg-slate-200 text-slate-700' :
+                                    idx === 2 ? 'bg-orange-100 text-orange-800' :
+                                    'bg-slate-100 text-slate-500'
+                                  }`}>
+                                    {idx + 1}
+                                  </span>
+                                  <span className="truncate">{staf.nama}</span>
+                                </span>
+                                <span className="font-extrabold text-blue-700 tabular-nums shrink-0">
+                                  {staf.totalTrx} <span className="text-[10px] text-slate-500 font-normal">Order</span>
+                                </span>
+                              </div>
+                              <div className="flex justify-between items-center text-[11px] text-slate-500 pl-5.5">
+                                <span>{staf.totalKg.toFixed(1)} Kg • <span className="text-emerald-700 font-semibold">{staf.countSelesai} Selesai</span></span>
+                                <span className="font-bold text-slate-800 tabular-nums">{formatRupiah(staf.totalOmzet)}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {summary.staffList.length > 3 && (
+                          <button
+                            type="button"
+                            onClick={() => setShowAllStaf(!showAllStaf)}
+                            className="w-full mt-2.5 py-1.5 px-2 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition cursor-pointer border border-slate-200"
+                          >
+                            {showAllStaf ? (
+                              <>
+                                <span>Tutup (Hanya 3 Teratas)</span>
+                                <ChevronUp className="w-3.5 h-3.5 text-slate-500" />
+                              </>
+                            ) : (
+                              <>
+                                <span>Lihat Semua (+{summary.staffList.length - 3} staf lainnya)</span>
+                                <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
+                              </>
+                            )}
+                          </button>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* 3. Rekapitulasi Pengeluaran */}
               <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-2xs space-y-2">
                 <div
                   onClick={() => setExpandPengeluaran(!expandPengeluaran)}
                   className="flex justify-between items-center cursor-pointer select-none"
                 >
-                  <h2 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">
-                    Rekap Biaya Operasional ({summary.expenseList.length})
-                  </h2>
+                  <div className="flex items-center gap-1.5">
+                    <DollarSign className="w-3.5 h-3.5 text-red-600" />
+                    <h2 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">
+                      Rekap Biaya ({summary.expenseList.length})
+                    </h2>
+                  </div>
                   {expandPengeluaran ? (
                     <ChevronUp className="w-4 h-4 text-slate-400" />
                   ) : (
@@ -1103,30 +1284,61 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                 </div>
 
                 {expandPengeluaran && (
-                  <div className="divide-y divide-slate-100 text-xs pt-1">
+                  <div className="pt-1">
                     {summary.expenseList.length === 0 ? (
-                      <p className="text-slate-400 italic text-center py-2">Belum ada data pengeluaran</p>
+                      <p className="text-slate-400 italic text-center py-2 text-xs">Belum ada pengeluaran</p>
                     ) : (
-                      summary.expenseList.map(([cat, total], idx) => (
-                        <div key={idx} className="py-1.5 flex justify-between">
-                          <span className="text-slate-700">- {cat}</span>
-                          <span className="font-bold text-red-600 tabular-nums">{formatRupiah(total)}</span>
+                      <>
+                        <div className="divide-y divide-slate-100 text-xs">
+                          {(showAllPengeluaran ? summary.expenseList : summary.expenseList.slice(0, 3)).map(([cat, total], idx) => (
+                            <div key={idx} className="py-2 flex justify-between items-center">
+                              <span className="text-slate-700 truncate pr-2 font-medium">
+                                <span className="text-slate-400 font-bold mr-1">{idx + 1}.</span> {cat}
+                              </span>
+                              <span className="font-bold text-red-600 tabular-nums shrink-0">
+                                {formatRupiah(total)}
+                              </span>
+                            </div>
+                          ))}
                         </div>
-                      ))
+
+                        {summary.expenseList.length > 3 && (
+                          <button
+                            type="button"
+                            onClick={() => setShowAllPengeluaran(!showAllPengeluaran)}
+                            className="w-full mt-2.5 py-1.5 px-2 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition cursor-pointer border border-slate-200"
+                          >
+                            {showAllPengeluaran ? (
+                              <>
+                                <span>Tutup (Hanya 3 Teratas)</span>
+                                <ChevronUp className="w-3.5 h-3.5 text-slate-500" />
+                              </>
+                            ) : (
+                              <>
+                                <span>Lihat Semua (+{summary.expenseList.length - 3} biaya lainnya)</span>
+                                <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
+                              </>
+                            )}
+                          </button>
+                        )}
+                      </>
                     )}
                   </div>
                 )}
               </div>
 
-              {/* Pelanggan Teratas */}
+              {/* 4. Pelanggan Terbanyak */}
               <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-2xs space-y-2">
                 <div
                   onClick={() => setExpandPelanggan(!expandPelanggan)}
                   className="flex justify-between items-center cursor-pointer select-none"
                 >
-                  <h2 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">
-                    Pelanggan Terbanyak ({summary.customerList.length})
-                  </h2>
+                  <div className="flex items-center gap-1.5">
+                    <Award className="w-3.5 h-3.5 text-amber-500" />
+                    <h2 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">
+                      Pelanggan Teratas ({summary.customerList.length})
+                    </h2>
+                  </div>
                   {expandPelanggan ? (
                     <ChevronUp className="w-4 h-4 text-slate-400" />
                   ) : (
@@ -1135,20 +1347,44 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                 </div>
 
                 {expandPelanggan && (
-                  <div className="divide-y divide-slate-100 text-xs pt-1">
+                  <div className="pt-1">
                     {summary.customerList.length === 0 ? (
-                      <p className="text-slate-400 italic text-center py-2">Belum ada transaksi</p>
+                      <p className="text-slate-400 italic text-center py-2 text-xs">Belum ada transaksi</p>
                     ) : (
-                      summary.customerList.slice(0, 10).map(([name, count], idx) => (
-                        <div key={idx} className="py-1.5 flex justify-between">
-                          <span className="text-slate-700">
-                            {idx + 1}. {name}
-                          </span>
-                          <span className="font-bold text-[#800000] tabular-nums">
-                            {count} Transaksi
-                          </span>
+                      <>
+                        <div className="divide-y divide-slate-100 text-xs">
+                          {(showAllPelanggan ? summary.customerList : summary.customerList.slice(0, 3)).map(([name, count], idx) => (
+                            <div key={idx} className="py-2 flex justify-between items-center">
+                              <span className="text-slate-700 truncate pr-2 font-medium">
+                                <span className="text-slate-400 font-bold mr-1">{idx + 1}.</span> {name}
+                              </span>
+                              <span className="font-bold text-[#800000] tabular-nums shrink-0">
+                                {count} <span className="text-[10px] text-slate-500 font-normal">Order</span>
+                              </span>
+                            </div>
+                          ))}
                         </div>
-                      ))
+
+                        {summary.customerList.length > 3 && (
+                          <button
+                            type="button"
+                            onClick={() => setShowAllPelanggan(!showAllPelanggan)}
+                            className="w-full mt-2.5 py-1.5 px-2 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition cursor-pointer border border-slate-200"
+                          >
+                            {showAllPelanggan ? (
+                              <>
+                                <span>Tutup (Hanya 3 Teratas)</span>
+                                <ChevronUp className="w-3.5 h-3.5 text-slate-500" />
+                              </>
+                            ) : (
+                              <>
+                                <span>Lihat Semua (+{summary.customerList.length - 3} pelanggan lainnya)</span>
+                                <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
+                              </>
+                            )}
+                          </button>
+                        )}
+                      </>
                     )}
                   </div>
                 )}
@@ -1379,14 +1615,14 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
             </div>
 
             {/* ======================================================== */}
-            {/* SUB-NAV 4 MODE GRAFIK VISUAL INTERAKTIF                   */}
+            {/* SUB-NAV 5 MODE GRAFIK VISUAL INTERAKTIF                   */}
             {/* ======================================================== */}
             <div className="bg-white rounded-2xl border border-slate-200 p-1.5 shadow-2xs">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 text-xs font-bold">
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-1 text-xs font-bold">
                 <button
                   type="button"
                   onClick={() => setCompareChartMode('batang')}
-                  className={`py-2 px-2.5 rounded-xl flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                  className={`py-2 px-2 rounded-xl flex items-center justify-center gap-1.5 transition cursor-pointer ${
                     compareChartMode === 'batang'
                       ? 'bg-slate-900 text-white shadow-2xs'
                       : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
@@ -1399,20 +1635,20 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setCompareChartMode('tren')}
-                  className={`py-2 px-2.5 rounded-xl flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                  className={`py-2 px-2 rounded-xl flex items-center justify-center gap-1.5 transition cursor-pointer ${
                     compareChartMode === 'tren'
                       ? 'bg-slate-900 text-white shadow-2xs'
                       : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
                   }`}
                 >
                   <LineChart className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Kurva Tren Area</span>
+                  <span>Kurva Tren</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setCompareChartMode('layanan')}
-                  className={`py-2 px-2.5 rounded-xl flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                  className={`py-2 px-2 rounded-xl flex items-center justify-center gap-1.5 transition cursor-pointer ${
                     compareChartMode === 'layanan'
                       ? 'bg-slate-900 text-white shadow-2xs'
                       : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
@@ -1424,15 +1660,28 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
 
                 <button
                   type="button"
+                  onClick={() => setCompareChartMode('staf')}
+                  className={`py-2 px-2 rounded-xl flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                    compareChartMode === 'staf'
+                      ? 'bg-slate-900 text-white shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                  }`}
+                >
+                  <Users className="w-3.5 h-3.5 text-blue-400" />
+                  <span>Kinerja Staf</span>
+                </button>
+
+                <button
+                  type="button"
                   onClick={() => setCompareChartMode('rasio')}
-                  className={`py-2 px-2.5 rounded-xl flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                  className={`py-2 px-2 rounded-xl flex items-center justify-center gap-1.5 transition cursor-pointer ${
                     compareChartMode === 'rasio'
                       ? 'bg-slate-900 text-white shadow-2xs'
                       : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
                   }`}
                 >
                   <Award className="w-3.5 h-3.5 text-rose-400" />
-                  <span>Rasio & Skor Bisnis</span>
+                  <span>Rasio Bisnis</span>
                 </button>
               </div>
             </div>
@@ -1942,7 +2191,125 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
             )}
 
             {/* ======================================================== */}
-            {/* GRAFIK 4: RASIO KEUANGAN & SKOR KESEHATAN EKSEKUTIF      */}
+            {/* GRAFIK 4: EVALUASI & PERINGKAT KINERJA STAF / KASIR      */}
+            {/* ======================================================== */}
+            {compareChartMode === 'staf' && (
+              <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-2xs space-y-4 animate-in fade-in duration-200">
+                <div className="border-b border-slate-100 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                      <Users className="w-4 h-4 text-blue-600" />
+                      <span>Evaluasi &amp; Peringkat Produktivitas Staf</span>
+                    </h4>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Ringkasan kontribusi beban kerja cucian, order ditangani, dan omzet per staf periode {currentPeriodeLabel}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs font-bold text-slate-600">
+                    <span className="px-2.5 py-1 bg-blue-50 text-blue-700 rounded-lg border border-blue-200">
+                      {summary.staffList.length} Petugas Terlibat
+                    </span>
+                  </div>
+                </div>
+
+                {summary.staffList.length === 0 ? (
+                  <p className="text-xs text-slate-400 italic text-center py-6">
+                    Belum ada data pengerjaan atau penugasan staf pada periode ini.
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {summary.staffList.map((staf, idx) => {
+                      const maxTrx = Math.max(1, ...summary.staffList.map((s) => s.totalTrx));
+                      const maxKg = Math.max(1, ...summary.staffList.map((s) => s.totalKg));
+                      const trxWidth = Math.min(100, (staf.totalTrx / maxTrx) * 100);
+                      const kgWidth = Math.min(100, (staf.totalKg / maxKg) * 100);
+                      const percentOfAllTrx = summary.totalTrx > 0 ? ((staf.totalTrx / summary.totalTrx) * 100).toFixed(1) : '0';
+
+                      return (
+                        <div
+                          key={idx}
+                          className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-slate-50 transition space-y-2.5"
+                        >
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                            <div className="flex items-center gap-2">
+                              <span
+                                className={`w-6 h-6 rounded-lg flex items-center justify-center text-xs font-black shrink-0 ${
+                                  idx === 0
+                                    ? 'bg-amber-400 text-amber-950 shadow-2xs'
+                                    : idx === 1
+                                    ? 'bg-slate-300 text-slate-800'
+                                    : idx === 2
+                                    ? 'bg-orange-300 text-orange-900'
+                                    : 'bg-white text-slate-600 border border-slate-200'
+                                }`}
+                              >
+                                {idx + 1}
+                              </span>
+                              <div>
+                                <span className="text-sm font-black text-slate-900">{staf.nama}</span>
+                                <span className="ml-2 text-[11px] font-bold text-blue-600">
+                                  ({percentOfAllTrx}% beban order)
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 text-xs font-bold">
+                              <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[11px]">
+                                {staf.countSelesai} Selesai
+                              </span>
+                              {staf.countProses > 0 && (
+                                <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[11px]">
+                                  {staf.countProses} Proses
+                                </span>
+                              )}
+                              <span className="font-black text-slate-900 tabular-nums">
+                                {formatRupiah(staf.totalOmzet)}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Progress bar visual beban kerja */}
+                          <div className="space-y-1.5 pt-1">
+                            <div className="flex items-center gap-2 text-xs">
+                              <span className="text-[10px] font-bold text-slate-500 w-24 shrink-0">
+                                Jumlah Order:
+                              </span>
+                              <div className="flex-1 bg-slate-200/80 rounded-full h-2.5 overflow-hidden">
+                                <div
+                                  className="h-full bg-blue-600 rounded-full transition-all duration-500"
+                                  style={{ width: `${trxWidth}%` }}
+                                />
+                              </div>
+                              <span className="text-xs font-black tabular-nums text-blue-700 w-20 text-right shrink-0">
+                                {staf.totalTrx} Order
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-2 text-xs">
+                              <span className="text-[10px] font-bold text-slate-500 w-24 shrink-0">
+                                Volume Cucian:
+                              </span>
+                              <div className="flex-1 bg-slate-200/80 rounded-full h-2.5 overflow-hidden">
+                                <div
+                                  className="h-full bg-indigo-500 rounded-full transition-all duration-500"
+                                  style={{ width: `${kgWidth}%` }}
+                                />
+                              </div>
+                              <span className="text-xs font-black tabular-nums text-indigo-700 w-20 text-right shrink-0">
+                                {staf.totalKg.toFixed(1)} Kg/Unit
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ======================================================== */}
+            {/* GRAFIK 5: RASIO KEUANGAN & SKOR KESEHATAN EKSEKUTIF      */}
             {/* ======================================================== */}
             {compareChartMode === 'rasio' && (
               <div className="space-y-4 animate-in fade-in duration-200">
