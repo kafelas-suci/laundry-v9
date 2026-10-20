@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from './firebase';
 import { FirebaseSyncService } from './utils/firebaseSync';
-import { StorageService, defaultSettings, defaultOwnerUser } from './utils/storage';
+import { StorageService, defaultSettings, defaultOwnerUser, defaultLayananList } from './utils/storage';
 import { IndexedDbService } from './utils/indexedDb';
 import {
   Transaksi,
@@ -491,7 +491,7 @@ export default function App() {
     }
 
     try {
-      const userLaundries = await FirebaseSyncService.fetchLaundries(user.uid, laundries);
+      const userLaundries = await FirebaseSyncService.fetchLaundries(user.uid, laundries, forceSync);
       const cleanLaundries = !isDemoMode && user && user.uid && !user.uid.startsWith('demo')
         ? userLaundries.filter(l => l.id !== 'lnd-1' && l.id !== 'demo-lnd-1')
         : userLaundries;
@@ -512,30 +512,36 @@ export default function App() {
       setActiveLaundryId(targetLaundryId);
       StorageService.set('current_laundry_id', targetLaundryId);
 
-      // 1. Delta Sync transaksi AKTIF saja (0 Reads jika sudah di-cache / tidak ada perubahan)
-      const currentCachedTrx = transaksiList.length > 0 ? transaksiList : StorageService.get<Transaksi[]>('transaksi', []);
+      // 1. Delta Sync transaksi AKTIF saja
+      const currentCachedTrx = forceSync ? [] : (transaksiList.length > 0 ? transaksiList : StorageService.get<Transaksi[]>('transaksi', []));
       const trxs = await FirebaseSyncService.fetchTransaksiAktif(targetLaundryId, currentCachedTrx, forceSync);
       updateTransaksiList(trxs);
 
-      // 2. Cached Sync Pelanggan (0 reads jika sudah ada di cache)
-      const custs = await FirebaseSyncService.fetchPelanggan(targetLaundryId, pelangganList);
+      // 2. Sync Pelanggan
+      const custs = await FirebaseSyncService.fetchPelanggan(targetLaundryId, forceSync ? [] : pelangganList);
       if (custs && custs.length > 0) {
         updatePelangganList(custs);
+      } else if (forceSync) {
+        updatePelangganList([]);
       }
 
-      // 3. Cached Sync Layanan
-      const lays = await FirebaseSyncService.fetchLayanan(targetLaundryId, layananList);
+      // 3. Sync Layanan
+      const lays = await FirebaseSyncService.fetchLayanan(targetLaundryId, forceSync ? [] : layananList);
       if (lays && lays.length > 0) {
         updateLayananList(lays);
+      } else if (forceSync) {
+        updateLayananList(defaultLayananList);
       }
 
-      // 4. Cached Sync Pengeluaran (hanya ambil riwayat terbaru, max 100)
-      const exps = await FirebaseSyncService.fetchPengeluaran(targetLaundryId, pengeluaranList);
+      // 4. Sync Pengeluaran
+      const exps = await FirebaseSyncService.fetchPengeluaran(targetLaundryId, forceSync ? [] : pengeluaranList);
       if (exps && exps.length > 0) {
         updatePengeluaranList(exps);
+      } else if (forceSync) {
+        updatePengeluaranList([]);
       }
 
-      // 5. Cached Sync Settings
+      // 5. Sync Settings
       const st = await FirebaseSyncService.fetchSettings(targetLaundryId, settings);
       if (st) {
         setSettings(st);
@@ -562,7 +568,7 @@ export default function App() {
           });
           setCurrentUser(profile);
           StorageService.set('active_user', profile);
-          await loadFirestoreData(profile);
+          await loadFirestoreData(profile, true);
         } catch (err) {
           console.warn('Gagal memuat data pengguna pada onAuthStateChanged:', err);
         }
@@ -1035,6 +1041,7 @@ export default function App() {
       laundryId,
       laundries: {},
       walletBalance: 0,
+      password: pass,
     };
     updateStaffList([...staffList, newKasir]);
   };
@@ -1240,6 +1247,12 @@ export default function App() {
     setCurrentUser(null);
     StorageService.set('active_user', null);
     StorageService.clearAllDummyData();
+    setTransaksiList([]);
+    setPelangganList([]);
+    setPengeluaranList([]);
+    setManualCashLogs([]);
+    setLaundries([]);
+    StorageService.set('last_global_sync', 0);
     setActiveView('auth');
   };
 
@@ -1332,7 +1345,7 @@ export default function App() {
               setInitialSignUpMode(false);
               setCurrentUser(user);
               StorageService.set('active_user', user);
-              await loadFirestoreData(user);
+              await loadFirestoreData(user, true);
               setActiveView('dashboard');
             }}
           />
@@ -1352,7 +1365,6 @@ export default function App() {
             settings={settings}
             currentUser={currentUser}
             activeLaundry={activeLaundry}
-            activeLaundryId={activeLaundryId}
             laundries={laundries}
             pengeluaranList={pengeluaranList}
             isMobile={isEffectiveMobile}

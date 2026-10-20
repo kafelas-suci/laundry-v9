@@ -15,6 +15,7 @@ export interface User {
   subscriptionType?: string | null;
   createdAt?: number | null;
   isOwnerAdmin?: boolean;
+  password?: string;
 }
 
 export interface Laundry {

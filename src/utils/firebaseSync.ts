@@ -114,12 +114,12 @@ export class FirebaseSyncService {
   }
 
   // 2. Fetch Laundries for User (Strict ownerId validation)
-  static async fetchLaundries(ownerId: string, cached: Laundry[] = []): Promise<Laundry[]> {
+  static async fetchLaundries(ownerId: string, cached: Laundry[] = [], forceSync = false): Promise<Laundry[]> {
     if (!auth.currentUser) {
       return cached.filter((l) => l.ownerId === ownerId);
     }
-    const validCached = cached.filter((l) => l.ownerId === ownerId);
-    if (validCached.length > 0) {
+    const validCached = cached.filter((l) => l.ownerId === ownerId && l.id !== 'lnd-1' && l.id !== 'demo-lnd-1');
+    if (!forceSync && validCached.length > 0) {
       return validCached;
     }
     const laundriesRef = collection(db, 'laundries');
@@ -133,10 +133,10 @@ export class FirebaseSyncService {
           list.push(data);
         }
       });
-      return list;
+      return list.length > 0 ? list : validCached;
     } catch (e) {
       console.warn('Gagal fetch laundries dari server, gunakan cache:', e);
-      return cached.filter((l) => l.ownerId === ownerId);
+      return validCached;
     }
   }
 
@@ -241,14 +241,15 @@ export class FirebaseSyncService {
           limit(250)
         );
         snap = await getDocs(qActive);
-      } catch {
-        // Fallback jika database belum ada index status: batasi ke 100 transaksi terbaru
-        const qFallback = query(
-          collection(db, path),
-          orderBy('tanggalMasuk', 'desc'),
-          limit(100)
-        );
-        snap = await getDocs(qFallback);
+      } catch (err) {
+        // Fallback jika database belum ada index status: ambil query tanpa orderBy
+        try {
+          const qFallback = query(collection(db, path), limit(150));
+          snap = await getDocs(qFallback);
+        } catch (e2) {
+          console.warn('Fallback query error:', e2);
+          return localList;
+        }
       }
 
       const activeList: Transaksi[] = [];
@@ -564,10 +565,18 @@ export class FirebaseSyncService {
     }
     const path = `laundries/${laundryId}/pengeluaran`;
     try {
-      const q = query(collection(db, path), orderBy('tanggal', 'desc'), limit(100));
-      const snap = await getDocs(q);
+      let snap;
+      try {
+        const q = query(collection(db, path), orderBy('tanggal', 'desc'), limit(100));
+        snap = await getDocs(q);
+      } catch {
+        const qFallback = query(collection(db, path), limit(100));
+        snap = await getDocs(qFallback);
+      }
       const list: Pengeluaran[] = [];
-      snap.forEach((d) => list.push(d.data() as Pengeluaran));
+      if (snap) {
+        snap.forEach((d) => list.push(d.data() as Pengeluaran));
+      }
       return list.sort((a, b) => b.tanggal - a.tanggal);
     } catch (e) {
       console.warn('Gagal fetch pengeluaran:', e);

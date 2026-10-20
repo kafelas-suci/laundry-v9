@@ -75,7 +75,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
       const inputClean = email.trim().toLowerCase();
       const phoneDigits = inputClean.replace(/[^0-9]/g, '');
 
-      // Check if logging in as staff via Email or WhatsApp/HP
+      // Cek apakah login sebagai akun kasir resmi
       const staffMatch = staffList.find((s) => {
         const sEmail = s.emailOrPhone?.toLowerCase();
         const sPhone = (s.nomorTelepon || s.emailOrPhone)?.replace(/[^0-9]/g, '');
@@ -88,62 +88,30 @@ export const AuthView: React.FC<AuthViewProps> = ({
       });
 
       if (staffMatch) {
+        if (staffMatch.password && staffMatch.password !== password.trim()) {
+          setAuthError('Kata sandi akun kasir tidak sesuai.');
+          return;
+        }
+        toast.success(`Berhasil masuk sebagai kasir ${staffMatch.displayName}`);
         onLoginSuccess(staffMatch);
         return;
       }
 
-      // Check if logging in as owner fallback
-      const ownerPhone = (ownerUser.nomorTelepon || ownerUser.emailOrPhone)?.replace(/[^0-9]/g, '');
-      const matchOwnerPhone =
-        phoneDigits.length >= 7 &&
-        ownerPhone &&
-        (ownerPhone === phoneDigits || ownerPhone.endsWith(phoneDigits) || phoneDigits.endsWith(ownerPhone));
-
-      if (
-        ownerUser &&
-        (ownerUser.emailOrPhone.toLowerCase() === inputClean ||
-          matchOwnerPhone ||
-          inputClean === 'owner' ||
-          inputClean === 'admin')
-      ) {
-        onLoginSuccess(ownerUser);
-        return;
-      }
-
-      // Fallback akun email/password jika Firebase Auth email/password dinonaktifkan di console / offline
-      if (
-        inputClean === '06@gmail.com' ||
-        err.code === 'auth/operation-not-allowed'
-      ) {
-        const storedUsers = StorageService.get<UserType[]>('registered_users', []);
-        let foundUser = storedUsers.find((u) => u.emailOrPhone?.toLowerCase() === inputClean);
-        if (!foundUser) {
-          const userLaundryId = inputClean === '06@gmail.com' ? 'lnd-06' : `lnd-${inputClean.replace(/[^a-z0-9]/g, '_')}`;
-          foundUser = {
-            uid: `usr-${inputClean.replace(/[^a-z0-9]/g, '_')}`,
-            emailOrPhone: inputClean,
-            displayName: inputClean === '06@gmail.com' ? "Kafela's Laundry (06)" : inputClean.split('@')[0],
-            role: 'owner',
-            laundryId: userLaundryId,
-            laundries: { [userLaundryId]: "Kafela's Laundry" },
-            walletBalance: 0,
-            subscriptionEndDate: Date.now() + 30 * 24 * 60 * 60 * 1000,
-            subscriptionType: 'basic',
-            createdAt: Date.now(),
-          };
-          StorageService.set('registered_users', [...storedUsers, foundUser]);
-        }
-        toast.success(`Berhasil masuk sebagai ${foundUser.displayName}!`);
-        onLoginSuccess(foundUser);
-        return;
-      }
-
+      // Login diperketat: tidak ada bypass atau auto-create user untuk email tak terdaftar
       if (err.code === 'auth/operation-not-allowed') {
-        setAuthError('Metode Email/Password belum diaktifkan di Firebase Console. Silakan gunakan tombol "Masuk dengan Google" atau "Masuk Demo" di bawah!');
-      } else if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password') {
-        setAuthError('Email atau password tidak sesuai. Coba lagi atau gunakan "Masuk dengan Google" / "Masuk Demo".');
+        setAuthError('Metode login Email/Password belum diaktifkan di Firebase Console. Silakan gunakan tombol "Masuk dengan Google" di bawah untuk masuk ke akun Anda.');
+      } else if (
+        err.code === 'auth/user-not-found' ||
+        err.code === 'auth/invalid-credential' ||
+        err.code === 'auth/wrong-password'
+      ) {
+        setAuthError('Email belum terdaftar atau password salah. Pastikan akun sudah didaftarkan terlebih dahulu atau gunakan tombol "Masuk dengan Google".');
+      } else if (err.code === 'auth/invalid-email') {
+        setAuthError('Format alamat email tidak valid. Masukkan email yang benar.');
+      } else if (err.code === 'auth/too-many-requests') {
+        setAuthError('Akses diblokir sementara karena terlalu banyak percobaan gagal. Silakan tunggu beberapa saat atau gunakan "Masuk dengan Google".');
       } else {
-        setAuthError(err.message || 'Gagal masuk. Silakan gunakan tombol "Masuk dengan Google" atau "Masuk Demo" di bawah.');
+        setAuthError(err.message || 'Gagal masuk. Pastikan akun sudah terdaftar di Firebase atau gunakan "Masuk dengan Google".');
       }
     } finally {
       setIsLoading(false);
