@@ -74,7 +74,7 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
   const canExcel = limits.canExportExcel;
   const canPdf = limits.canExportOfficialPdf;
   const canGrowth = limits.canViewComparisonGrowth;
-
+const [showMonthPickerModal, setShowMonthPickerModal] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<'ringkasan' | 'komparasi' | 'cabang'>('ringkasan');
   const [compareChartMode, setCompareChartMode] = useState<'batang' | 'tren' | 'layanan' | 'staf' | 'rasio'>('batang');
   const [trendMetric, setTrendMetric] = useState<'omzet' | 'uangMasuk' | 'trx'>('omzet');
@@ -789,176 +789,242 @@ export const LaporanView: React.FC<LaporanViewProps> = ({
   return (
     <div className="flex flex-col max-h-screen bg-slate-100 text-slate-800 pb-16">
       {/* Top Header */}
-      <header className="bg-[#800000] text-white shadow-md sticky top-0 z-30 flex items-center justify-between px-3 sm:px-6 h-14 no-print">
-        <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+<header className="bg-[#800000] text-white shadow-lg sticky top-0 z-30 px-4 pb-2 h-16 flex items-center justify-between no-print">
+        <div className="flex items-center gap-3 min-w-0">
           <button
             onClick={onBack}
-            className="p-1 -ml-1 rounded-full hover:bg-white/10 transition mr-1 sm:mr-2 cursor-pointer shrink-0"
-            aria-label="Kembali"
+            className="p-2 -ml-1 rounded-xl hover:bg-white/10 active:scale-95 transition cursor-pointer shrink-0"
+            title="Kembali"
           >
             <ArrowLeft className="w-5 h-5 text-white" />
           </button>
           <div className="min-w-0">
-            <h1 className="font-bold text-sm sm:text-base tracking-wide leading-tight truncate">
-              Laporan Keuangan
-            </h1>
-            <p className="text-[10px] text-red-200/90 hidden sm:block truncate">
-              {effectiveLaundryName} • {currentPeriodeLabel}
+            <h1 className="font-black text-base tracking-tight leading-tight">Laporan Keuangan</h1>
+            <p className="text-[11px] text-white/80 font-medium truncate">
+              {effectiveLaundryName} • Periode: {currentPeriodeLabel}
             </p>
           </div>
         </div>
 
-        {/* Tombol Ekspor Excel & Cetak PDF */}
-     {/* Tombol Ekspor Excel, Cetak PDF & Pratinjau (Warna hanya pada Icon/Logo) */}
-        <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
-          {/* Tombol Excel */}
-          <button
-            type="button"
-            onClick={handleExportExcel}
-            className="px-2 sm:px-2.5 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 bg-white/10 hover:bg-white/20 active:bg-white/25 text-white transition active:scale-95 cursor-pointer"
-            title={!canExcel ? 'Terkunci di Paket Newcomer (Klik untuk upgrade)' : 'Unduh Spreadsheet Excel (.xlsx)'}
-          >
-            {!canExcel ? (
-              <Lock className="w-3.5 h-3.5 text-amber-300" />
-            ) : (
-              <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
-            )}
-            <span className="hidden sm:inline">Excel</span>
-            {!canExcel && (
-              <span className="text-[9px] text-amber-300 bg-amber-400/20 px-1 py-0.2 rounded font-black">
-                BASIC
-              </span>
-            )}
-          </button>
+  {/* Tombol Ekspor Excel, Cetak PDF & Pratinjau (Hanya Ikon, Tanpa Background) */}
+<div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+  {/* Tombol Excel */}
+  <button
+    type="button"
+    onClick={handleExportExcel}
+    className="p-2 rounded-xl hover:bg-slate-100 text-slate-700 transition active:scale-95 cursor-pointer"
+    title={!canExcel ? 'Terkunci di Paket Newcomer (Klik untuk upgrade)' : 'Unduh Spreadsheet Excel (.xlsx)'}
+  >
+    {!canExcel ? (
+      <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+    ) : (
+      <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+    )}
+  </button>
 
-          {/* Tombol PDF */}
-          <button
-            type="button"
-            onClick={handleDownloadPDF}
-            className="px-2 sm:px-2.5 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 bg-white/10 hover:bg-white/20 active:bg-white/25 text-white transition active:scale-95 cursor-pointer"
-            title={!canPdf ? 'Terkunci di Paket Newcomer (Klik untuk upgrade ke Basic)' : 'Unduh Berkas PDF (.pdf) Langsung'}
-          >
-            {!canPdf ? (
-              <Lock className="w-3.5 h-3.5 text-amber-300" />
-            ) : (
-              <Download className="w-4 h-4 text-rose-400" />
-            )}
-            <span className="hidden sm:inline">PDF</span>
-            <span className="sm:hidden">PDF</span>
-            {!canPdf && (
-              <span className="text-[9px] text-amber-300 bg-amber-400/20 px-1 py-0.2 rounded font-black">
-                BASIC
-              </span>
-            )}
-          </button>
+  {/* Tombol PDF */}
+  <button
+    type="button"
+    onClick={handleDownloadPDF}
+    className="p-2 rounded-xl hover:bg-slate-100 text-slate-700 transition active:scale-95 cursor-pointer"
+    title={!canPdf ? 'Terkunci di Paket Newcomer (Klik untuk upgrade ke Premium)' : 'Unduh Berkas PDF (.pdf) Langsung'}
+  >
+    {!canPdf ? (
+      <Download className="w-4 h-4 text-amber-500" />
+    ) : (
+      <Download className="w-4 h-4 text-amber-500" />
+    )}
+  </button>
 
-          {/* Tombol Cetak / Pratinjau */}
-          <button
-            type="button"
-            onClick={handleOpenPdfModal}
-            className="px-2 sm:px-2.5 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 bg-white/10 hover:bg-white/20 active:bg-white/25 text-white transition active:scale-95 cursor-pointer"
-            title={!canPdf ? 'Terkunci di Paket Newcomer (Klik untuk upgrade)' : 'Pratinjau Dokumen & Cetak Kertas'}
-          >
-            {!canPdf ? (
-              <Lock className="w-3.5 h-3.5 text-amber-300" />
-            ) : (
-              <Printer className="w-4 h-4 text-amber-300" />
-            )}
-            <span className="hidden md:inline">Cetak</span>
-            <span className="md:hidden">Cetak</span>
-          </button>
-        </div>
+  {/* Tombol Cetak / Pratinjau */}
+  <button
+    type="button"
+    onClick={handleOpenPdfModal}
+    className="p-2 rounded-xl hover:bg-slate-100 text-slate-700 transition active:scale-95 cursor-pointer"
+    title={!canPdf ? 'Terkunci di Paket Newcomer (Klik untuk upgrade)' : 'Pratinjau Dokumen & Cetak Kertas'}
+  >
+    {!canPdf ? (
+      <Printer className="w-4 h-4 text-amber-600" />
+    ) : (
+      <Printer className="w-4 h-4 text-amber-600" />
+    )}
+  </button>
+</div>
       </header>
 
-      {/* Filter Month & Year Bar + Tab Switcher */}
-      <div className="bg-white border-b border-slate-200 px-4 md:px-6 py-2.5 shadow-2xs no-print">
-        <div className="max-w-xl md:max-w-5xl mx-auto w-full space-y-2.5">
-          {/* Dropdown Pemilihan Periode */}
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2 flex-1 md:max-w-xs">
-              <span className="text-xs font-bold text-slate-600">Bulan:</span>
-              <select
-                value={selectedMonth}
-                onChange={(e) => setSelectedMonth(parseInt(e.target.value, 10))}
-                className="flex-1 px-2.5 py-1.5 rounded-xl border border-slate-300 text-xs font-semibold bg-slate-50 focus:outline-none focus:ring-2 focus:ring-[#800000]"
-              >
-                <option value={-1}>Semua Bulan (Tahunan)</option>
-                {monthNames.map((m, idx) => (
-                  <option key={idx} value={idx}>
-                    {m}
-                  </option>
-                ))}
-              </select>
+    <div className="bg-white border-b border-slate-200 px-4 md:px-6 py-3 shadow-2xs no-print">
+      <div className="max-w-xl md:max-w-5xl mx-auto w-full space-y-3">
+        {/* Dropdown Pemilihan Periode (Custom Modern Selector) */}
+        <div className="flex items-center justify-between gap-2.5">
+          {/* Tombol Pemilih Bulan Interaktif */}
+          <button
+            type="button"
+            onClick={() => setShowMonthPickerModal(true)}
+            className="flex-1 px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-rose-50/60 active:scale-98 transition flex items-center justify-between gap-2 text-left cursor-pointer shadow-2xs group"
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+           
+              <div className="min-w-0">
+           
+                <span className="text-xs font-black text-slate-900 truncate block">
+                  {selectedMonth === -1 ? 'Semua Bulan (Tahunan)' : monthNames[selectedMonth]}
+                </span>
+              </div>
             </div>
+            <ChevronDown className="w-4 h-4 text-slate-400 group-hover:text-[#800000] transition-transform" />
+          </button>
 
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-slate-600">Tahun:</span>
-              <select
-                value={selectedYear}
-                onChange={(e) => setSelectedYear(parseInt(e.target.value, 10))}
-                className="px-2.5 py-1.5 rounded-xl border border-slate-300 text-xs font-semibold bg-slate-50 focus:outline-none focus:ring-2 focus:ring-[#800000]"
-              >
-                {[currentYear - 2, currentYear - 1, currentYear, currentYear + 1].map((y) => (
-                  <option key={y} value={y}>
-                    {y}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* Tab Switcher: Ringkasan vs Analisis Komparasi vs Performa Cabang */}
-          <div className="grid grid-cols-3 p-1 bg-slate-100 rounded-xl text-xs font-bold border border-slate-200/60">
-            <button
-              type="button"
-              onClick={() => setActiveTab('ringkasan')}
-              className={`py-2 px-1.5 sm:px-3 rounded-lg flex items-center justify-center gap-1.5 transition cursor-pointer ${
-                activeTab === 'ringkasan'
-                  ? 'bg-white text-slate-900 shadow-xs font-black'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
+          {/* Selector Tahun */}
+          <div className="relative shrink-0">
+            <select
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(parseInt(e.target.value, 10))}
+              className="pl-3 pr-8 py-2.5 rounded-xl border border-slate-200 text-xs font-black bg-slate-50 text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#800000] cursor-pointer appearance-none shadow-2xs"
             >
-              <span className="truncate">📊 Ringkasan</span>
-            </button>
+              {[currentYear - 2, currentYear - 1, currentYear, currentYear + 1].map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-3.5 pointer-events-none" />
+          </div>
+        </div>
 
+        {/* Tab Switcher: Ringkasan vs Analisis Komparasi vs Performa Cabang */}
+        <div className="grid grid-cols-3 p-1 bg-slate-100 rounded-xl text-xs font-bold border border-slate-200/60">
+          <button
+            type="button"
+            onClick={() => setActiveTab('ringkasan')}
+            className={`py-1 px-0 sm:px-3 rounded-lg flex items-center justify-center gap-1.5 transition cursor-pointer ${
+              activeTab === 'ringkasan'
+                ? 'bg-white text-slate-900 shadow-xs font-black'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <span className="truncate">📊 Ringkasan</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              if (!canGrowth) {
+                toast.warning('Fitur analisis komparasi pertumbuhan (MoM & YoY) hanya untuk Paket Premium.');
+                return;
+              }
+              setActiveTab('komparasi');
+            }}
+            className={`py-2 px-1.5 sm:px-3 rounded-lg flex items-center justify-center gap-1.5 transition cursor-pointer ${
+              activeTab === 'komparasi'
+                ? 'bg-[#800000] text-white shadow-xs font-black'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            {!canGrowth ? (
+              <TrendingUp className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            ) : (
+              <TrendingUp className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            )}
+            <span className="truncate">Komparasi {!canGrowth ? '(Premium)' : ''}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('cabang')}
+            className={`py-2 px-1.5 sm:px-3 rounded-lg flex items-center justify-center gap-1.5 transition cursor-pointer ${
+              activeTab === 'cabang'
+                ? 'bg-[#800000] text-white shadow-xs font-black'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Building2 className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <span className="truncate">Performa Cabang</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Modal / Grid Popover Pemilihan Bulan Interaktif */}
+      {showMonthPickerModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-fade-in"
+          onClick={() => setShowMonthPickerModal(false)}
+        >
+          <div
+            className="w-full max-w-sm bg-white border border-slate-200 rounded-2xl shadow-2xl p-4 space-y-3.5 text-slate-800"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header Modal */}
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+              <div className="flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-[#800000]" />
+                <h3 className="font-extrabold text-xs text-slate-900 uppercase tracking-wider">
+                  Pilih Bulan Laporan ({selectedYear})
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowMonthPickerModal(false)}
+                className="p-1 rounded-lg text-slate-400 hover:bg-slate-100 transition cursor-pointer"
+              >
+              </button>
+            </div>
+
+            {/* Opsi Tahunan (Semua Bulan) */}
             <button
               type="button"
               onClick={() => {
-                if (!canGrowth) {
-                  toast.warning('Fitur analisis komparasi pertumbuhan (MoM & YoY) hanya untuk Paket Premium.');
-                  return;
-                }
-                setActiveTab('komparasi');
+                setSelectedMonth(-1);
+                setShowMonthPickerModal(false);
               }}
-              className={`py-2 px-1.5 sm:px-3 rounded-lg flex items-center justify-center gap-1.5 transition cursor-pointer ${
-                activeTab === 'komparasi'
+              className={`w-full py-2.5 px-3 rounded-xl font-bold text-xs flex items-center justify-between transition cursor-pointer ${
+                selectedMonth === -1
                   ? 'bg-[#800000] text-white shadow-xs font-black'
-                  : 'text-slate-600 hover:text-slate-900'
+                  : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200/80'
               }`}
             >
-              {!canGrowth ? (
-                <Lock className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-              ) : (
-                <TrendingUp className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-              )}
-              <span className="truncate">📈 Komparasi {!canGrowth ? '(Basic)' : ''}</span>
+              <span>🗓️ Rekapitulasi Semua Bulan (Tahunan)</span>
+              {selectedMonth === -1 && <CheckCircle2 className="w-4 h-4 text-amber-300" />}
             </button>
 
-            <button
-              type="button"
-              onClick={() => setActiveTab('cabang')}
-              className={`py-2 px-1.5 sm:px-3 rounded-lg flex items-center justify-center gap-1.5 transition cursor-pointer ${
-                activeTab === 'cabang'
-                  ? 'bg-[#800000] text-white shadow-xs font-black'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <Building2 className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-              <span className="truncate">🏢 Performa Cabang</span>
-            </button>
+            {/* Grid 12 Bulan (3 Kolom x 4 Baris) */}
+            <div className="grid grid-cols-3 gap-2 pt-1">
+              {monthNames.map((m, idx) => {
+                const isSelected = selectedMonth === idx;
+                const isCurrentMonth = idx === currentMonth && selectedYear === currentYear;
+
+                return (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => {
+                      setSelectedMonth(idx);
+                      setShowMonthPickerModal(false);
+                    }}
+                    className={`py-2.5 px-2 rounded-xl text-xs font-bold transition flex flex-col items-center justify-center relative cursor-pointer ${
+                      isSelected
+                        ? 'bg-[#800000] text-white shadow-md font-black scale-102'
+                        : 'bg-slate-50 hover:bg-rose-50 text-slate-700 hover:text-[#800000] border border-slate-200/70'
+                    }`}
+                  >
+                    <span>{m}</span>
+                    {isCurrentMonth && !isSelected && (
+                      <span className="text-[9px] text-emerald-600 font-extrabold mt-0.5">
+                        • Bulan Ini
+                      </span>
+                    )}
+                    {isSelected && (
+                      <span className="text-[9px] text-amber-300 font-bold mt-0.5">
+                        ✓ Terpilih
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
-      </div>
+      )}
+    </div>
 
       <main className="flex-1 p-3 md:p-6 space-y-3 md:space-y-4 overflow-y-auto max-w-xl md:max-w-5xl mx-auto w-full no-print">
         {/* ======================================================== */}

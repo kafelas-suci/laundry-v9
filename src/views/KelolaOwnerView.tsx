@@ -82,8 +82,8 @@ export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
 
   const currentLimits = getLaundryLimits(currentUser.subscriptionType);
   const isNewcomer = currentLimits.tier === 'newcomer';
-  const isBasic = currentLimits.tier === 'basic';
-  const HARGA_BASIC_BULANAN = 27000;
+  const isPremium = currentLimits.tier === 'Premium';
+  const HARGA_Premium_BULANAN = 27000;
 
   const sisaHari = Math.max(
     0,
@@ -91,8 +91,8 @@ export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
   );
 
   const handlePayBulanan = async () => {
-    const cost = HARGA_BASIC_BULANAN;
-    const label = 'Paket Basic (30 Hari)';
+    const cost = HARGA_Premium_BULANAN;
+    const label = 'Paket Premium (30 Hari)';
 
     if (currentUser.walletBalance < cost) {
       toast.warning(`Saldo dompet tidak mencukupi (${formatRupiah(cost)}). Silakan isi saldo terlebih dahulu.`);
@@ -179,8 +179,8 @@ export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
         {/* GRID UTAMA: 2 Kolom Kompak */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           
-          {/* KOLOM 1: DOMPET & LANGGANAN */}
-          <div className="bg-[#1e293b] text-white rounded-2xl shadow-sm overflow-hidden border border-slate-700/80 flex flex-col justify-between">
+       {/* KOLOM 1: DOMPET & LANGGANAN (Dominan Putih & Maroon) */}
+          <div className="bg-white text-slate-800 rounded-2xl shadow-md overflow-hidden border border-slate-200 flex flex-col justify-between">
             <div>
               {/* Header Masa Aktif */}
               <div
@@ -189,14 +189,14 @@ export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
                     onOpenExpiredModal();
                   }
                 }}
-                className={`px-3.5 py-2 text-center text-xs font-bold flex items-center justify-center gap-1.5 shadow-inner transition ${
+                className={`px-3.5 py-2 text-center text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition ${
                   !isNewcomer && sisaHari <= 0
-                    ? 'bg-rose-700 hover:bg-rose-800 cursor-pointer text-white animate-pulse'
+                    ? 'bg-rose-600 hover:bg-rose-700 cursor-pointer text-white animate-pulse'
                     : 'bg-[#800000] text-white'
                 }`}
                 title={!isNewcomer && sisaHari <= 0 ? 'Masa langganan habis! Klik untuk buka halaman perpanjangan' : undefined}
               >
-                <Clock className="w-3.5 h-3.5" />
+                <Clock className="w-3.5 h-3.5 text-white" />
                 <span>
                   {isNewcomer
                     ? 'Masa Aktif: Paket Newcomer (Gratis Selamanya)'
@@ -207,15 +207,15 @@ export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
               </div>
 
               {/* Saldo Akun & Tombol Top Up */}
-              <div className="p-4 flex items-center justify-between border-b border-slate-700/80 bg-slate-900/40">
+              <div className="p-4 px-4 flex items-center justify-between border-b border-slate-100 bg-slate-50/50">
                 <div>
-                  <span className="text-[11px] text-slate-400 block font-medium">Saldo Dompet Akun</span>
-                  <span className="text-xl font-black text-white tracking-tight">{formatRupiah(currentUser.walletBalance)}</span>
+                  <span className="text-[11px] text-slate-500 block font-medium">Saldo Dompet Akun</span>
+                  <span className="text-xl font-black text-slate-900 tracking-tight">{formatRupiah(currentUser.walletBalance)}</span>
                 </div>
                 <button
                   type="button"
                   onClick={() => setShowTopUpModal(true)}
-                  className="flex items-center gap-1 px-3 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-500 hover:to-emerald-600 text-white font-bold text-xs transition shadow-md active:scale-95 cursor-pointer"
+                  className="flex items-center gap-1 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition shadow-xs active:scale-95 cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>Top Up</span>
@@ -225,30 +225,30 @@ export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
               {/* Perpanjangan Options */}
               <div className="p-3 space-y-2">
              
-                {/* Paket Bulanan Basic */}
-                <div className="flex items-center justify-between p-3 rounded-xl bg-slate-800/90 border border-slate-700 hover:border-slate-600 transition text-xs shadow-2xs">
+                {/* Paket Bulanan Premium */}
+                <div className="flex items-center justify-between p-3 rounded-xl bg-white border border-slate-200 hover:border-slate-300 transition text-xs shadow-2xs">
                   <div className="pr-2">
                     <div className="flex items-center gap-1.5">
-                      <span className="font-bold text-white">Paket Basic (30 Hari)</span>
-                      {isBasic && <span className="text-[9px] bg-sky-500/20 text-sky-300 border border-sky-400/30 px-2 py-0.5 rounded-full font-bold">Aktif</span>}
+                      <span className="font-bold text-slate-900">Paket Premium (30 Hari)</span>
+                      {isPremium && <span className="text-[9px] bg-sky-50 text-sky-700 border border-sky-200 px-2 py-0.5 rounded-full font-bold">Aktif</span>}
                     </div>
-                    <div className="text-[10px] text-slate-400 mt-0.5">{formatRupiah(HARGA_BASIC_BULANAN)} · Multi-User (Owner & Admin) Penugasan Staf & Laporan Lengkap, Export Excell & pdf, Dokumen Web Akses. </div>
+                    <div className="text-[10px] text-slate-500 mt-0.5">{formatRupiah(HARGA_Premium_BULANAN)} · Multi-User (Owner & Admin) Penugasan Staf & Laporan Lengkap, Export Excel & PDF, Dokumen Web Akses.</div>
                   </div>
                   <button
                     onClick={handlePayBulanan}
-                    className="flex items-center gap-1 px-3 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-500 hover:to-emerald-600 text-white font-bold text-xs transition shadow-md active:scale-95 cursor-pointer shrink-0"
+                    className="flex items-center gap-1 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition shadow-xs active:scale-95 cursor-pointer shrink-0"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     <span>Bayar</span>
                   </button>
                 </div>
 
-                {/* Tombol Khusus Habis Hari Langganan jika sisaHari <= 0 (Hanya untuk Paket Berbayar) */}
+                {/* Tombol Khusus Habis Hari Langganan jika sisaHari <= 0 */}
                 {!isNewcomer && sisaHari <= 0 && onOpenExpiredModal && (
                   <button
                     type="button"
                     onClick={onOpenExpiredModal}
-                    className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-rose-600 via-rose-700 to-amber-600 hover:brightness-110 text-white font-black text-xs flex items-center justify-center gap-1.5 shadow-md transition active:scale-98 cursor-pointer animate-pulse"
+                    className="w-full py-2.5 px-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black text-xs flex items-center justify-center gap-1.5 shadow-sm transition active:scale-98 cursor-pointer animate-pulse"
                   >
                     <Clock className="w-3.5 h-3.5" />
                     <span>Layar Habis Hari Langganan (Lihat Saldo &amp; Perpanjang)</span>
@@ -260,20 +260,20 @@ export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
                   <button
                     type="button"
                     onClick={() => onOpenUpgradeModal?.()}
-                    className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white font-black text-xs flex items-center justify-center gap-1.5 shadow-md transition active:scale-98 cursor-pointer"
+                    className="w-full py-2.5 px-3 rounded-xl bg-[#800000] hover:bg-[#660000] text-white font-black text-xs flex items-center justify-center  shadow-sm transition active:scale-98 cursor-pointer"
                   >
                     <Crown className="w-3.5 h-3.5 text-amber-300" />
-                    <span> Detail ( paket Basic)</span>
+                    <span>Detail (Paket Premium)</span>
                   </button>
                 </div>
               </div>
             </div>
 
             {/* Riwayat Tombol Bawah */}
-            <div className="p-3 bg-slate-900/60 border-t border-slate-700/80 flex gap-2">
+            <div className="px-3 py-1 bg-slate-50 border-t border-slate-100 flex gap-1">
               <button
                 onClick={() => setShowHistoryModal(true)}
-                className="flex-1 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-bold transition flex items-center justify-center gap-1 border border-slate-700/50 cursor-pointer"
+                className="flex-1 py-0 rounded-xl bg-white hover:bg-slate-100 text-slate-700 text-[11px] font-bold transition flex items-center justify-center gap-1 border border-slate-200 cursor-pointer shadow-2xs"
               >
                 📜 Riwayat Transaksi
               </button>
@@ -286,13 +286,12 @@ export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
                     '_blank'
                   );
                 }}
-                className="flex-1 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-bold transition flex items-center justify-center gap-1 border border-slate-700/50 cursor-pointer"
+                className="flex-1 py-2 rounded-xl bg-white hover:bg-slate-100 text-slate-700 text-[11px] font-bold transition flex items-center justify-center gap-1 border border-slate-200 cursor-pointer shadow-2xs"
               >
                 💬 Bantuan CS
               </button>
             </div>
           </div>
-
           {/* KOLOM 2: DAFTAR CABANG LAUNDRY */}
           <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-2xs flex flex-col justify-between">
             <div>
@@ -420,24 +419,26 @@ export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
             </div>
 
             <div className="p-4 overflow-y-auto space-y-3.5 text-xs">
-              <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-between shadow-2xs">
-                <div>
-                  <span className="text-[10px] text-slate-500 font-semibold">Saldo Dompet Saat Ini:</span>
-                  <div className="text-sm font-black text-slate-900">{formatRupiah(currentUser.walletBalance)}</div>
-                </div>
-                <div className="text-right text-[10px] text-slate-500">
-                  <span>Masa Aktif: </span>
-                  <strong className={sisaHari > 0 ? 'text-emerald-700 font-bold' : 'text-rose-600 font-bold'}>
-                    {sisaHari > 0 ? `${sisaHari} Hari` : 'Kedaluwarsa'}
-                  </strong>
-                </div>
-              </div>
-
+  <div className="overflow-y-auto space-y-3.5 text-xs">
+  <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-between shadow-2xs">
+    <div>
+      <span className="text-[10px] text-slate-500 font-semibold">Saldo Dompet Saat Ini:</span>
+      <div className="text-sm font-black text-slate-900">{formatRupiah(currentUser.walletBalance)}</div>
+    </div>
+    
+    {/* Posisi Sebelah Kanan */}
+    <div className="text-right">
+      <span className="inline-flex items-center px-2 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] font-bold">
+        ✓ Aktif &amp; Aman
+      </span>
+    </div>
+  </div>
+</div>
               {/* 1. Pilih Nominal */}
               <div className="space-y-1.5">
                 <label className="font-bold text-slate-800 text-[11px]">1. Pilih Nominal Top Up</label>
                 <div className="grid grid-cols-2 gap-2">
-                  {[25000, 27000, 57000, 100000].map((nom) => {
+                  {[25000, 27000, 50000, 100000].map((nom) => {
                     const isSelected = selectedNominal === nom && !customTopUp;
                     return (
                       <button
@@ -454,7 +455,7 @@ export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
                         }`}
                       >
                         <span className="block text-[9px] text-slate-400 font-normal">
-                          {nom === 25000 ? 'Tambah 1 Cabang' : nom === 27000 ? 'Paket Basic' : nom === 57000 ? 'Paket Pro' : 'Top Up'}
+                          {nom === 25000 ? 'Tambah 1 Cabang' : nom === 27000 ? 'Paket Premium' : nom === 50000 ? 'Top up' : 'Top Up'}
                         </span>
                         <span className="text-xs font-black">{formatRupiah(nom)}</span>
                       </button>
@@ -512,9 +513,9 @@ export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
                     <div>
                       <div className="font-bold text-slate-900 flex items-center gap-1.5 text-[11px]">
                         <span className="px-1.5 py-0.5 rounded bg-sky-100 text-sky-800 text-[9px] font-black">DANA</span>
-                        <span>0856 5978 1477</span>
+                        <span>0831 3230 4649</span>
                       </div>
-                      <div className="text-[10px] text-slate-500">a/n Suci K Kusumah</div>
+                      <div className="text-[10px] text-slate-500">a/n Iqbal S Nuha</div>
                     </div>
                     <button
                       type="button"
@@ -547,20 +548,7 @@ export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
                   <ExternalLink className="w-3.5 h-3.5" />
                 </button>
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    const nominalFinal = customTopUp ? parseInt(customTopUp, 10) || selectedNominal : selectedNominal;
-                    if (nominalFinal <= 0) return;
-                    onTopUpWallet(nominalFinal);
-                    setShowTopUpModal(false);
-                    setCustomTopUp('');
-                    toast.success(`Saldo ${formatRupiah(nominalFinal)} berhasil ditambahkan!`);
-                  }}
-                  className="w-full py-2.5 px-3 rounded-2xl bg-slate-800 hover:bg-slate-900 text-white font-bold text-[11px] transition active:scale-95 cursor-pointer"
-                >
-                  ⚡ Tambah Saldo Instan Demo ({formatRupiah(customTopUp ? parseInt(customTopUp, 10) || selectedNominal : selectedNominal)})
-                </button>
+
               </div>
             </div>
           </div>

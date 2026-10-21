@@ -251,7 +251,7 @@ export default function App() {
   const [trxForAssignStaff, setTrxForAssignStaff] = useState<Transaksi | null>(null);
   const [receiptModalTrx, setReceiptModalTrx] = useState<Transaksi | null>(null);
 
-  // Subscription Tier state (Basic vs Pro)
+  // Subscription Tier state (Premium vs Pro)
   const [activeTier, setActiveTier] = useState<LaundryTier>(() => {
     const saved = StorageService.get<string | null>('active_subscription_tier', null);
     if (saved) return normalizeTier(saved);
@@ -285,15 +285,15 @@ export default function App() {
       toast.warning('Paket Newcomer adalah paket awal otomatis untuk akun baru dan tidak dapat dipilih kembali.');
       return;
     }
-    setActiveTier('basic');
-    StorageService.set('active_subscription_tier', 'basic');
+    setActiveTier('Premium');
+    StorageService.set('active_subscription_tier', 'Premium');
     if (currentUser) {
-      const updatedUser = { ...currentUser, subscriptionType: 'basic' };
+      const updatedUser = { ...currentUser, subscriptionType: 'Premium' };
       setCurrentUser(updatedUser);
       StorageService.set('active_user', updatedUser);
       FirebaseSyncService.updateUserProfile(updatedUser).catch(console.error);
     }
-    toast.success('Selamat! Akun Anda telah ditingkatkan ke Paket Basic!');
+    toast.success('Selamat! Akun Anda telah ditingkatkan ke Paket Premium!');
   };
 
   // Toast & Double-Tap to Exit state saat berada di menu utama (Dashboard)
@@ -1152,12 +1152,12 @@ export default function App() {
       ...currentUser,
       walletBalance: Math.max(0, currentUser.walletBalance - cost),
       subscriptionEndDate: newEnd,
-      subscriptionType: 'basic',
+      subscriptionType: 'Premium',
     };
     setCurrentUser(updatedUser);
     StorageService.set('active_user', updatedUser);
-    setActiveTier('basic');
-    StorageService.set('active_subscription_tier', 'basic');
+    setActiveTier('Premium');
+    StorageService.set('active_subscription_tier', 'Premium');
 
     const historyItem: SubscriptionHistory = {
       id: `sub-${Date.now()}`,
@@ -1791,7 +1791,7 @@ export default function App() {
           onOpenUpgradeModal={handleOpenUpgradeModal}
         />
 
-        {/* Modal Komparasi Paket Newcomer & Paket Basic */}
+        {/* Modal Komparasi Paket Newcomer & Paket Premium */}
         <UpgradePlanModal
           isOpen={isUpgradeModalOpen}
           onClose={() => setIsUpgradeModalOpen(false)}

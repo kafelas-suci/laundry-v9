@@ -36,7 +36,6 @@ export const AuthView: React.FC<AuthViewProps> = ({
   const [isSignUp, setIsSignUp] = useState(initialSignUp);
   const [showPassword, setShowPassword] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
-  const [showDemoRoleModal, setShowDemoRoleModal] = useState(false);
   const [showInstallModal, setShowInstallModal] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
@@ -97,21 +96,20 @@ export const AuthView: React.FC<AuthViewProps> = ({
         return;
       }
 
-      // Login diperketat: tidak ada bypass atau auto-create user untuk email tak terdaftar
       if (err.code === 'auth/operation-not-allowed') {
-        setAuthError('Metode login Email/Password belum diaktifkan di Firebase Console. Silakan gunakan tombol "Masuk dengan Google" di bawah untuk masuk ke akun Anda.');
+        setAuthError('Metode login Email/Password belum diaktifkan di Firebase Console. Silakan gunakan tombol "Masuk dengan Google" di bawah.');
       } else if (
         err.code === 'auth/user-not-found' ||
         err.code === 'auth/invalid-credential' ||
         err.code === 'auth/wrong-password'
       ) {
-        setAuthError('Email belum terdaftar atau password salah. Pastikan akun sudah didaftarkan terlebih dahulu atau gunakan tombol "Masuk dengan Google".');
+        setAuthError('Email belum terdaftar atau password salah. Pastikan akun sudah didaftarkan terlebih dahulu.');
       } else if (err.code === 'auth/invalid-email') {
-        setAuthError('Format alamat email tidak valid. Masukkan email yang benar.');
+        setAuthError('Format alamat email tidak valid.');
       } else if (err.code === 'auth/too-many-requests') {
-        setAuthError('Akses diblokir sementara karena terlalu banyak percobaan gagal. Silakan tunggu beberapa saat atau gunakan "Masuk dengan Google".');
+        setAuthError('Akses diblokir sementara karena terlalu banyak percobaan gagal.');
       } else {
-        setAuthError(err.message || 'Gagal masuk. Pastikan akun sudah terdaftar di Firebase atau gunakan "Masuk dengan Google".');
+        setAuthError(err.message || 'Gagal masuk. Pastikan akun sudah terdaftar.');
       }
     } finally {
       setIsLoading(false);
@@ -159,7 +157,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
     } catch (err: any) {
       console.error('Sign up error:', err);
       if (err.code === 'auth/operation-not-allowed') {
-        setAuthError('Metode pendaftaran Email belum diaktifkan di Firebase Console. Silakan gunakan tombol "Daftar dengan Google" di bawah!');
+        setAuthError('Metode pendaftaran Email belum diaktifkan di Firebase Console.');
       } else if (err.code === 'auth/email-already-in-use') {
         setAuthError('Email ini sudah terdaftar. Silakan login langsung.');
       } else if (err.code === 'auth/weak-password') {
@@ -190,8 +188,6 @@ export const AuthView: React.FC<AuthViewProps> = ({
       console.error('Google Sign In error:', err);
       if (err.code === 'auth/popup-closed-by-user') {
         setAuthError('Jendela login Google ditutup sebelum selesai.');
-      } else if (err.code === 'auth/unauthorized-domain') {
-        setAuthError('Domain preview ini belum diotorisasi di Firebase Console (Authentication > Settings > Authorized domains). Silakan gunakan login Email/Password atau tombol "Coba Gratis Mode Demo" di bawah.');
       } else {
         setAuthError('Gagal login Google: ' + (err.message || 'Terjadi kesalahan'));
       }
@@ -201,7 +197,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 flex flex-col justify-between p-4 sm:p-6 text-slate-100">
+    <div className="min-h-screen bg-slate-50 flex flex-col justify-between p-4 sm:p-6 text-slate-800">
       <div className="w-full max-w-md mx-auto my-auto py-1">
         {/* Top Landing Page Button */}
         {onOpenLandingPage && (
@@ -209,10 +205,10 @@ export const AuthView: React.FC<AuthViewProps> = ({
             <button
               type="button"
               onClick={onOpenLandingPage}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-slate-800/90 hover:bg-slate-750 border border-amber-500/30 text-amber-300 hover:text-amber-200 text-xs font-bold transition active:scale-95 cursor-pointer shadow-md group"
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-white hover:bg-rose-50 border border-rose-200 text-[#800000] text-xs font-bold transition active:scale-95 cursor-pointer shadow-xs group"
               title="Buka Website Landing Page & Panduan Interaktif Kafelas Laundry"
             >
-              <Sparkles className="w-3.5 h-3.5 text-amber-400 group-hover:rotate-12 transition-transform" />
+              <Sparkles className="w-3.5 h-3.5 text-[#800000] group-hover:rotate-12 transition-transform" />
               <span>Lihat Tutorial</span>
               <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
             </button>
@@ -220,169 +216,166 @@ export const AuthView: React.FC<AuthViewProps> = ({
         )}
 
         {/* Card Header */}
-        <div className="text-center space-y-2 mb-6">
-          
-         
-          <h1 className="text-2xl font-black tracking-wide text-white">Assalamu'alaikum</h1>
-          <p className="text-xs text-slate-400">
+        <div className="text-center space-y-1.5 mb-5">
+          <h1 className="text-2xl font-black tracking-wide text-slate-900">Assalamu'alaikum</h1>
+          <p className="text-xs text-slate-500 font-medium">
             {isSignUp
               ? 'Daftarkan bisnis laundry Anda untuk manajemen terintegrasi'
               : 'Kafelas Laundry'}
           </p>
         </div>
 
-        {/* Auth Form Box */}
-        <div className="bg-slate-800/90 border border-slate-700/80 rounded-2xl p-6 shadow-2xl backdrop-blur-md space-y-4">
+        {/* Auth Form Box - Clean White & Maroon Accents */}
+        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xl space-y-4">
           <form onSubmit={isSignUp ? handleSignUp : handleLogin} className="space-y-3.5">
             {isSignUp && (
-              <>
-       <div className="space-y-4">
-  {/* Nama Laundry */}
-  <div>
-    <label className="block text-xs font-bold text-slate-300  tracking-wider mb-1.5">
-      Nama Laundry Anda *
-    </label>
-    <div className="relative">
-      <input
-        type="text"
-        required
-        value={namaLaundry}
-        onChange={(e) => setNamaLaundry(e.target.value)}
-        placeholder="Contoh: Kafelas Laundry"
-        className="w-full pl-10 pr-4 py-3.5 bg-slate-900 border border-slate-700 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-[#800000]"
-      />
-      <Building2 className="w-5 h-5 text-slate-400 absolute left-3.5 top-3.5" />
-    </div>
-  </div>
+              <div className="space-y-3.5">
+                {/* Nama Laundry */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 tracking-wider mb-1">
+                    Nama Laundry Anda *
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      required
+                      value={namaLaundry}
+                      onChange={(e) => setNamaLaundry(e.target.value)}
+                      placeholder="Contoh: Kafelas Laundry"
+                      className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#800000] focus:bg-white"
+                    />
+                    <Building2 className="w-5 h-5 text-slate-400 absolute left-3.5 top-3" />
+                  </div>
+                </div>
 
-<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-  {/* Nomor WhatsApp / HP */}
-  <div>
-    <label className="block text-xs font-bold text-slate-300  tracking-wider mb-1.5">
-      Nomor WhatsApp / HP *
-    </label>
-    <div className="relative">
-      <input
-        type="tel"
-        required
-        value={telepon}
-        onChange={(e) => setTelepon(e.target.value)}
-        placeholder="081234567890"
-        className="w-full pl-10 pr-4 py-3.5 bg-slate-900 border border-slate-700 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-[#800000]"
-      />
-      <Phone className="w-5 h-5 text-slate-400 absolute left-3.5 top-3.5" />
-    </div>
-  </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Nomor WhatsApp / HP */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 tracking-wider mb-1">
+                      Nomor WhatsApp / HP *
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="tel"
+                        required
+                        value={telepon}
+                        onChange={(e) => setTelepon(e.target.value)}
+                        placeholder="081234567890"
+                        className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#800000] focus:bg-white"
+                      />
+                      <Phone className="w-5 h-5 text-slate-400 absolute left-3.5 top-3" />
+                    </div>
+                  </div>
 
-  {/* Nama Pemilik / Display Name */}
-  <div>
-    <label className="block text-xs font-bold text-slate-300  tracking-wider mb-1.5">
-      Nama Pemilik (Display Name)
-    </label>
-    <div className="relative">
-      <input
-        type="text"
-        value={displayName}
-        onChange={(e) => setDisplayName(e.target.value)}
-        placeholder="Contoh: Ibu Fatimah / Iqbal Pratama"
-        className="w-full pl-10 pr-4 py-3.5 bg-slate-900 border border-slate-700 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-[#800000]"
-      />
-      <User className="w-5 h-5 text-slate-400 absolute left-3.5 top-3.5" />
-    </div>
-  </div>
-</div>
-</div>
-              </>
+                  {/* Nama Pemilik / Display Name */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 tracking-wider mb-1">
+                      Nama Pemilik
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={displayName}
+                        onChange={(e) => setDisplayName(e.target.value)}
+                        placeholder="Contoh: Fatimah"
+                        className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#800000] focus:bg-white"
+                      />
+                      <User className="w-5 h-5 text-slate-400 absolute left-3.5 top-3" />
+                    </div>
+                  </div>
+                </div>
+              </div>
             )}
-<div className="space-y-4">
-  {/* Kolom Email / No. WhatsApp */}
-  <div>
-    <label className="block text-xs font-bold text-slate-300  tracking-wider mb-1.5">
-      {isSignUp ? 'Email (untuk login) *' : 'Email atau Nomor WhatsApp / HP *'}
-    </label>
-    <div className="relative">
-      <input
-        type="text"
-        required
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        placeholder={isSignUp ? 'contoh@gmail.com' : 'email@gmail.com'}
-        className="w-full pl-10 pr-4 py-3.5 bg-slate-900 border border-slate-700 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-[#800000]"
-      />
-      <Mail className="w-5 h-5 text-slate-400 absolute left-3.5 top-3.5" />
-    </div>
-  </div>
 
-  {/* Kolom Password */}
-  <div>
-    <label className="block text-xs font-bold text-slate-300  tracking-wider mb-1.5">
-      Password *
-    </label>
-    <div className="relative">
-      <input
-        type={showPassword ? 'text' : 'password'}
-        required
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        placeholder="••••••••"
-        className="w-full pl-10 pr-10 py-3.5 bg-slate-900 border border-slate-700 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-[#800000]"
-      />
-      <Lock className="w-5 h-5 text-slate-400 absolute left-3.5 top-3.5" />
-      <button
-        type="button"
-        onClick={() => setShowPassword(!showPassword)}
-        className="absolute right-3.5 top-3.5 text-slate-400 hover:text-slate-200"
-      >
-        {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-      </button>
-    </div>
-  </div>
-</div>
+            <div className="space-y-3.5">
+              {/* Kolom Email / No. WhatsApp */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 tracking-wider mb-1">
+                  {isSignUp ? 'Email (untuk login) *' : 'Email atau Nomor WhatsApp / HP *'}
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder={isSignUp ? 'contoh@gmail.com' : 'email@gmail.com'}
+                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#800000] focus:bg-white"
+                  />
+                  <Mail className="w-5 h-5 text-slate-400 absolute left-3.5 top-3" />
+                </div>
+              </div>
 
-      {isSignUp && (
-  <div>
-    <label className="block text-xs font-bold text-slate-300  tracking-wider mb-1.5">
-      Konfirmasi Password *
-    </label>
-    <div className="relative">
-      <input
-        type={showPassword ? 'text' : 'password'}
-        required
-        value={confirmPassword}
-        onChange={(e) => setConfirmPassword(e.target.value)}
-        placeholder="••••••••"
-        className="w-full pl-10 pr-4 py-3.5 bg-slate-900 border border-slate-700 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-[#800000]"
-      />
-      <Lock className="w-5 h-5 text-slate-400 absolute left-3.5 top-3.5" />
-    </div>
-  </div>
-)}
+              {/* Kolom Password */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 tracking-wider mb-1">
+                  Password *
+                </label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full pl-10 pr-10 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#800000] focus:bg-white"
+                  />
+                  <Lock className="w-5 h-5 text-slate-400 absolute left-3.5 top-3" />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3.5 top-3 text-slate-400 hover:text-slate-700"
+                  >
+                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                </div>
+              </div>
+            </div>
 
-{isSignUp && (
-  <div className="flex items-start gap-2.5 pt-1 text-slate-300">
-    <input
-      type="checkbox"
-      id="agree"
-      checked={agreeTerms}
-      onChange={(e) => setAgreeTerms(e.target.checked)}
-      className="mt-0.5 w-4 h-4 accent-[#800000] cursor-pointer"
-    />
-    <label htmlFor="agree" className="text-xs leading-relaxed cursor-pointer select-none">
-      Saya menyetujui{' '}
-      <button
-        type="button"
-        onClick={() => setShowTermsModal(true)}
-        className="text-amber-400 underline font-semibold hover:text-amber-300 focus:outline-none"
-      >
-        Syarat dan Ketentuan Layanan
-      </button>
-    </label>
-  </div>
-)}
+            {isSignUp && (
+              <div>
+                <label className="block text-xs font-bold text-slate-700 tracking-wider mb-1">
+                  Konfirmasi Password *
+                </label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#800000] focus:bg-white"
+                  />
+                  <Lock className="w-5 h-5 text-slate-400 absolute left-3.5 top-3" />
+                </div>
+              </div>
+            )}
+
+            {isSignUp && (
+              <div className="flex items-start gap-2.5 pt-1 text-slate-700">
+                <input
+                  type="checkbox"
+                  id="agree"
+                  checked={agreeTerms}
+                  onChange={(e) => setAgreeTerms(e.target.checked)}
+                  className="mt-0.5 w-4 h-4 accent-[#800000] cursor-pointer"
+                />
+                <label htmlFor="agree" className="text-xs leading-relaxed cursor-pointer select-none">
+                  Saya menyetujui{' '}
+                  <button
+                    type="button"
+                    onClick={() => setShowTermsModal(true)}
+                    className="text-[#800000] underline font-bold hover:text-[#660000] focus:outline-none"
+                  >
+                    Syarat dan Ketentuan Layanan
+                  </button>
+                </label>
+              </div>
+            )}
 
             {authError && (
-              <div className="p-3 rounded-xl bg-red-950/80 border border-red-500/50 text-red-200 text-xs flex items-start gap-2 animate-fade-in">
-                <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-start gap-2 animate-fade-in">
+                <AlertCircle className="w-4 h-4 text-[#800000] shrink-0 mt-0.5" />
                 <span className="leading-tight">{authError}</span>
               </div>
             )}
@@ -390,7 +383,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full py-3 rounded-xl bg-[#800000] hover:bg-[#660000] disabled:opacity-60 text-white font-black text-xs  tracking-wider shadow-lg transition active:scale-98 mt-2 flex items-center justify-center gap-2"
+              className="w-full py-3 rounded-xl bg-[#800000] hover:bg-[#660000] disabled:opacity-60 text-white font-black text-xs tracking-wider shadow-md transition active:scale-98 mt-2 flex items-center justify-center gap-2 cursor-pointer"
             >
               {isLoading ? (
                 <>
@@ -404,15 +397,15 @@ export const AuthView: React.FC<AuthViewProps> = ({
           </form>
 
           {/* Google Sign In option */}
-          <div className="pt-2">
+          <div className="pt-1">
             <button
               onClick={handleGoogleSignIn}
               disabled={isLoading}
               type="button"
-              className="w-full py-2.5 rounded-xl border border-slate-600 bg-slate-900 hover:bg-slate-950 disabled:opacity-60 text-slate-200 text-xs font-bold flex items-center justify-center gap-2 transition"
+              className="w-full py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-60 text-slate-700 text-xs font-bold flex items-center justify-center gap-2 transition shadow-2xs cursor-pointer"
             >
               {isLoading ? (
-                <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
+                <Loader2 className="w-4 h-4 animate-spin text-[#800000]" />
               ) : (
                 <svg className="w-4 h-4" viewBox="0 0 24 24">
                   <path
@@ -438,14 +431,14 @@ export const AuthView: React.FC<AuthViewProps> = ({
           </div>
           
           {/* Toggle Login / SignUp */}
-          <div className="text-center pt-2 text-xs text-slate-400">
+          <div className="text-center pt-1 text-xs text-slate-500">
             {isSignUp ? (
               <span>
                 Sudah punya akun?{' '}
                 <button
                   type="button"
                   onClick={() => setIsSignUp(false)}
-                  className="text-red-400 font-bold hover:underline"
+                  className="text-[#800000] font-bold hover:underline"
                 >
                   Login di sini
                 </button>
@@ -456,131 +449,117 @@ export const AuthView: React.FC<AuthViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsSignUp(true)}
-                  className="text-red-400 font-bold hover:underline"
+                  className="text-[#800000] font-bold hover:underline"
                 >
-                  Daftar di sini ( Gratis 7 hari )
+                  Daftar di sini 
                 </button>
               </span>
             )}
           </div>
 
-          
-          {/* Pasang Aplikasi / Cara Instal di Semua Device */}
-          <div className="pt-2 border-t border-slate-700/80 mt-2 space-y-2.5">
-            
-           
-
-              {/* Action buttons */}
-              <div className="pt-1 flex flex-col sm:flex-row gap-2">
-                {isInstallable && (
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      const success = await install();
-                      if (!success) {
-                        setShowInstallModal(true);
-                      }
-                    }}
-                    className="flex-1 py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md transition active:scale-95 cursor-pointer"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>Pasang Sekarang (1-Klik)</span>
-                  </button>
-                )}
+          {/* Pasang Aplikasi / PWA Install */}
+          <div className="pt-2 border-t border-slate-100 mt-2 space-y-2">
+            <div className="flex flex-col sm:flex-row gap-2">
+              {isInstallable && (
                 <button
                   type="button"
-                  onClick={() => setShowInstallModal(true)}
-                  className={`flex-1 py-2.5 px-3 rounded-xl ${
-                    isInstallable
-                      ? 'bg-slate-800 hover:bg-slate-750 text-slate-200 border border-slate-600'
-                      : 'bg-emerald-600 hover:bg-emerald-500 text-white'
-                  } font-bold text-xs flex items-center justify-center gap-1.5 shadow-md transition active:scale-95 cursor-pointer`}
+                  onClick={async () => {
+                    const success = await install();
+                    if (!success) {
+                      setShowInstallModal(true);
+                    }
+                  }}
+                  className="flex-1 py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-2xs transition active:scale-95 cursor-pointer"
                 >
-                  <Smartphone className="w-3.5 h-3.5 text-emerald-300" />
-                  <span>Petunjuk Instalasi Semua Device</span>
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Pasang Aplikasi (1-Klik)</span>
                 </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setShowInstallModal(true)}
+                className={`flex-1 py-2.5 px-3 rounded-xl ${
+                  isInstallable
+                    ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
+                    : 'bg-[#800000] hover:bg-[#660000] text-white'
+                } font-bold text-xs flex items-center justify-center gap-1.5 shadow-2xs transition active:scale-95 cursor-pointer`}
+              >
+                <Smartphone className="w-3.5 h-3.5 text-rose-200" />
+                <span>Petunjuk Instalasi Semua Device</span>
+              </button>
             </div>
           </div>
-
-
-        
-
         </div>
       </div>
 
-      {/* Footer Branding matching Android XML */}
-      <footer className="text-center space-y-1.5 pb-2">
-        <p className="text-[11px] text-slate-400 max-w-sm mx-auto">
-          Terima kasih telah mempercayakan kami menjadi teman bisnis anda
+      {/* Footer Branding & Demo Mode */}
+      <footer className="text-center space-y-2 pb-2">
+        <p className="text-[11px] text-slate-500 max-w-sm mx-auto">
+          Terima kasih telah mempercayakan kami menjadi teman bisnis Anda
         </p>
-           <div className="inline-block px-4 py-1.5 rounded-full bg-[#800000] text-white text-xs font-bold tracking-wide">
+        <div className="inline-block px-4 py-1.5 rounded-full bg-[#800000] text-white text-xs font-bold tracking-wide shadow-xs">
           Jazakumullah Ahsanal Jaza
         </div>
-          {/* Uji Coba Calon Pengguna / Interactive Demo Mode */}
-          <div className="pt-2 border-t border-slate-700/80 mt-2 space-y-2.5">
-            <div className="p-3.5 rounded-2xl bg-linear-to-b from-amber-500/15 to-amber-900/10 border border-amber-500/30 text-left space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5 font-black text-xs text-amber-300">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
-                  <span>Coba Gratis Mode Demo</span>
-                </div>
-                <span className="text-[10px] bg-amber-400/20 text-amber-200 border border-amber-400/40 px-2 py-0.5 rounded-full font-bold">
-                  Tanpa Daftar
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-300 leading-relaxed">
-                Jelajahi fitur kasir, cetak struk thermal 58mm, dan laporan laba rugi dengan data contoh siap pakai.
-              </p>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (onStartDemo) {
-                      onStartDemo('owner');
-                    } else {
-                      onLoginSuccess(ownerUser);
-                    }
-                  }}
-                  className="p-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 shadow-sm transition active:scale-95 cursor-pointer"
-                  title="Simulasi sebagai Pemilik Laundry (Akses Semua Fitur)"
-                >
-                  <Crown className="w-3.5 h-3.5" />
-                  <span>Demo Owner</span>
-                </button>
-
-  
+        {/* Uji Coba Calon Pengguna / Interactive Demo Mode */}
+        <div className="pt-2 max-w-md mx-auto w-full px-4">
+          <div className="p-3.5 rounded-2xl bg-rose-50/80 border border-rose-200/80 text-left space-y-2 shadow-2xs">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 font-black text-xs text-[#800000]">
+                <Sparkles className="w-3.5 h-3.5 text-amber-500 animate-pulse" />
+                <span>Coba Gratis Mode Demo</span>
               </div>
+              <span className="text-[10px] bg-white text-[#800000] border border-rose-200 px-2 py-0.5 rounded-full font-bold">
+                Tanpa Daftar
+              </span>
             </div>
+            <p className="text-[11px] text-slate-600 leading-relaxed">
+              Jelajahi fitur kasir, cetak struk thermal 58mm, dan laporan laba rugi dengan data contoh siap pakai.
+            </p>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (onStartDemo) {
+                  onStartDemo('owner');
+                } else {
+                  onLoginSuccess(ownerUser);
+                }
+              }}
+              className="w-full p-2.5 rounded-xl bg-[#800000] hover:bg-[#660000] text-white font-black text-xs flex items-center justify-center gap-1.5 shadow-xs transition active:scale-95 cursor-pointer"
+              title="Simulasi sebagai Pemilik Laundry (Akses Semua Fitur)"
+            >
+              <Crown className="w-3.5 h-3.5 text-amber-400" />
+              <span>Masuk Mode Demo Owner</span>
+            </button>
           </div>
-     
+        </div>
       </footer>
 
       {/* Terms and Conditions Modal */}
       {showTermsModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-4 animate-fade-in">
-          <div className="w-full max-w-md bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-5 space-y-3 text-slate-200 max-h-[80vh] overflow-y-auto">
-            <div className="flex justify-between items-center border-b border-slate-800 pb-2">
-              <h3 className="font-bold text-sm text-white flex items-center gap-1.5">
-                <ShieldCheck className="w-4 h-4 text-emerald-400" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-fade-in">
+          <div className="w-full max-w-md bg-white border border-slate-200 rounded-2xl shadow-2xl p-5 space-y-3 text-slate-800 max-h-[80vh] overflow-y-auto">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-2">
+              <h3 className="font-bold text-sm text-slate-900 flex items-center gap-1.5">
+                <ShieldCheck className="w-4 h-4 text-[#800000]" />
                 Syarat dan Ketentuan
               </h3>
-              <button onClick={() => setShowTermsModal(false)} className="p-1 rounded-full text-slate-400 hover:bg-slate-800">
+              <button onClick={() => setShowTermsModal(false)} className="p-1 rounded-full text-slate-400 hover:bg-slate-100">
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="text-xs text-slate-300 space-y-2 leading-relaxed">
+            <div className="text-xs text-slate-600 space-y-2 leading-relaxed">
               <p>
                 Dengan mendaftar dan/atau menggunakan aplikasi kami, Anda menyatakan telah membaca, memahami, dan
                 setuju untuk terikat oleh semua Ketentuan ini:
               </p>
               <p>
                 <strong>1. Akun dan Pendaftaran:</strong> Anda bertanggung jawab penuh untuk menjaga kerahasiaan kata sandi
-                dan semua aktivitas akun kasir turunan yang Anda buat.
+                dan semua aktivitas akun Anda.
               </p>
               <p>
                 <strong>2. Layanan Berlangganan:</strong> Aplikasi disediakan sebagai layanan berbasis langganan (subscription).
-                Pembelian atau perpanjangan memotong saldo dompet akun Anda.
               </p>
               <p>
                 <strong>3. Kepemilikan Data:</strong> Anda adalah pemilik sah dari semua data bisnis transaksi dan pelanggan Anda.
@@ -591,7 +570,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
                 setAgreeTerms(true);
                 setShowTermsModal(false);
               }}
-              className="w-full py-2.5 rounded-xl bg-[#800000] text-white font-bold text-xs mt-2"
+              className="w-full py-2.5 rounded-xl bg-[#800000] text-white font-bold text-xs mt-2 cursor-pointer shadow-xs"
             >
               Saya Mengerti & Setuju
             </button>

@@ -1234,7 +1234,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         <span className="font-extrabold text-xs">
                           {isMonthlyQuotaFull
                             ? 'Kuota Bulanan Newcomer Penuh'
-                            : 'Paket Newcomer'}
+                            : ' Newcomer'}
                         </span>
                         <span className="text-[10px] bg-white/70 px-1.5 py-0.2 rounded font-bold font-mono border border-slate-200">
                           {currentMonthTrxCount} / {limits.maxMonthlyTransactions} Nota
@@ -1242,8 +1242,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       </div>
                       <p className="text-[11px] text-slate-500 truncate mt-0.5">
                         {isMonthlyQuotaFull
-                          ? 'Batas 50 nota/bulan tercapai. Klik untuk upgrade ke Paket Basic.'
-                          : 'Gratis selamanya tanpa batas hari. Dibatasi kuota 50 nota/bulan.'}
+                          ? 'Batas 50 nota/bulan tercapai. Klik untuk upgrade ke Paket Premium.'
+                          : 'Gratis kuota 50 nota/bulan.'}
                       </p>
                     </div>
                   </div>

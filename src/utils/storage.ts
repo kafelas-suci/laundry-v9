@@ -18,7 +18,7 @@ export const defaultSettings: SettingsData = {
   appTitle: "Kafela's Laundry",
   printerName: 'RPP02N',
   headerStruk: "Kafela's Laundry",
-  address: 'Jl. Utama, Bandung',
+  address: '-',
   phoneNumber: '0812-3456-7890',
   footerStruk: 'Barang yang tidak diambil lebih dari 3 bulan akan disedekahkan.',
   chattyFooter: 'Terima kasih atas kepercayaan Anda!',
@@ -122,9 +122,9 @@ export const defaultLaundries: Laundry[] = [
   {
     id: 'lnd-1',
     ownerId: 'own-1',
-    namaLaundry: "Kafela's Laundry",
-    alamat: 'Jl. Utama, Bandung',
-    nomorTelepon: '081234567890',
+    namaLaundry: "-",
+    alamat: '-',
+    nomorTelepon: '-',
   },
 ];
 

@@ -287,7 +287,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     {/* Sisa Hari */}
     <div className="text-xl font-bold leading-none">
       {isNewcomer ? (
-        <span className="text-emerald-700 font-extrabold text-xs sm:text-sm">Gratis Selamanya</span>
+        <span className="text-emerald-700 font-extrabold text-xs sm:text-sm">New Comer</span>
       ) : sisaHari > 0 ? (
         <span className={sisaHari <= 5 ? 'text-amber-700 font-black' : 'text-slate-800 font-black'}>
           {sisaHari} <span className="text-[12px] font-semibold text-slate-500 font-sans">Hari</span>

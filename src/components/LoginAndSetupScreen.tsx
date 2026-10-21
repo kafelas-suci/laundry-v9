@@ -603,7 +603,7 @@ export const LoginAndSetupScreen: React.FC<LoginAndSetupScreenProps> = ({
               </p>
               <p>
                 <strong>4. Layanan Berlangganan:</strong> Fitur aplikasi disesuaikan dengan paket
-                langganan aktif Anda (Trial, Basic, Pro, atau Ultimate).
+                langganan aktif Anda (Trial, Premium, Pro, atau Ultimate).
               </p>
             </div>
             <div className="flex justify-end gap-2 pt-2 border-t border-[#333333]">

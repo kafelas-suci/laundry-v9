@@ -145,7 +145,7 @@ export const TopUpModal: React.FC<TopUpModalProps> = ({
                       {nom === 25000
                         ? 'Tambah 1 Cabang'
                         : nom === 27000
-                        ? 'Paket Basic (30 Hari)'
+                        ? 'Paket Premium (30 Hari)'
                         : nom === 57000
                         ? 'Paket Pro'
                         : 'Isi Saldo'}

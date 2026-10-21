@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { User } from '../types';
 import { formatRupiah, formatTanggalIndo } from '../utils/formatters';
-import { HARGA_BASIC_BULANAN } from '../utils/subscription';
+import { HARGA_Premium_BULANAN } from '../utils/subscription';
 import { useToast } from './NotificationContext';
 
 interface SubscriptionExpiredModalProps {
@@ -40,15 +40,15 @@ export const SubscriptionExpiredModal: React.FC<SubscriptionExpiredModalProps> =
 }) => {
   const toast = useToast();
   const [showTopUpForm, setShowTopUpForm] = useState(false);
-  const [selectedNominal, setSelectedNominal] = useState<number>(HARGA_BASIC_BULANAN);
+  const [selectedNominal, setSelectedNominal] = useState<number>(HARGA_Premium_BULANAN);
   const [customNominal, setCustomNominal] = useState<string>('');
   const [copiedBank, setCopiedBank] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
   const walletBalance = currentUser.walletBalance || 0;
-  const isBalanceEnough = walletBalance >= HARGA_BASIC_BULANAN;
-  const kekuranganSaldo = Math.max(0, HARGA_BASIC_BULANAN - walletBalance);
+  const isBalanceEnough = walletBalance >= HARGA_Premium_BULANAN;
+  const kekuranganSaldo = Math.max(0, HARGA_Premium_BULANAN - walletBalance);
 
   const tglExpiredFormatted = currentUser.subscriptionEndDate
     ? formatTanggalIndo(currentUser.subscriptionEndDate, true)
@@ -64,13 +64,13 @@ export const SubscriptionExpiredModal: React.FC<SubscriptionExpiredModalProps> =
   const handlePayPerpanjangan = () => {
     if (!isBalanceEnough) {
       toast.warning(
-        `Saldo tidak mencukupi. Diperlukan ${formatRupiah(HARGA_BASIC_BULANAN)}, saldo saat ini ${formatRupiah(walletBalance)}.`
+        `Saldo tidak mencukupi. Diperlukan ${formatRupiah(HARGA_Premium_BULANAN)}, saldo saat ini ${formatRupiah(walletBalance)}.`
       );
       setShowTopUpForm(true);
       return;
     }
 
-    onExtendSubscription('Paket Basic (30 Hari)', HARGA_BASIC_BULANAN, 30);
+    onExtendSubscription('Paket Premium (30 Hari)', HARGA_Premium_BULANAN, 30);
     toast.success('Masa aktif langganan berhasil diperpanjang 30 hari!');
     onClose();
   };
@@ -91,7 +91,7 @@ export const SubscriptionExpiredModal: React.FC<SubscriptionExpiredModalProps> =
   };
 
   const handleSendWAConfirmation = () => {
-    const pesanWA = `Halo Admin Kafelas Laundry,\nSaya ingin konfirmasi top up saldo untuk perpanjang hari langganan:\n• Nama Laundry: ${currentUser.displayName}\n• ID Akun: ${currentUser.uid}\n• Nominal Top Up: ${formatRupiah(finalTopUpNominal)}\n• Tujuan: Perpanjang Paket Basic (30 Hari)`;
+    const pesanWA = `Halo Admin Kafelas Laundry,\nSaya ingin konfirmasi top up saldo untuk perpanjang hari langganan:\n• Nama Laundry: ${currentUser.displayName}\n• ID Akun: ${currentUser.uid}\n• Nominal Top Up: ${formatRupiah(finalTopUpNominal)}\n• Tujuan: Perpanjang Paket Premium (30 Hari)`;
     window.open(`https://api.whatsapp.com/send?phone=6285659781477&text=${encodeURIComponent(pesanWA)}`, '_blank');
   };
 
@@ -185,7 +185,7 @@ export const SubscriptionExpiredModal: React.FC<SubscriptionExpiredModalProps> =
                 <>
                   <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
                   <span>
-                    Saldo mencukupi untuk perpanjang <strong>30 Hari</strong> ({formatRupiah(HARGA_BASIC_BULANAN)}).
+                    Saldo mencukupi untuk perpanjang <strong>30 Hari</strong> ({formatRupiah(HARGA_Premium_BULANAN)}).
                   </span>
                 </>
               ) : (
@@ -347,12 +347,12 @@ export const SubscriptionExpiredModal: React.FC<SubscriptionExpiredModalProps> =
             </div>
           )}
 
-          {/* Card 2: Perpanjang Hari Langganan Paket Basic (30 Hari) */}
+          {/* Card 2: Perpanjang Hari Langganan Paket Premium (30 Hari) */}
           <div className="bg-white border-2 border-[#800000]/30 rounded-2xl p-4 shadow-sm space-y-3">
             <div className="flex items-center justify-between">
               <div>
                 <span className="font-extrabold text-sm text-slate-900 block">
-                  Paket Basic (30 Hari)
+                  Paket Premium (30 Hari)
                 </span>
                 <p className="text-[11px] text-slate-500 mt-0.5">
                   Akses penuh kasir, penugasan staf, laporan keuangan, ekspor Excel & PDF resmi
@@ -360,7 +360,7 @@ export const SubscriptionExpiredModal: React.FC<SubscriptionExpiredModalProps> =
               </div>
               <div className="text-right shrink-0 pl-2">
                 <span className="text-sm font-black text-[#800000] font-mono">
-                  {formatRupiah(HARGA_BASIC_BULANAN)}
+                  {formatRupiah(HARGA_Premium_BULANAN)}
                 </span>
                 <span className="text-[10px] text-slate-400 block">/ 30 Hari</span>
               </div>
@@ -379,8 +379,8 @@ export const SubscriptionExpiredModal: React.FC<SubscriptionExpiredModalProps> =
               <RefreshCw className="w-4 h-4" />
               <span>
                 {isBalanceEnough
-                  ? `Perpanjang 30 Hari Sekarang (Potong Saldo ${formatRupiah(HARGA_BASIC_BULANAN)})`
-                  : `Isi Saldo & Perpanjang (${formatRupiah(HARGA_BASIC_BULANAN)})`}
+                  ? `Perpanjang 30 Hari Sekarang (Potong Saldo ${formatRupiah(HARGA_Premium_BULANAN)})`
+                  : `Isi Saldo & Perpanjang (${formatRupiah(HARGA_Premium_BULANAN)})`}
               </span>
             </button>
           </div>

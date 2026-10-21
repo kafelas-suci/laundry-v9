@@ -1,4 +1,4 @@
-export type LaundryTier = 'newcomer' | 'basic';
+export type LaundryTier = 'newcomer' | 'Premium';
 
 export interface LaundrySubscriptionLimits {
   tier: LaundryTier;
@@ -8,23 +8,23 @@ export interface LaundrySubscriptionLimits {
   priceMonthly: number;
   maxBranches: number;            // 1 Cabang utama (bisa tambah Rp 25.000/cabang)
   pricePerExtraBranch?: number;   // Rp 25.000 per cabang tambahan
-  maxCashiers: number;            // Newcomer: 0, Basic: 1
+  maxCashiers: number;            // Newcomer: 0, Premium: 1
   maxAdminPerOutlet: number;      // 1
   maxOwnerPerOutlet: number;      // 1
-  maxCustomers: number;           // Newcomer: 50, Basic: 1000
-  maxMonthlyTransactions: number; // Newcomer: 50, Basic: 300
-  maxServices: number;            // Newcomer: 5, Basic: 50
-  canAssignStaff: boolean;        // Newcomer: false, Basic: true
-  canExportExcel: boolean;        // Newcomer: false, Basic: true
-  canExportOfficialPdf: boolean;  // Newcomer: false, Basic: true
-  canViewComparisonGrowth: boolean;// Newcomer: false, Basic: true
-  canUseCustomLogoOnReceipt: boolean; // Newcomer: false, Basic: true
-  canUseSignatureOnReceipt: boolean;  // Newcomer: false, Basic: true
+  maxCustomers: number;           // Newcomer: 50, Premium: 1000
+  maxMonthlyTransactions: number; // Newcomer: 50, Premium: 300
+  maxServices: number;            // Newcomer: 5, Premium: 50
+  canAssignStaff: boolean;        // Newcomer: false, Premium: true
+  canExportExcel: boolean;        // Newcomer: false, Premium: true
+  canExportOfficialPdf: boolean;  // Newcomer: false, Premium: true
+  canViewComparisonGrowth: boolean;// Newcomer: false, Premium: true
+  canUseCustomLogoOnReceipt: boolean; // Newcomer: false, Premium: true
+  canUseSignatureOnReceipt: boolean;  // Newcomer: false, Premium: true
   highlights: string[];
 }
 
 export const EXTRA_BRANCH_PRICE = 25000;
-export const HARGA_BASIC_BULANAN = 27000;
+export const HARGA_Premium_BULANAN = 27000;
 
 export const LAUNDRY_TIER_CONFIG: Record<LaundryTier, LaundrySubscriptionLimits> = {
   newcomer: {
@@ -55,14 +55,14 @@ export const LAUNDRY_TIER_CONFIG: Record<LaundryTier, LaundrySubscriptionLimits>
       'Maksimal 50 Nota Transaksi per Bulan',
       'Maksimal 5 Jenis Layanan Cucian',
       'Cetak Struk Thermal Standar & Bagikan WhatsApp',
-      'Tingkatkan ke Paket Basic saat Kuota Tercapai',
+      'Tingkatkan ke Paket Premium saat Kuota Tercapai',
     ],
   },
-  basic: {
-    tier: 'basic',
-    label: 'Paket Basic',
+  Premium: {
+    tier: 'Premium',
+    label: 'Paket Premium',
     tagline: 'Solusi handal lengkap operasional kasir, staf & pembukuan laporan',
-    badgeText: 'Paket Basic',
+    badgeText: 'Paket Premium',
     priceMonthly: 27000,
     maxBranches: 1,
     pricePerExtraBranch: 25000,
@@ -94,7 +94,7 @@ export const LAUNDRY_TIER_CONFIG: Record<LaundryTier, LaundrySubscriptionLimits>
 };
 
 /**
- * Normalisasi string tier menjadi 'newcomer' | 'basic'
+ * Normalisasi string tier menjadi 'newcomer' | 'Premium'
  * Akun baru tanpa riwayat paket otomatis mendapatkan 'newcomer' (Starter)
  */
 export function normalizeTier(rawTier?: string | null): LaundryTier {
@@ -110,12 +110,12 @@ export function normalizeTier(rawTier?: string | null): LaundryTier {
   ) {
     return 'newcomer';
   }
-  return 'basic';
+  return 'Premium';
 }
 
 /**
  * Paket Newcomer adalah paket starter otomatis hanya saat akun baru.
- * Pengguna yang sudah aktif di Paket Basic tidak dapat memilih atau kembali ke Newcomer.
+ * Pengguna yang sudah aktif di Paket Premium tidak dapat memilih atau kembali ke Newcomer.
  */
 export function canDowngradeToNewcomer(): boolean {
   return false;
@@ -126,7 +126,7 @@ export function canDowngradeToNewcomer(): boolean {
  */
 export function getLaundryLimits(rawTier?: string | null): LaundrySubscriptionLimits {
   const tier = normalizeTier(rawTier);
-  return LAUNDRY_TIER_CONFIG[tier] || LAUNDRY_TIER_CONFIG.basic;
+  return LAUNDRY_TIER_CONFIG[tier] || LAUNDRY_TIER_CONFIG.Premium;
 }
 
 /**
@@ -175,7 +175,7 @@ export function canAddCashierToBranch(
   if (limits.tier === 'newcomer' || limits.maxCashiers <= 0) {
     return {
       allowed: false,
-      reason: 'Paket Newcomer (Gratis) hanya boleh 1 Owner dan tidak ada kasir. Tingkatkan ke Paket Basic untuk membuat akun kasir.',
+      reason: 'Paket Newcomer (Gratis) hanya boleh 1 Owner dan tidak ada kasir. Tingkatkan ke Paket Premium untuk membuat akun kasir.',
     };
   }
 
@@ -202,7 +202,7 @@ export function canAddCustomer(currentCustomerCount: number, rawTier?: string | 
     return {
       allowed: false,
       reason: limits.tier === 'newcomer'
-        ? 'Batas maksimal 50 data pelanggan untuk Paket Newcomer (Gratis) telah tercapai. Tingkatkan ke Paket Basic untuk kapasitas hingga 1.000 pelanggan.'
+        ? 'Batas maksimal 50 data pelanggan untuk Paket Newcomer (Gratis) telah tercapai. Tingkatkan ke Paket Premium untuk kapasitas hingga 1.000 pelanggan.'
         : `Batas maksimal ${limits.maxCustomers} pelanggan telah tercapai untuk ${limits.label}.`,
     };
   }
@@ -218,7 +218,7 @@ export function canAddService(currentServiceCount: number, rawTier?: string | nu
     return {
       allowed: false,
       reason: limits.tier === 'newcomer'
-        ? 'Paket Newcomer (Gratis) dibatasi maksimal 5 jenis layanan. Tingkatkan ke Paket Basic untuk kapasitas hingga 50 jenis layanan.'
+        ? 'Paket Newcomer (Gratis) dibatasi maksimal 5 jenis layanan. Tingkatkan ke Paket Premium untuk kapasitas hingga 50 jenis layanan.'
         : `Batas maksimal ${limits.maxServices} layanan telah tercapai untuk ${limits.label}.`,
     };
   }
@@ -234,7 +234,7 @@ export function canAddMonthlyTransaction(monthlyTransactionCount: number, rawTie
     return {
       allowed: false,
       reason: limits.tier === 'newcomer'
-        ? `Batas kuota 50 nota transaksi per bulan untuk Paket Newcomer (Gratis) telah tercapai. Tingkatkan ke Paket Basic untuk kuota hingga 400 transaksi/bulan!`
+        ? `Batas kuota 50 nota transaksi per bulan untuk Paket Newcomer (Gratis) telah tercapai. Tingkatkan ke Paket Premium untuk kuota hingga 400 transaksi/bulan!`
         : `Kuota ${limits.maxMonthlyTransactions} transaksi per bulan untuk ${limits.label} telah tercapai. Silakan perpanjang atau kelola langganan untuk melanjutkan pembuatan nota baru.`,
     };
   }
@@ -269,7 +269,7 @@ export const SUBSCRIPTION_CONFIG: Record<string, SubscriptionLimits> = {
     maxDailyActions: 0,
     maxDailyVisits: 10,
   },
-  basic: {
+  Premium: {
     maxSchedulesPerMonth: 500,
     maxAdmins: 3,
     maxCrew: 0,

@@ -1,6 +1,6 @@
-# Arsitektur & Implementasi Paket Langganan: Basic vs Pro (Kafelas Laundry)
+# Arsitektur & Implementasi Paket Langganan: Premium vs Pro (Kafelas Laundry)
 
-Rencana perancangan sistem tiering langganan (Paket Basic vs Paket Pro) pada aplikasi Kafelas Laundry untuk membedakan hak akses fitur secara elegan, memberikan nilai maksimal bagi UMKM pemula (Basic), dan membuka kapabilitas enterprise (Pro) bagi pengusaha laundry yang bertumbuh.
+Rencana perancangan sistem tiering langganan (Paket Premium vs Paket Pro) pada aplikasi Kafelas Laundry untuk membedakan hak akses fitur secara elegan, memberikan nilai maksimal bagi UMKM pemula (Premium), dan membuka kapabilitas enterprise (Pro) bagi pengusaha laundry yang bertumbuh.
 
 ---
 
@@ -10,25 +10,25 @@ Rencana perancangan sistem tiering langganan (Paket Basic vs Paket Pro) pada apl
 > Berdasarkan sesi tanya-jawab pada fase klarifikasi, keputusan utama arsitektur paket telah disepakati sebagai berikut:
 
 - **Fokus Utama Pembeda**: Batasan jumlah cabang outlet, staf kasir & penugasan cucian, serta ekspor laporan keuangan mendalam.
-- **Batasan Cabang Paket Basic**: Terkunci presisi hanya untuk **1 Cabang Utama** (tidak dapat menambah outlet cabang baru).
+- **Batasan Cabang Paket Premium**: Terkunci presisi hanya untuk **1 Cabang Utama** (tidak dapat menambah outlet cabang baru).
 - **Fitur Laporan & Analitik Eksklusif Pro**: 
   - Ekspor seluruh pembukuan ke file spreadsheet **Excel (.xlsx)**.
   - Pembuatan dokumen cetak **PDF Resmi A4** siap audit dengan kop surat toko.
   - Modul **Grafik Komparasi Historis** (analisis pertumbuhan omzet, laba bersih, transaksi: Bulan Ini vs Bulan Lalu, Tahun Ini vs Tahun Lalu).
 - **Staf Kasir & Penugasan**:
-  - **Basic**: Maksimal 1 akun kasir, tanpa fitur penugasan staf pengerjaan per pakaian.
+  - **Premium**: Maksimal 1 akun kasir, tanpa fitur penugasan staf pengerjaan per pakaian.
   - **Pro**: Kasir tanpa batas + akses modal penugasan staf (*Assign Staff*) ke tahapan cuci, setrika, atau packing.
 - **Branding Struk Thermal**:
-  - **Basic**: Cetak struk thermal Bluetooth teks standar & kirim WA.
+  - **Premium**: Cetak struk thermal Bluetooth teks standar & kirim WA.
   - **Pro**: Cetak Logo Brand & Tanda Tangan Digital Resmi di fisik struk printer thermal & struk gambar HD.
 
 ---
 
 ### 1. Overview & Core Concept
 
-- **What It Does**: Memberikan pemisahan tier langganan yang jelas antara **Paket Basic** dan **Paket Pro**. Sistem secara otomatis mendeteksi tier aktif toko dan memberikan akses penuh atau menampilkan modal perbandingan fitur saat pengguna mencoba mengakses kapabilitas Pro.
+- **What It Does**: Memberikan pemisahan tier langganan yang jelas antara **Paket Premium** dan **Paket Pro**. Sistem secara otomatis mendeteksi tier aktif toko dan memberikan akses penuh atau menampilkan modal perbandingan fitur saat pengguna mencoba mengakses kapabilitas Pro.
 - **Target Audience / Persona**:
-  - *Pemilik Laundry Pemula (Basic)*: Mengoperasikan 1 outlet rumahan, membutuhkan kasir kas harian cepat tanpa kerumitan administrasi.
+  - *Pemilik Laundry Pemula (Premium)*: Mengoperasikan 1 outlet rumahan, membutuhkan kasir kas harian cepat tanpa kerumitan administrasi.
   - *Pengusaha Laundry Berkembang (Pro)*: Mengelola 2 atau lebih cabang, mempekerjakan banyak kasir/kru pengerjaan, dan memerlukan pelaporan keuangan analitik berkala.
 - **Key Value**: Mengubah Kafelas Laundry menjadi platform POS & SaaS siap-monetisasi dengan pengalaman pengguna yang transparan, profesional, dan bebas friksi.
 
@@ -38,11 +38,11 @@ Rencana perancangan sistem tiering langganan (Paket Basic vs Paket Pro) pada apl
 
 #### A. Key User Flows
 1. **Pengecekan Tier di Dashboard & Sidebar**:
-   - Status tier ditampilkan tenang pada Sidebar Desktop dan Halaman Pengaturan (misal: label unboxed `Paket Basic · Aktif` atau `Paket Pro · Aktif`).
-2. **Akses Fitur Pro oleh Pengguna Basic**:
-   - Jika pengguna Basic mengklik tombol **"Tambah Cabang"** di Modal Switch Branch, tombol **"Ekspor Excel (.xlsx)"** / **"Cetak PDF Resmi"** di Laporan Keuangan, atau mencoba mengunggah Logo/Tanda Tangan Struk, aplikasi tidak melempar error kaku, melainkan membuka **Modal Komparasi & Upgrade Pro**.
+   - Status tier ditampilkan tenang pada Sidebar Desktop dan Halaman Pengaturan (misal: label unboxed `Paket Premium · Aktif` atau `Paket Pro · Aktif`).
+2. **Akses Fitur Pro oleh Pengguna Premium**:
+   - Jika pengguna Premium mengklik tombol **"Tambah Cabang"** di Modal Switch Branch, tombol **"Ekspor Excel (.xlsx)"** / **"Cetak PDF Resmi"** di Laporan Keuangan, atau mencoba mengunggah Logo/Tanda Tangan Struk, aplikasi tidak melempar error kaku, melainkan membuka **Modal Komparasi & Upgrade Pro**.
 3. **Modal Komparasi & Upgrade Paket**:
-   - Menyajikan matriks komparasi 2 kolom (Basic vs Pro) yang transparan, berbasis poin riil (bukan klaim samar).
+   - Menyajikan matriks komparasi 2 kolom (Premium vs Pro) yang transparan, berbasis poin riil (bukan klaim samar).
    - Dilengkapi tombol call-to-action langsung ke WhatsApp Admin/Owner untuk aktivasi lisensi Pro.
 
 #### B. Visual Identity & Theme Tokens
@@ -63,22 +63,22 @@ Rencana perancangan sistem tiering langganan (Paket Basic vs Paket Pro) pada apl
 - **Pendekatan Terpilih**: Mengganti konfigurasi lama (yang sebelumnya memiliki sisa atribut studio foto) dengan skema limit khusus laundry:
   ```typescript
   export interface LaundrySubscriptionLimits {
-    tier: 'basic' | 'pro';
-    maxBranches: number;            // Basic: 1, Pro: Unlimited (999)
-    maxCashiers: number;            // Basic: 1, Pro: Unlimited (999)
-    canAssignStaff: boolean;        // Basic: false, Pro: true
-    canExportExcel: boolean;        // Basic: false, Pro: true
-    canExportOfficialPdf: boolean;  // Basic: false, Pro: true
-    canViewComparisonGrowth: boolean;// Basic: false, Pro: true
-    canUseCustomLogoOnReceipt: boolean; // Basic: false, Pro: true
-    canUseSignatureOnReceipt: boolean;  // Basic: false, Pro: true
-    maxMonthlyTransactions: number; // Basic: 300, Pro: Unlimited
+    tier: 'Premium' | 'pro';
+    maxBranches: number;            // Premium: 1, Pro: Unlimited (999)
+    maxCashiers: number;            // Premium: 1, Pro: Unlimited (999)
+    canAssignStaff: boolean;        // Premium: false, Pro: true
+    canExportExcel: boolean;        // Premium: false, Pro: true
+    canExportOfficialPdf: boolean;  // Premium: false, Pro: true
+    canViewComparisonGrowth: boolean;// Premium: false, Pro: true
+    canUseCustomLogoOnReceipt: boolean; // Premium: false, Pro: true
+    canUseSignatureOnReceipt: boolean;  // Premium: false, Pro: true
+    maxMonthlyTransactions: number; // Premium: 300, Pro: Unlimited
   }
   ```
 - **Alasan**: Menghilangkan inkonsistensi tipe data dan memastikan seluruh guard di aplikasi berbicara dalam bahasa domain bisnis laundry.
 
 #### Decision 2: Guard Halus Berbasis Modal Interaktif (Bukan Menonaktifkan Mati)
-- **Pendekatan Terpilih**: Tombol seperti "Ekspor Excel", "Cetak PDF Laporan", dan "Tambah Cabang" tetap terlihat dengan penanda badge gembok Pro mikro. Saat diklik oleh akun Basic, modal penjelasan upgrade langsung muncul.
+- **Pendekatan Terpilih**: Tombol seperti "Ekspor Excel", "Cetak PDF Laporan", dan "Tambah Cabang" tetap terlihat dengan penanda badge gembok Pro mikro. Saat diklik oleh akun Premium, modal penjelasan upgrade langsung muncul.
 - **Alasan**: Mendorong konversi (*upselling*) secara alami tanpa membingungkan pengguna baru tentang keberadaan fitur tersebut.
 
 ---
@@ -95,7 +95,7 @@ Rencana perancangan sistem tiering langganan (Paket Basic vs Paket Pro) pada apl
                ┌───────────────┴───────────────┐
                ▼                               ▼
     ┌───────────────────────┐       ┌───────────────────────┐
-    │     Paket BASIC       │       │       Paket PRO       │
+    │     Paket Premium       │       │       Paket PRO       │
     │  - 1 Cabang Laundry   │       │  - Multi Cabang (∞)   │
     │  - 1 Kasir            │       │  - Kasir & Kru (∞)    │
     │  - POS & Struk Standar│       │  - Ekspor Excel & PDF │
@@ -112,10 +112,10 @@ Rencana perancangan sistem tiering langganan (Paket Basic vs Paket Pro) pada apl
 
 #### B. Component & State Implementation Plan
 1. **`src/types/index.ts` & `src/utils/subscription.ts`**:
-   - Mendefinisikan tipe `LaundrySubscriptionTier` (`'basic' | 'pro'`) dan konfigurasi limit fitur.
+   - Mendefinisikan tipe `LaundrySubscriptionTier` (`'Premium' | 'pro'`) dan konfigurasi limit fitur.
    - Fungsi helper `canAccessFeature(tier, featureName)` dan `getBranchLimit(tier)`.
 2. **`src/components/UpgradePlanModal.tsx`**:
-   - Modal responsif berisi komparasi fitur Basic vs Pro, kartu paket berfokus nilai bisnis, dan tombol hubungi admin via WhatsApp untuk upgrade instan.
+   - Modal responsif berisi komparasi fitur Premium vs Pro, kartu paket berfokus nilai bisnis, dan tombol hubungi admin via WhatsApp untuk upgrade instan.
 3. **Guard Integrasi Komponen**:
    - **`SwitchBranchModal.tsx`**: Cek batas penambahan cabang baru.
    - **`LaporanView.tsx`**: Guard ekspor Excel dan cetak PDF resmi, serta grafik komparasi.
@@ -127,7 +127,7 @@ Rencana perancangan sistem tiering langganan (Paket Basic vs Paket Pro) pada apl
 
 ### Verification & Testing Plan
 
-1. **Simulasi Akun Basic**:
+1. **Simulasi Akun Premium**:
    - Coba tambah cabang ke-2 di SwitchBranchModal -> Modal upgrade Pro muncul dengan informasi yang jelas.
    - Buka Laporan -> Klik Ekspor Excel atau Cetak PDF -> Modal penawaran Pro terbuka.
    - Transaksi POS, cetak struk biasa, dan arus kas harian tetap berjalan lancar 100%.
