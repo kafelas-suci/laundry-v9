@@ -1,0 +1,6 @@
+{
+  "summary":  "Rencana implementasi penguatan keamanan hak akses akun Admin/Kasir:\n1. Mengunci tombol Hapus Transaksi (hanya Owner yang berhak menghapus nota, mencegah kecurangan/penghapusan riwayat kasir).\n2. Mengunci & menyembunyikan tombol Laporan Keuangan di Dashboard, Sidebar, dan rute navigasi untuk akun Admin/Kasir.\n3. Mengunci input diskon manual di formulir transaksi (TambahEditView) sehingga kasir tidak dapat memotong harga semaunya tanpa otorisasi Owner.",
+  "updatedAt":  "2026-10-21T07:21:08.385010927Z",
+  "requestFeedback":  true,
+  "userFacing":  true
+}

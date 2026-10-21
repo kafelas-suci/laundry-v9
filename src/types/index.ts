@@ -61,6 +61,7 @@ export interface Transaksi {
   nomorTelepon?: string | null;
   alamat?: string | null;
   totalHarga: number;
+  diskon?: number | null;
   jumlahDp: number;
   tanggalMasuk: number;
   tanggalSelesai?: number | null;

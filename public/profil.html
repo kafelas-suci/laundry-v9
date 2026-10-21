@@ -1338,11 +1338,11 @@
         if (!isLocal) {
             if (host.includes('.web.app')) {
                 const sub = host.split('.web.app')[0].split('.').pop();
-                if (sub && sub !== 'kflsagnd' && sub !== 'kafilasuci3') idParam = sub;
+                if (sub && sub !== 'kflsagnd' && sub !== 'kafilasuci3' && sub !== 'kafilasuci4' && sub !== 'barokah-laundry-suci') idParam = sub;
             } else if (host.includes('.firebaseapp.com')) {
                 const sub = host.split('.firebaseapp.com')[0].split('.').pop();
-                if (sub && sub !== 'kflsagnd' && sub !== 'kafilasuci3') idParam = sub;
-            } else if (host !== 'kflsagnd.web.app' && host !== 'kafilasuci3.web.app') {
+                if (sub && sub !== 'kflsagnd' && sub !== 'kafilasuci3' && sub !== 'kafilasuci4' && sub !== 'barokah-laundry-suci') idParam = sub;
+            } else if (host !== 'kflsagnd.web.app' && host !== 'kafilasuci3.web.app' && host !== 'kafilasuci4.web.app' && host !== 'barokah-laundry-suci.web.app' && host !== 'barokah-laundry-suci.firebaseapp.com') {
                 idParam = host.replace(/^www\./, '');
             }
         }
@@ -1404,7 +1404,7 @@
         // Jika di domain khusus brand (misal: gemilangtenda.web.app):
         if (!isLocal && (host.includes('.web.app') || host.includes('.firebaseapp.com'))) {
             const sub = host.split('.')[0];
-            if (sub && sub !== 'kflsagnd' && sub !== 'kafilasuci3') {
+            if (sub && sub !== 'kflsagnd' && sub !== 'kafilasuci3' && sub !== 'kafilasuci4' && sub !== 'barokah-laundry-suci') {
                 window.location.href = '/app';
                 return;
             }

@@ -126,6 +126,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [transitionInitialQuery, setTransitionInitialQuery] = useState('');
 
   const showAmbilNotaLama = settings?.tampilkanTombolAmbilNotaLama !== false;
+  const isOwner = currentUser.role === 'owner';
 
   const handleHideAmbilNotaLama = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -572,9 +573,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         <span className="font-black text-xs text-amber-300 tracking-wider uppercase">
                           Masa Langganan Habis (0 Hari Tersisa)
                         </span>
-                        <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded-md font-bold font-mono">
-                          Saldo Dompet: {formatRupiah(currentUser.walletBalance || 0)}
-                        </span>
+                        {currentUser.role === 'owner' && (
+                          <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded-md font-bold font-mono">
+                            Saldo Dompet: {formatRupiah(currentUser.walletBalance || 0)}
+                          </span>
+                        )}
                       </div>
                       <p className="text-xs text-rose-100 mt-0.5">
                         Hari langganan akun Anda telah berakhir. Klik di sini untuk melihat saldo, mengisi saldo, dan perpanjang 30 hari.
@@ -1085,14 +1088,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         <DollarSign className="w-3.5 h-3.5" />
                         <span>Buku Kas</span>
                       </button>
-                      <button
-                        type="button"
-                        onClick={onOpenLaporan}
-                        className="py-2 px-3 rounded-xl border border-slate-200 hover:border-[#800000] hover:text-[#800000] text-xs font-bold text-slate-700 transition flex items-center justify-center gap-1.5"
-                      >
-                        <FileText className="w-3.5 h-3.5" />
-                        <span>Laporan</span>
-                      </button>
+                      {isOwner && (
+                        <button
+                          type="button"
+                          onClick={onOpenLaporan}
+                          className="py-2 px-3 rounded-xl border border-slate-200 hover:border-[#800000] hover:text-[#800000] text-xs font-bold text-slate-700 transition flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <FileText className="w-3.5 h-3.5" />
+                          <span>Laporan</span>
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1183,9 +1188,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         <span className="font-black text-xs text-amber-300 tracking-wide uppercase">
                           Masa Langganan Habis
                         </span>
-                        <span className="text-[10px] bg-white/20 px-1.5 py-0.2 rounded font-bold font-mono">
-                          Saldo: {formatRupiah(currentUser.walletBalance || 0)}
-                        </span>
+                        {currentUser.role === 'owner' && (
+                          <span className="text-[10px] bg-white/20 px-1.5 py-0.2 rounded font-bold font-mono">
+                            Saldo: {formatRupiah(currentUser.walletBalance || 0)}
+                          </span>
+                        )}
                       </div>
                       <p className="text-[11px] text-rose-100 truncate mt-0.5">
                         Klik untuk lihat saldo, isi saldo, &amp; perpanjang 30 hari.
@@ -1800,14 +1807,27 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <span className="font-semibold tracking-tight">Atur Kas</span>
             </button>
 
-            <button
-              onClick={onOpenLaporan}
-              className="flex flex-col items-center justify-center flex-1 py-1 hover:bg-white/10 rounded-xl transition text-[10px] active:scale-95 cursor-pointer"
-              title="Laporan Keuangan & Grafik Analisis Bisnis"
-            >
-              <BarChart3 className="w-5 h-5 mb-0.5" />
-              <span className="font-semibold tracking-tight">Laporan</span>
-            </button>
+            {isOwner ? (
+              <button
+                type="button"
+                onClick={onOpenLaporan}
+                className="flex flex-col items-center justify-center flex-1 py-1 hover:bg-white/10 rounded-xl transition text-[10px] active:scale-95 cursor-pointer"
+                title="Laporan Keuangan & Grafik Analisis Bisnis"
+              >
+                <BarChart3 className="w-5 h-5 mb-0.5" />
+                <span className="font-semibold tracking-tight">Laporan</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={onOpenArsip}
+                className="flex flex-col items-center justify-center flex-1 py-1 hover:bg-white/10 rounded-xl transition text-[10px] active:scale-95 cursor-pointer"
+                title="Arsip Cucian Diambil"
+              >
+                <Archive className="w-5 h-5 mb-0.5" />
+                <span className="font-semibold tracking-tight">Arsip</span>
+              </button>
+            )}
           </nav>
         </>
       )}

@@ -3,7 +3,7 @@
     "rules": "firestore.rules"
   },
   "hosting": {
-    "site": "kflslaundry",
+    "site": "laundrysuci",
     "public": "dist",
     "ignore": [
       "firebase.json",
@@ -25,7 +25,16 @@
         ]
       }
     ],
+    "cleanUrls": true,
     "rewrites": [
+      {
+        "source": "/landing",
+        "destination": "/landing.html"
+      },
+      {
+        "source": "/tutorial",
+        "destination": "/tutorial.html"
+      },
       {
         "source": "**",
         "destination": "/index.html"

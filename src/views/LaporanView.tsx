@@ -171,7 +171,14 @@ const [showMonthPickerModal, setShowMonthPickerModal] = useState<boolean>(false)
   const [expandStaf, setExpandStaf] = useState(true);
   const [expandPengeluaran, setExpandPengeluaran] = useState(true);
   const [expandPelanggan, setExpandPelanggan] = useState(true);
-  const [expandPelunasanLalu, setExpandPelunasanLalu] = useState(true);
+  // Pelunasan order bulan lalu selalu tertutup secara bawaan (default closed) dan dibuka lewat toggle
+  const [expandPelunasanLalu, setExpandPelunasanLalu] = useState(false);
+
+  // Pastikan rincian pelunasan order bulan lalu selalu tertutup kembali setiap kali filter bulan/tahun berubah
+  useEffect(() => {
+    setExpandPelunasanLalu(false);
+    setShowAllPelunasanLalu(false);
+  }, [selectedYear, selectedMonth, activeLaundryId]);
 
   // Toggle tampilkan semua baris (melebihi 3 baris teratas)
   const [showAllLayanan, setShowAllLayanan] = useState<boolean>(false);
@@ -789,7 +796,7 @@ const [showMonthPickerModal, setShowMonthPickerModal] = useState<boolean>(false)
   return (
     <div className="flex flex-col max-h-screen bg-slate-100 text-slate-800 pb-16">
       {/* Top Header */}
-<header className="bg-[#800000] text-white shadow-lg sticky top-0 z-30 px-4 pb-2 h-16 flex items-center justify-between no-print">
+<header className="bg-[#800000] text-white shadow-lg sticky top-0 z-30 px-4 py-3 pb-2 h-16 flex items-center justify-between no-print">
         <div className="flex items-center gap-3 min-w-0">
           <button
             onClick={onBack}
@@ -801,7 +808,7 @@ const [showMonthPickerModal, setShowMonthPickerModal] = useState<boolean>(false)
           <div className="min-w-0">
             <h1 className="font-black text-base tracking-tight leading-tight">Laporan Keuangan</h1>
             <p className="text-[11px] text-white/80 font-medium truncate">
-              {effectiveLaundryName} • Periode: {currentPeriodeLabel}
+              Periode: {currentPeriodeLabel}
             </p>
           </div>
         </div>
@@ -1026,22 +1033,20 @@ const [showMonthPickerModal, setShowMonthPickerModal] = useState<boolean>(false)
       )}
     </div>
 
-      <main className="flex-1 p-3 md:p-6 space-y-3 md:space-y-4 overflow-y-auto max-w-xl md:max-w-5xl mx-auto w-full no-print">
+      <main className="flex-1 p-3 md:p-6 space-y-1 md:space-y-1 overflow-y-auto max-w-xl md:max-w-5xl  w-full no-print">
         {/* ======================================================== */}
         {/* TAB 1: RINGKASAN KEUANGAN                                */}
         {/* ======================================================== */}
         {activeTab === 'ringkasan' && (
           <>
             {/* Data Keuangan Card */}
-            <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-2xs space-y-3">
+            <div className="bg-white rounded-2xl border border-slate-200 p-3 shadow-2xs space-y-2">
               <div className="flex justify-between items-start">
                 <div>
                   <h2 className="text-xs font-extrabold text-[#800000] uppercase tracking-wider">
                     Data Keuangan ({currentPeriodeLabel})
                   </h2>
-                  <p className="text-[10px] text-slate-400 mt-0.5">
-                    Siklus Tutup Buku &amp; Ganti Hari: 00:00 Tengah Malam (Waktu Lokal)
-                  </p>
+              
                 </div>
                 <span className="text-[11px] text-slate-500 font-medium">
                   {summary.totalTrx} Transaksi
@@ -1069,10 +1074,21 @@ const [showMonthPickerModal, setShowMonthPickerModal] = useState<boolean>(false)
                 </div>
 
                 {summary.uangPelunasanBulanLalu > 0 && (
-                  <div className="flex justify-between items-center pt-1.5 pl-3 text-emerald-700 text-[11px] font-semibold bg-emerald-50/60 p-1.5 rounded-lg border border-emerald-100">
-                    <span>+ Pelunasan Order Bulan Lalu ({summary.pelunasanBulanLaluList.length} Nota)</span>
-                    <span className="tabular-nums font-bold">+{formatRupiah(summary.uangPelunasanBulanLalu)}</span>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setExpandPelunasanLalu(!expandPelunasanLalu)}
+                    className="w-full flex justify-between items-center pt-1.5 pl-3 pr-2.5 text-emerald-800 text-[11px] font-semibold bg-emerald-50/70 hover:bg-emerald-100/70 p-1.5 rounded-lg border border-emerald-200/80 transition cursor-pointer text-left group"
+                    title={expandPelunasanLalu ? "Tutup rincian pelunasan bulan lalu" : "Buka rincian pelunasan bulan lalu"}
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <span>+ Pelunasan Order Bulan Lalu ({summary.pelunasanBulanLaluList.length} Nota)</span>
+                      <span className="text-[10px] bg-emerald-100 group-hover:bg-emerald-200 text-emerald-800 px-1.5 py-0.5 rounded border border-emerald-200/80 font-bold transition flex items-center gap-0.5">
+                        {expandPelunasanLalu ? 'Tutup' : 'Buka'}
+                        {expandPelunasanLalu ? <ChevronUp className="w-3 h-3 inline" /> : <ChevronDown className="w-3 h-3 inline" />}
+                      </span>
+                    </span>
+                    <span className="tabular-nums font-bold text-emerald-700">+{formatRupiah(summary.uangPelunasanBulanLalu)}</span>
+                  </button>
                 )}
 
                 {summary.totalPiutang > 0 && (
@@ -1104,24 +1120,47 @@ const [showMonthPickerModal, setShowMonthPickerModal] = useState<boolean>(false)
 
             {/* Kartu Khusus: Pelunasan Order Bulan Lalu yang Masuk Kas di Bulan Ini */}
             {summary.pelunasanBulanLaluList.length > 0 && (
-              <div className="bg-emerald-50/80 rounded-2xl border border-emerald-200 p-4 shadow-2xs space-y-2">
-                <div
+              <div className="bg-emerald-50/80 rounded-2xl border border-emerald-200 p-3.5 sm:p-4 shadow-2xs space-y-2">
+                <button
+                  type="button"
                   onClick={() => setExpandPelunasanLalu(!expandPelunasanLalu)}
-                  className="flex justify-between items-center cursor-pointer select-none"
+                  className="w-full flex justify-between items-center cursor-pointer select-none text-left p-1 rounded-xl hover:bg-emerald-100/60 transition-colors"
+                  aria-expanded={expandPelunasanLalu}
                 >
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                    <h2 className="text-xs font-extrabold text-emerald-900 uppercase tracking-wider">
-                      Pelunasan Order Bulan Lalu Masuk Kas ({summary.pelunasanBulanLaluList.length} Nota)
-                    </h2>
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-1.5 rounded-xl bg-emerald-100 text-emerald-700 shrink-0">
+                      <CheckCircle2 className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h2 className="text-xs font-extrabold text-emerald-950 uppercase tracking-wider">
+                          Pelunasan Order Bulan Lalu Masuk Kas
+                        </h2>
+                        <span className="text-[10px] font-bold bg-emerald-200/80 text-emerald-900 px-2 py-0.5 rounded-full">
+                          {summary.pelunasanBulanLaluList.length} Nota
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-emerald-700 font-medium">
+                        {expandPelunasanLalu ? 'Klik untuk menutup rincian nota' : 'Klik untuk membuka rincian nota'}
+                      </p>
+                    </div>
                   </div>
-                  <span className="text-xs font-black text-emerald-700 tabular-nums">
-                    +{formatRupiah(summary.uangPelunasanBulanLalu)}
-                  </span>
-                </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-xs sm:text-sm font-black text-emerald-700 tabular-nums">
+                      +{formatRupiah(summary.uangPelunasanBulanLalu)}
+                    </span>
+                    <div className="p-1.5 rounded-lg bg-emerald-200/60 text-emerald-900 hover:bg-emerald-200 transition-colors">
+                      {expandPelunasanLalu ? (
+                        <ChevronUp className="w-4 h-4" />
+                      ) : (
+                        <ChevronDown className="w-4 h-4" />
+                      )}
+                    </div>
+                  </div>
+                </button>
 
                 {expandPelunasanLalu && (
-                  <div className="pt-2">
+                  <div className="pt-1">
                     <div className="divide-y divide-emerald-100 text-xs">
                       {(showAllPelunasanLalu ? summary.pelunasanBulanLaluList : summary.pelunasanBulanLaluList.slice(0, 3)).map(({ trx, pelunasan, waktuPelunasan }, idx) => (
                         <div key={idx} className="py-2 flex justify-between items-center">
@@ -1168,22 +1207,17 @@ const [showMonthPickerModal, setShowMonthPickerModal] = useState<boolean>(false)
             )}
 
             {/* Data Transaksi Card */}
-            <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-2xs space-y-2">
-              <h2 className="text-xs font-extrabold text-[#800000] uppercase tracking-wider">
-                Status Pelunasan Transaksi
-              </h2>
-              <div className="grid grid-cols-3 gap-2 pt-1 text-center">
-                <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
-                  <p className="text-[10px] text-slate-500 font-medium">Total Order</p>
-                  <p className="text-base font-black text-slate-900 tabular-nums">{summary.totalTrx}</p>
+            <div className="bg-white rounded-2xl border border-slate-200 p-1 shadow-2xs space-y-1">
+             
+              <div className="grid grid-cols-3 gap-1 pt-0 text-center">
+                <div className="p-1 bg-slate-50 rounded-xl border border-slate-200">
+                  <p className="text-[10px] text-slate-500 font-medium">Total Order {summary.totalTrx}</p>
                 </div>
-                <div className="p-2.5 bg-emerald-50/60 rounded-xl border border-emerald-200">
-                  <p className="text-[10px] text-emerald-700 font-medium">Lunas</p>
-                  <p className="text-base font-black text-emerald-700 tabular-nums">{summary.countLunas}</p>
+                <div className="p-1 bg-emerald-50/60 rounded-xl border border-emerald-200">
+                  <p className="text-[10px] text-emerald-700 font-medium">Lunas {summary.countLunas}</p>
                 </div>
-                <div className="p-2.5 bg-amber-50/60 rounded-xl border border-amber-200">
-                  <p className="text-[10px] text-amber-700 font-medium">Belum Lunas</p>
-                  <p className="text-base font-black text-amber-700 tabular-nums">{summary.countBelumLunas}</p>
+                <div className="p-1 bg-amber-50/60 rounded-xl border border-amber-200">
+                  <p className="text-[10px] text-amber-700 font-medium">Belum Lunas {summary.countBelumLunas}</p>
                 </div>
               </div>
             </div>

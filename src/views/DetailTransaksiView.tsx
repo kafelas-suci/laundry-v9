@@ -298,6 +298,12 @@ export const DetailTransaksiView: React.FC<DetailTransaksiViewProps> = ({
                   {transaksi.nomorTransaksi || '-'}
                 </span>
               </div>
+              {transaksi.diskon && transaksi.diskon > 0 ? (
+                <div className="flex justify-between items-center text-rose-700 text-xs font-semibold">
+                  <span>Potongan Diskon:</span>
+                  <span className="font-mono font-bold">-{formatRupiah(transaksi.diskon)}</span>
+                </div>
+              ) : null}
               <div className="flex justify-between items-center pt-1.5 border-t border-slate-200">
                 <span className="text-slate-500 font-semibold">Total Tagihan:</span>
                 <span className="font-extrabold text-slate-900 text-sm">

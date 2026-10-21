@@ -28,6 +28,16 @@ async function startServer() {
     }
   });
 
+  // Route langsung untuk Web Landing Page berdiri sendiri
+  app.get(['/landing', '/beranda'], (_req, res) => {
+    res.redirect('/landing.html');
+  });
+
+  // Route langsung untuk Web Tutorial Bergaris Penunjuk berdiri sendiri
+  app.get(['/tutorial', '/panduan'], (_req, res) => {
+    res.redirect('/tutorial.html');
+  });
+
   // 2. Setup Vite (untuk frontend)
   const vite = await createViteServer({
     server: { middlewareMode: true },

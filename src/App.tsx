@@ -33,7 +33,7 @@ import { KelolaLayananView } from './views/KelolaLayananView';
 import { KelolaOwnerView } from './views/KelolaOwnerView';
 import { KelolaKasirView } from './views/KelolaKasirView';
 import { SettingsView } from './views/SettingsView';
-import { LandingPageView } from './views/LandingPageView';
+import { TutorialView } from './views/TutorialView';
 
 import { AturKasModal } from './components/AturKasModal';
 import { SwitchBranchModal } from './components/SwitchBranchModal';
@@ -55,7 +55,6 @@ import { useToast } from './components/NotificationContext';
 type ViewType =
   | 'splash'
   | 'auth'
-  | 'landing'
   | 'dashboard'
   | 'tambah_edit'
   | 'detail_transaksi'
@@ -67,7 +66,8 @@ type ViewType =
   | 'kelola_layanan'
   | 'kelola_owner'
   | 'kelola_kasir'
-  | 'settings';
+  | 'settings'
+  | 'tutorial';
 
 export default function App() {
   const toast = useToast();
@@ -362,12 +362,7 @@ export default function App() {
         return;
       }
 
-      // Jika di halaman landing page, kembali ke auth (login)
-      if (state.activeView === 'landing') {
-        setActiveView('auth');
-        window.history.pushState({ view: 'auth' }, '');
-        return;
-      }
+
 
       // 2. Jika sedang berada di sub menu manapun, kembalikan langsung ke menu utama (dashboard)
       if (
@@ -724,6 +719,10 @@ export default function App() {
   };
 
   const handleDeleteTransaction = (transaksiId: string) => {
+    if (currentUser?.role !== 'owner') {
+      toast.warning('Akses Dibatasi: Hanya Owner yang berhak menghapus nota transaksi.');
+      return;
+    }
     updateTransaksiList(transaksiList.filter((t) => t.id !== transaksiId));
     FirebaseSyncService.deleteTransaksi(activeLaundryId, transaksiId).catch(console.error);
     setActiveView('dashboard');
@@ -1190,7 +1189,6 @@ export default function App() {
     !isEffectiveMobile &&
     activeView !== 'splash' &&
     activeView !== 'auth' &&
-    activeView !== 'landing' &&
     !!currentUser;
 
   const handleLogoutUser = async () => {
@@ -1219,9 +1217,7 @@ export default function App() {
       {/* Main Container: Full Web App Shell with Sidebar on PC/Tablet, Original Container on HP */}
       <div
         className={
-          activeView === 'landing'
-            ? 'w-full min-h-screen bg-stone-50'
-            : showDesktopSidebar
+          showDesktopSidebar
             ? 'w-full h-screen overflow-hidden bg-slate-100 flex flex-row'
             : `w-full max-w-6xl bg-slate-100 ${
                 activeView === 'dashboard' ? 'h-[100dvh] overflow-hidden' : 'min-h-screen'
@@ -1277,7 +1273,9 @@ export default function App() {
             ownerUser={defaultOwnerUser}
             staffList={staffList}
             initialSignUp={initialSignUpMode}
-            onOpenLandingPage={() => setActiveView('landing')}
+            onOpenLandingPage={() => {
+              window.location.href = '/landing.html';
+            }}
             onLoginSuccess={async (user) => {
               setInitialSignUpMode(false);
               setCurrentUser(user);
@@ -1285,13 +1283,6 @@ export default function App() {
               await loadFirestoreData(user, true);
               setActiveView('dashboard');
             }}
-          />
-        )}
-
-        {activeView === 'landing' && (
-          <LandingPageView
-            onOpenKasir={() => setActiveView('auth')}
-            onOpenApkModal={() => setIsApkModalOpen(true)}
           />
         )}
 
@@ -1412,6 +1403,7 @@ export default function App() {
               layananList={layananList}
               pelangganList={pelangganList}
               settings={settings}
+              currentUser={currentUser}
               activeLaundryId={activeLaundryId}
               transaksiToEdit={transaksiToEdit}
               onSave={handleSaveTransaction}
@@ -1483,18 +1475,37 @@ export default function App() {
         )}
 
         {activeView === 'laporan' && (
-          <LaporanView
-            onBack={() => setActiveView('dashboard')}
-            transaksiList={transaksiList}
-            pengeluaranList={pengeluaranList}
-            activeLaundryId={activeLaundryId}
-            laundryName={activeLaundry?.namaLaundry || settings.headerStruk || "Kafelas Laundry"}
-            currentTier={activeTier}
-            onOpenUpgradeModal={handleOpenUpgradeModal}
-            laundries={laundries}
-            onSelectBranch={handleSelectBranch}
-            allTransaksiList={transaksiList}
-          />
+          currentUser && currentUser.role !== 'owner' ? (
+            <div className="flex-1 flex flex-col items-center justify-center p-6 text-center bg-slate-100 min-h-[75vh]">
+              <div className="max-w-md w-full bg-white rounded-3xl p-6 border border-slate-200 shadow-xl space-y-3">
+                <div className="w-14 h-14 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
+                  <Lock className="w-7 h-7" />
+                </div>
+                <h3 className="text-base font-black text-slate-900">Akses Dibatasi (Owner Only)</h3>
+                <p className="text-xs text-slate-500">Laporan Keuangan & Grafik Analisis Bisnis hanya dapat diakses oleh akun dengan peran Owner.</p>
+                <button
+                  type="button"
+                  onClick={() => setActiveView('dashboard')}
+                  className="w-full py-2.5 rounded-xl bg-[#800000] text-white font-bold text-xs shadow-md transition active:scale-95 cursor-pointer"
+                >
+                  Kembali ke Dashboard
+                </button>
+              </div>
+            </div>
+          ) : (
+            <LaporanView
+              onBack={() => setActiveView('dashboard')}
+              transaksiList={transaksiList}
+              pengeluaranList={pengeluaranList}
+              activeLaundryId={activeLaundryId}
+              laundryName={activeLaundry?.namaLaundry || settings.headerStruk || "Kafelas Laundry"}
+              currentTier={activeTier}
+              onOpenUpgradeModal={handleOpenUpgradeModal}
+              laundries={laundries}
+              onSelectBranch={handleSelectBranch}
+              allTransaksiList={transaksiList}
+            />
+          )
         )}
 
         {activeView === 'arsip' && (
@@ -1525,26 +1536,64 @@ export default function App() {
         )}
 
         {activeView === 'kelola_pelanggan' && (
-          <KelolaPelangganView
-            onBack={() => setActiveView('dashboard')}
-            pelangganList={pelangganList}
-            settings={settings}
-            activeLaundryId={activeLaundryId}
-            onSavePelanggan={handleSaveCustomer}
-            onDeletePelanggan={handleDeleteCustomer}
-          />
+          currentUser && currentUser.role !== 'owner' ? (
+            <div className="flex-1 flex flex-col items-center justify-center p-6 text-center bg-slate-100 min-h-[75vh]">
+              <div className="max-w-md w-full bg-white rounded-3xl p-6 border border-slate-200 shadow-xl space-y-3">
+                <div className="w-14 h-14 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
+                  <Lock className="w-7 h-7" />
+                </div>
+                <h3 className="text-base font-black text-slate-900">Akses Dibatasi (Owner Only)</h3>
+                <p className="text-xs text-slate-500">Master Data Pelanggan hanya dapat dikelola oleh akun dengan peran Owner.</p>
+                <button
+                  type="button"
+                  onClick={() => setActiveView('dashboard')}
+                  className="w-full py-2.5 rounded-xl bg-[#800000] text-white font-bold text-xs shadow-md transition active:scale-95 cursor-pointer"
+                >
+                  Kembali ke Dashboard
+                </button>
+              </div>
+            </div>
+          ) : (
+            <KelolaPelangganView
+              onBack={() => setActiveView('dashboard')}
+              pelangganList={pelangganList}
+              settings={settings}
+              activeLaundryId={activeLaundryId}
+              onSavePelanggan={handleSaveCustomer}
+              onDeletePelanggan={handleDeleteCustomer}
+            />
+          )
         )}
 
         {activeView === 'kelola_layanan' && (
-          <KelolaLayananView
-            onBack={() => setActiveView('dashboard')}
-            layananList={layananList}
-            activeLaundryId={activeLaundryId}
-            settings={settings}
-            onSaveLayanan={handleSaveLayanan}
-            onDeleteLayanan={handleDeleteLayanan}
-            onReorderLayanan={updateLayananList}
-          />
+          currentUser && currentUser.role !== 'owner' ? (
+            <div className="flex-1 flex flex-col items-center justify-center p-6 text-center bg-slate-100 min-h-[75vh]">
+              <div className="max-w-md w-full bg-white rounded-3xl p-6 border border-slate-200 shadow-xl space-y-3">
+                <div className="w-14 h-14 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
+                  <Lock className="w-7 h-7" />
+                </div>
+                <h3 className="text-base font-black text-slate-900">Akses Dibatasi (Owner Only)</h3>
+                <p className="text-xs text-slate-500">Pengaturan Daftar Harga Layanan hanya dapat diakses dan diubah oleh akun dengan peran Owner.</p>
+                <button
+                  type="button"
+                  onClick={() => setActiveView('dashboard')}
+                  className="w-full py-2.5 rounded-xl bg-[#800000] text-white font-bold text-xs shadow-md transition active:scale-95 cursor-pointer"
+                >
+                  Kembali ke Dashboard
+                </button>
+              </div>
+            </div>
+          ) : (
+            <KelolaLayananView
+              onBack={() => setActiveView('dashboard')}
+              layananList={layananList}
+              activeLaundryId={activeLaundryId}
+              settings={settings}
+              onSaveLayanan={handleSaveLayanan}
+              onDeleteLayanan={handleDeleteLayanan}
+              onReorderLayanan={updateLayananList}
+            />
+          )
         )}
 
         {activeView === 'kelola_owner' && currentUser && (
@@ -1635,6 +1684,24 @@ export default function App() {
             onTopUpWallet={handleTopUpWallet}
             onUpdateOwnerProfile={handleUpdateOwnerProfile}
             onLogout={handleLogoutUser}
+          />
+        )}
+
+        {activeView === 'tutorial' && (
+          <TutorialView
+            onOpenKasir={() => {
+              if (currentUser) {
+                setActiveView('dashboard');
+              } else {
+                setActiveView('auth');
+              }
+            }}
+            onStartDemo={() => {
+              setActiveView('dashboard');
+            }}
+            onOpenLandingPage={() => {
+              window.open('/landing.html', '_blank');
+            }}
           />
         )}
         </div>

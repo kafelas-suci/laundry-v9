@@ -8,8 +8,10 @@ import {
   Check,
   X,
   Layers,
+  Lock,
+  Tag,
 } from 'lucide-react';
-import { Transaksi, LayananItem, Layanan, Pelanggan, SettingsData } from '../types';
+import { Transaksi, LayananItem, Layanan, Pelanggan, SettingsData, User } from '../types';
 import { formatRupiah, formatNumberOnly, calculateCompletionDate } from '../utils/formatters';
 import { useToast } from '../components/NotificationContext';
 
@@ -19,6 +21,7 @@ interface TambahEditViewProps {
   layananList: Layanan[];
   pelangganList: Pelanggan[];
   settings: SettingsData;
+  currentUser?: User | null;
   activeLaundryId: string;
   transaksiToEdit?: Transaksi | null;
   onSave: (transaksi: Omit<Transaksi, 'id'> & { id?: string }, items: LayananItem[]) => void;
@@ -28,6 +31,8 @@ export const TambahEditView: React.FC<TambahEditViewProps> = ({
   onBack,
   layananList,
   pelangganList,
+  settings,
+  currentUser,
   activeLaundryId,
   transaksiToEdit,
   onSave,
@@ -72,20 +77,45 @@ export const TambahEditView: React.FC<TambahEditViewProps> = ({
     transaksiToEdit?.jumlahDp ? formatNumberOnly(transaksiToEdit.jumlahDp) : ''
   );
 
+  const isOwner = currentUser?.role === 'owner';
+
+  // Nominal Diskon Manual (Khusus Akun Owner)
+  const [diskonInput, setDiskonInput] = useState<number>(transaksiToEdit?.diskon || 0);
+  const [diskonDisplay, setDiskonDisplay] = useState<string>(
+    transaksiToEdit?.diskon ? formatNumberOnly(transaksiToEdit.diskon) : ''
+  );
+
+  const handleDiskonChange = (val: string) => {
+    if (!isOwner) {
+      toast.warning('Diskon manual dikunci khusus untuk Owner.');
+      return;
+    }
+    const clean = val.replace(/[^0-9]/g, '');
+    const num = Number(clean) || 0;
+    if (num > totalHargaAsli) {
+      toast.warning('Nominal diskon tidak boleh melebihi total harga.');
+      setDiskonInput(totalHargaAsli);
+      setDiskonDisplay(formatNumberOnly(totalHargaAsli));
+      return;
+    }
+    setDiskonInput(num);
+    setDiskonDisplay(clean ? formatNumberOnly(num) : '');
+  };
+
   // Selected Service Details
   const currentLayanan = layananList.find((l) => l.id === selectedLayananId) || layananList[0];
 
   // Total calculation
   const totalHargaAsli = items.reduce((sum, it) => sum + it.subtotal, 0);
-  const totalSetelahDiskon = totalHargaAsli;
+  const totalSetelahDiskon = Math.max(0, totalHargaAsli - diskonInput);
 
-  // Synchronize when isLunas changes
+  // Synchronize when isLunas changes or totalSetelahDiskon changes
   useEffect(() => {
     if (isLunas) {
-      setDpInput(totalHargaAsli);
-      setDpDisplay(totalHargaAsli > 0 ? formatNumberOnly(totalHargaAsli) : '');
+      setDpInput(totalSetelahDiskon);
+      setDpDisplay(totalSetelahDiskon > 0 ? formatNumberOnly(totalSetelahDiskon) : '');
     }
-  }, [isLunas, totalHargaAsli]);
+  }, [isLunas, totalSetelahDiskon]);
 
   // Click outside listener for custom dropdowns
   useEffect(() => {
@@ -222,7 +252,8 @@ export const TambahEditView: React.FC<TambahEditViewProps> = ({
       namaPelanggan_lowercase: namaPelanggan.trim().toLowerCase(),
       nomorTelepon: nomorTelepon.trim() || null,
       alamat: alamat.trim() || null,
-      totalHarga: totalHargaAsli,
+      totalHarga: totalSetelahDiskon,
+      diskon: isOwner ? diskonInput : (transaksiToEdit?.diskon || 0),
       jumlahDp: finalDp,
       tanggalMasuk: transaksiToEdit?.tanggalMasuk || now,
       tanggalSelesai: estDate,
@@ -504,14 +535,57 @@ export const TambahEditView: React.FC<TambahEditViewProps> = ({
         {/* Payment & Notes Card */}
         <div className="bg-white rounded-2xl border border-slate-200 p-2.5 shadow-2xs space-y-2">
           
-          {/* ===== 1. HEADER TOTAL TAGIHAN ===== */}
-          <div className="px-2 py-0 rounded-xl flex items-baseline justify-between">
-            <span className="text-xs font-bold text-slate-500">
-              Total Tagihan
-            </span>
-            <span className="text-xl font-black text-slate-900 tracking-tight">
-              {formatRupiah(totalSetelahDiskon)}
-            </span>
+          {/* ===== 1. HEADER TOTAL & DISKON ===== */}
+          <div className="px-2 py-1 space-y-1.5 border-b border-slate-100 pb-2">
+            {(diskonInput > 0 || isOwner) && (
+              <div className="flex items-baseline justify-between text-xs">
+                <span className="font-semibold text-slate-500">Subtotal Layanan</span>
+                <span className="font-bold text-slate-700 font-mono">{formatRupiah(totalHargaAsli)}</span>
+              </div>
+            )}
+
+            {/* Input / Status Diskon Manual */}
+            <div className="flex items-center justify-between gap-2 pt-0.5">
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
+                <Tag className="w-3.5 h-3.5 text-[#800000]" />
+                <span>Diskon Nota:</span>
+                {!isOwner && (
+                  <span className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200/80 px-1.5 py-0.5 rounded-md flex items-center gap-1 font-bold">
+                    <Lock className="w-2.5 h-2.5" />
+                    Khusus Owner
+                  </span>
+                )}
+              </div>
+
+              <div className="relative w-36 sm:w-44">
+                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-400 select-none z-10">
+                  Rp
+                </span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  disabled={!isOwner}
+                  value={diskonDisplay}
+                  onChange={(e) => handleDiskonChange(e.target.value)}
+                  onFocus={(e) => e.target.select()}
+                  placeholder={isOwner ? "0" : "0"}
+                  className={`w-full pl-7 pr-2 rounded-xl border text-xs font-bold text-right h-[32px] transition ${
+                    isOwner
+                      ? 'border-slate-300 text-slate-900 bg-white focus:ring-2 focus:ring-[#800000] focus:outline-none'
+                      : 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed select-none'
+                  }`}
+                  title={isOwner ? "Masukkan nominal diskon (Rp)" : "Diskon manual dikunci khusus akun Owner"}
+                />
+              </div>
+            </div>
+
+            {/* Total Tagihan Akhir */}
+            <div className="flex items-baseline justify-between pt-1 border-t border-dashed border-slate-200">
+              <span className="text-xs font-black text-slate-800">Total Tagihan</span>
+              <span className="text-xl font-black text-slate-900 tracking-tight font-mono">
+                {formatRupiah(totalSetelahDiskon)}
+              </span>
+            </div>
           </div>
 
           {/* ===== 2. GRID BARIS PEMBAYARAN (NOMINAL, LUNAS, NON-TUNAI) ===== */}

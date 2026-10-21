@@ -1,0 +1,1704 @@
+import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
+import {
+  Printer,
+  Smartphone,
+  Share2,
+  Receipt,
+  FileSpreadsheet,
+  CheckCircle2,
+  ChevronRight,
+  ShieldCheck,
+  Zap,
+  ArrowRight,
+  Download,
+  HelpCircle,
+  Clock,
+  Sparkles,
+  Phone,
+  MessageCircle,
+  Layers,
+  ChevronDown,
+  Monitor,
+  WifiOff,
+  Database,
+  ExternalLink,
+  Plus,
+  Search,
+  Check,
+  FileText,
+  DollarSign,
+  Users,
+  Building2,
+  RotateCcw,
+  Sliders,
+  Settings as SettingsIcon,
+  UserCheck,
+  Trash2,
+  Calendar,
+  CreditCard,
+  QrCode,
+  ArrowLeft,
+  X,
+  Store,
+  Eye,
+  CheckCheck,
+  Activity,
+  Send,
+  SlidersHorizontal,
+} from 'lucide-react';
+import { DEFAULT_KAFELA_LOGO_BASE64 } from '../utils/defaultLogo';
+
+interface LandingPageViewProps {
+  onOpenKasir: () => void;
+  onStartDemo: (role?: 'owner' | 'karyawan') => void;
+  onOpenApkModal?: () => void;
+  onInstallPwa?: () => void;
+  isInstallable?: boolean;
+}
+
+interface CalloutItem {
+  id: string;
+  num: number;
+  side: 'left' | 'right';
+  title: string;
+  handwrittenNote: string;
+  desc: string;
+  badgeColor?: string;
+}
+
+export const LandingPageView: React.FC<LandingPageViewProps> = ({
+  onOpenKasir,
+  onStartDemo,
+  onOpenApkModal,
+  onInstallPwa,
+  isInstallable = false,
+}) => {
+  // Screen Tabs
+  const [activeScreenTab, setActiveScreenTab] = useState<'screen1' | 'screen2' | 'screen3' | 'screen4'>('screen1');
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
+  const [showAllLines, setShowAllLines] = useState<boolean>(true);
+  const [animatedLines, setAnimatedLines] = useState<boolean>(true);
+
+  // References for measuring SVG connector lines
+  const containerRef = useRef<HTMLDivElement>(null);
+  const cardRefs = useRef<Record<string, HTMLElement | null>>({});
+  const targetRefs = useRef<Record<string, HTMLElement | null>>({});
+
+  // Computed lines state: Array of { id, x1, y1, x2, y2, isRight }
+  const [lineCoords, setLineCoords] = useState<
+    Array<{
+      id: string;
+      num: number;
+      x1: number;
+      y1: number;
+      x2: number;
+      y2: number;
+      side: 'left' | 'right';
+    }>
+  >([]);
+
+  // Function to register card ref
+  const setCardRef = (id: string, el: HTMLElement | null) => {
+    cardRefs.current[id] = el;
+  };
+
+  // Function to register target ref
+  const setTargetRef = (id: string, el: HTMLElement | null) => {
+    targetRefs.current[id] = el;
+  };
+
+  // Recalculate line positions
+  const updateLinePositions = () => {
+    if (!containerRef.current) return;
+    const containerRect = containerRef.current.getBoundingClientRect();
+    const newCoords: Array<{
+      id: string;
+      num: number;
+      x1: number;
+      y1: number;
+      x2: number;
+      y2: number;
+      side: 'left' | 'right';
+    }> = [];
+
+    const activeList = screenCallouts[activeScreenTab] || [];
+
+    activeList.forEach((item) => {
+      const cardEl = cardRefs.current[item.id];
+      const targetEl = targetRefs.current[item.id];
+
+      if (cardEl && targetEl) {
+        const cardRect = cardEl.getBoundingClientRect();
+        const targetRect = targetEl.getBoundingClientRect();
+
+        let x1 = 0;
+        let y1 = cardRect.top + cardRect.height / 2 - containerRect.top;
+        let x2 = 0;
+        let y2 = targetRect.top + targetRect.height / 2 - containerRect.top;
+
+        if (item.side === 'left') {
+          // Card is on left, connect from right edge of card to left edge of target
+          x1 = cardRect.right - containerRect.left;
+          x2 = targetRect.left - containerRect.left;
+        } else {
+          // Card is on right, connect from left edge of card to right edge of target
+          x1 = cardRect.left - containerRect.left;
+          x2 = targetRect.right - containerRect.left;
+        }
+
+        newCoords.push({
+          id: item.id,
+          num: item.num,
+          x1,
+          y1,
+          x2,
+          y2,
+          side: item.side,
+        });
+      }
+    });
+
+    setLineCoords(newCoords);
+  };
+
+  // Update on mount, tab change, resize
+  useLayoutEffect(() => {
+    const timer = setTimeout(() => {
+      updateLinePositions();
+    }, 100);
+
+    const handleResize = () => {
+      updateLinePositions();
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [activeScreenTab]);
+
+  // Screen 1: Dashboard Kasir Callouts
+  const screen1Callouts: CalloutItem[] = [
+    {
+      id: 's1_arsip',
+      num: 1,
+      side: 'left',
+      title: 'Ikon Arsip / Laci Toko',
+      handwrittenNote: 'Klik di sini untuk buka riwayat cucian lama yang sudah selesai atau diambil',
+      desc: 'Membuka arsip transaksi bulan lalu, pencarian nota masa lampau, dan filter status.',
+    },
+    {
+      id: 's1_search',
+      num: 2,
+      side: 'left',
+      title: 'Kotak Cari Pelanggan & Nota',
+      handwrittenNote: 'Ketik nama pelanggan untuk langsung menemukan cucian saat ada yang datang',
+      desc: 'Pencarian instan berdasarkan nama pelanggan atau 6 digit nomor nota transaksi.',
+    },
+    {
+      id: 's1_status',
+      num: 3,
+      side: 'left',
+      title: 'Status Lunas vs Utang',
+      handwrittenNote: 'Hijau = Lunas. Merah = ada sisa tagihan yang harus dibayar saat ambil',
+      desc: 'Memudahkan kasir membedakan mana pakaian yang sudah bayar dan mana yang masih berhutang.',
+    },
+    {
+      id: 's1_bottom_nav',
+      num: 4,
+      side: 'left',
+      title: 'Bilah Navigasi Cepat',
+      handwrittenNote: 'Bilah bawah untuk ganti menu: Status, Buku Kas, Pengeluaran, & Laporan',
+      desc: 'Navigasi satu jempol untuk berpindah antar fungsi utama operasional laundry.',
+    },
+    {
+      id: 's1_settings',
+      num: 5,
+      side: 'right',
+      title: 'Sinkron Cloud & Pengaturan',
+      handwrittenNote: 'Ikon putar = sinkron Firebase. Ikon roda gigi = atur tarif & nama outlet',
+      desc: 'Konfigurasi lengkap nama toko, printer Bluetooth, logo struk, dan harga layanan per kilo/pcs.',
+    },
+    {
+      id: 's1_badges',
+      num: 6,
+      side: 'right',
+      title: 'Lencana Antrean Cucian',
+      handwrittenNote: 'Angka 2 merah = ada 2 nota pakaian yang saat ini sedang dalam proses',
+      desc: 'Indikator beban kerja cucian di outlet secara real-time tanpa perlu membuka buku catatan.',
+    },
+    {
+      id: 's1_plus_btn',
+      num: 7,
+      side: 'right',
+      title: 'Tombol Tambah Transaksi (+)',
+      handwrittenNote: 'Tombol bulat merah di tengah untuk buat nota baru saat pelanggan datang',
+      desc: 'Pintu utama kasir memasukkan pesanan cucian kiloan atau satuan dengan cepat.',
+    },
+    {
+      id: 's1_rekap_laba',
+      num: 8,
+      side: 'right',
+      title: 'Kartu Rekapitulasi Laba Hari Ini',
+      handwrittenNote: 'Otomatis hitung pemasukan, belanja operasional, & uang riil di laci kasir',
+      desc: 'Owner dan kasir langsung mengetahui omzet harian bersih tanpa perlu menghitung manual.',
+    },
+  ];
+
+  // Screen 2: Formulir Transaksi Baru Callouts
+  const screen2Callouts: CalloutItem[] = [
+    {
+      id: 's2_nama',
+      num: 1,
+      side: 'left',
+      title: 'Nama Pelanggan & Alamat',
+      handwrittenNote: 'Ketik nama pelanggan (misal: Iqbal). Alamat untuk antar jemput',
+      desc: 'Sistem otomatis mengingat data pelanggan langganan yang pernah mencuci sebelumnya.',
+    },
+    {
+      id: 's2_layanan',
+      num: 2,
+      side: 'left',
+      title: 'Pilih Layanan & Tambah (+)',
+      handwrittenNote: 'Pilih paket di dropdown, isi berat (Kg/pcs), lalu klik tombol hijau (+)',
+      desc: 'Bisa pilih Cuci Setrika, Setrika Saja, Cuci Kering, Jas, Bedcover, Karpet, dll.',
+    },
+    {
+      id: 's2_daftar_item',
+      num: 3,
+      side: 'left',
+      title: 'Daftar Item Multi-Layanan',
+      handwrittenNote: 'Bisa gabung Kiloan (14 Kg) + Satuan Jas (1 pcs) dalam SATU nota sekaligus!',
+      desc: 'Setiap item memiliki subtotal harga dan tombol hapus jika kasir salah menimbang.',
+    },
+    {
+      id: 's2_catatan',
+      num: 4,
+      side: 'left',
+      title: 'Catatan Khusus Pakaian',
+      handwrittenNote: 'Tulis pesan: "Parfum mawar", "Baju putih pisah", atau "Kancing copot"',
+      desc: 'Catatan ini otomatis tercetak di struk pengerjaan karyawan agar tidak keliru di bagian cuci.',
+    },
+    {
+      id: 's2_total_tagihan',
+      num: 5,
+      side: 'right',
+      title: 'Total Tagihan Otomatis',
+      handwrittenNote: 'Total langsung dihitung otomatis Rp 99.000, kasir bebas dari salah hitung',
+      desc: 'Menjumlahkan semua kiloan dan satuan secara presisi hingga digit terakhir.',
+    },
+    {
+      id: 's2_status_lunas',
+      num: 6,
+      side: 'right',
+      title: 'Centang Status Pelunasan',
+      handwrittenNote: 'Centang "Lunas" jika pelanggan langsung bayar saat serahkan pakaian kotor',
+      desc: 'Jika tidak dicentang, nota otomatis berstatus Belum Lunas dan tercatat sebagai piutang.',
+    },
+    {
+      id: 's2_metode_qris',
+      num: 7,
+      side: 'right',
+      title: 'Metode Non-Tunai / QRIS',
+      handwrittenNote: 'Centang Non-Tunai untuk pembayaran scan QRIS atau transfer bank BCA/Mandiri',
+      desc: 'Memisahkan pembukuan uang fisik di laci dengan uang digital di rekening bank pemilik.',
+    },
+    {
+      id: 's2_btn_simpan',
+      num: 8,
+      side: 'right',
+      title: 'Tombol Simpan Transaksi',
+      handwrittenNote: 'Klik untuk simpan ke database cloud & langsung membuka lembar struk cetak!',
+      desc: 'Proses penyimpanan kilat dengan sinkronisasi offline-first otomatis.',
+    },
+  ];
+
+  // Screen 3: Lembar Struk & Cetak Callouts
+  const screen3Callouts: CalloutItem[] = [
+    {
+      id: 's3_kop_toko',
+      num: 1,
+      side: 'left',
+      title: 'Kop Struk & Logo Resmi',
+      handwrittenNote: 'Logo Kafela, nama toko, nomor telepon, & alamat outlet tercetak di atas',
+      desc: 'Membuat tampilan struk sangat profesional dan dipercaya oleh pelanggan.',
+    },
+    {
+      id: 's3_nomor_nota',
+      num: 2,
+      side: 'left',
+      title: 'Nomor Nota Transaksi',
+      handwrittenNote: 'Kode unik 261015/1 untuk penanda gantungan pakaian di rak cucian',
+      desc: 'Memudahkan karyawan mencari pakaian saat pelanggan datang mengambil.',
+    },
+    {
+      id: 's3_waktu_terima',
+      num: 3,
+      side: 'left',
+      title: 'Jadwal Terima & Jadi',
+      handwrittenNote: 'Mencatat jam masuk cucian & tanggal estimasi siap diambil oleh pelanggan',
+      desc: 'Menghindari komplain keterlambatan dan menjaga ketepatan waktu pengerjaan.',
+    },
+    {
+      id: 's3_aturan_toko',
+      num: 4,
+      side: 'left',
+      title: 'Peraturan Pengambilan Cucian',
+      handwrittenNote: 'Aturan: "Pakaian tidak diambil lebih dari 3 bulan akan disedekahkan"',
+      desc: 'Melindungi pemilik laundry dari tumpukan pakaian mati yang ditinggalkan pemiliknya.',
+    },
+    {
+      id: 's3_nama_status',
+      num: 5,
+      side: 'right',
+      title: 'Nama & Teks BELUM LUNAS',
+      handwrittenNote: 'Dicetak TEBAL: "BELUM LUNAS Rp. 7.000,-" agar kasir tidak lupa nagih',
+      desc: 'Peringatan sangat kontras di tengah lembar nota agar uang kas selalu aman.',
+    },
+    {
+      id: 's3_rincian_biaya',
+      num: 6,
+      side: 'right',
+      title: 'Rincian Transaksi & Sisa Bayar',
+      handwrittenNote: 'Kalkulasi rinci tarif per kilo, total tagihan, dan sisa uang yang belum dibayar',
+      desc: 'Transparansi harga yang membuat pelanggan puas dan percaya dengan hitungan toko.',
+    },
+    {
+      id: 's3_btn_bluetooth',
+      num: 7,
+      side: 'right',
+      title: 'Tombol Cetak Bluetooth (Android)',
+      handwrittenNote: 'Tombol merah utama: langsung cetak ke printer thermal 58mm dalam 1 detik!',
+      desc: 'Mendukung printer Bluetooth mini portabel (RPP02N, PT-210, Panda, VSC, dll) tanpa kabel.',
+    },
+    {
+      id: 's3_btn_bagikan',
+      num: 8,
+      side: 'right',
+      title: 'Tombol Bagikan Struk WhatsApp',
+      handwrittenNote: 'Kirim nota digital langsung ke nomor WhatsApp pelanggan dalam bentuk gambar/teks',
+      desc: 'Hemat kertas thermal, ramah lingkungan, dan pelanggan selalu punya arsip digital di HP.',
+    },
+  ];
+
+  // Screen 4: Status Pengerjaan & Pelacakan Cucian Callouts
+  const screen4Callouts: CalloutItem[] = [
+    {
+      id: 's4_tab_status',
+      num: 1,
+      side: 'left',
+      title: 'Tab Status Pengerjaan',
+      handwrittenNote: 'Filter cepat: Antrean, Cuci, Kering, Setrika, Selesai, & Sudah Diambil',
+      desc: 'Memantau posisi seluruh pakaian di setiap pos kerja laundry secara akurat.',
+    },
+    {
+      id: 's4_info_pelanggan',
+      num: 2,
+      side: 'left',
+      title: 'Kartu Cucian & Rincian Item',
+      handwrittenNote: 'Lihat daftar pakaian pelanggan, berat cucian, dan catatan khusus parfum',
+      desc: 'Informasi lengkap bagi karyawan bagian produksi tanpa perlu bolak-balik tanya kasir.',
+    },
+    {
+      id: 's4_estimasi_waktu',
+      num: 3,
+      side: 'left',
+      title: 'Indikator Batas Waktu (SLA)',
+      handwrittenNote: 'Tanda jam warna kuning/merah jika cucian ekspres mendekati batas waktu',
+      desc: 'Mencegah pakaian terlambat dicuci atau disetrika sehingga pelanggan tetap puas.',
+    },
+    {
+      id: 's4_pilih_staff',
+      num: 4,
+      side: 'right',
+      title: 'Pilih Kasir / Staff Bertugas',
+      handwrittenNote: 'Catat siapa karyawan yang mencuci atau menyetrika cucian ini',
+      desc: 'Menciptakan akuntabilitas kerja staf: siapa yang mengerjakan dan bertanggung jawab.',
+    },
+    {
+      id: 's4_btn_next_step',
+      num: 5,
+      side: 'right',
+      title: 'Tombol Naikkan Status Cucian',
+      handwrittenNote: 'Klik tombol hijau untuk memindahkan dari Cuci -> Setrika -> Selesai',
+      desc: 'Memperbarui progres cucian secara seketika dan tercatat di timeline pengerjaan.',
+    },
+    {
+      id: 's4_btn_wa_selesai',
+      num: 6,
+      side: 'right',
+      title: 'Kirim WA "Cucian Siap Diambil"',
+      handwrittenNote: 'Otomatis kirim pesan WhatsApp ke pelanggan bahwa cucian sudah wangi & rapi',
+      desc: 'Pelanggan segera datang mengambil dan melunasi pembayaran tanpa perlu ditelepon manual.',
+    },
+  ];
+
+  const screenCallouts = {
+    screen1: screen1Callouts,
+    screen2: screen2Callouts,
+    screen3: screen3Callouts,
+    screen4: screen4Callouts,
+  };
+
+  const currentCallouts = screenCallouts[activeScreenTab];
+
+  return (
+    <div className="min-h-screen bg-stone-100 text-slate-800 font-sans selection:bg-[#800000] selection:text-white">
+      {/* Google Web Fonts for Handwritten Callout Style */}
+      <link rel="preconnect" href="https://fonts.googleapis.com" />
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+      <link
+        href="https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Kalam:wght@700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;700&display=swap"
+        rel="stylesheet"
+      />
+
+      {/* 1. TOP HEADER NAVIGATION */}
+      <header className="sticky top-0 z-50 bg-[#800000] text-white shadow-md">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 sm:h-20 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-white/10 border border-white/20 p-1 flex items-center justify-center shrink-0 shadow-sm">
+              <img
+                src={`data:image/png;base64,${DEFAULT_KAFELA_LOGO_BASE64}`}
+                alt="Logo Kafela's Laundry"
+                className="w-full h-full object-contain invert"
+              />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-black text-base sm:text-xl tracking-tight text-white">
+                  Kafela's Laundry
+                </span>
+                <span className="text-[10px] font-bold text-amber-300 bg-white/15 px-2 py-0.5 rounded border border-white/20">
+                  Panduan Garis Penunjuk Tombol
+                </span>
+              </div>
+              <p className="text-xs text-rose-100/80 hidden sm:block">
+                Tutorial Garis Penunjuk & Petunjuk Tiap Tombol Aplikasi Asli
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 sm:gap-3">
+            <button
+              onClick={() => onStartDemo('owner')}
+              className="px-3 sm:px-4 py-2 text-xs sm:text-sm font-bold text-white bg-white/15 hover:bg-white/25 rounded-lg transition-colors border border-white/20 flex items-center gap-1.5 cursor-pointer"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+              <span>Coba Demo</span>
+            </button>
+            <button
+              onClick={onOpenKasir}
+              className="px-3.5 sm:px-5 py-2 text-xs sm:text-sm font-black text-[#800000] bg-white hover:bg-stone-100 rounded-lg shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
+            >
+              <span>Buka Kasir Asli</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* 2. HERO HEADLINE & INSTRUCTIONS */}
+      <section className="bg-gradient-to-b from-[#800000] via-[#700000] to-[#590000] text-white py-8 sm:py-12 border-b border-black/10">
+        <div className="max-w-4xl mx-auto px-4 text-center space-y-3">
+          <div className="inline-flex items-center gap-2 text-xs font-bold text-amber-300 bg-black/25 border border-amber-300/30 px-3.5 py-1 rounded-full">
+            <span>📐 Panduan Interaktif Bergaris Penunjuk</span>
+          </div>
+
+          <h1 className="text-2xl sm:text-4xl font-black tracking-tight leading-tight">
+            Penjelasan Tombol & Fungsi Tiap Layar dengan Garis Penunjuk
+          </h1>
+
+          <p className="text-xs sm:text-sm text-rose-100/90 max-w-2xl mx-auto leading-relaxed">
+            Arahkan kursor atau sentuh kotak penjelasan di samping untuk melihat <strong>garis panah penunjuk</strong> langsung menuju ke tombol dan bagian layar yang dimaksud.
+          </p>
+
+          {/* Interactive Controls Bar */}
+          <div className="pt-2 flex flex-wrap items-center justify-center gap-3 text-xs">
+            <button
+              onClick={() => setShowAllLines(!showAllLines)}
+              className={`px-3 py-1.5 rounded-lg border font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                showAllLines
+                  ? 'bg-amber-400 text-slate-900 border-amber-300 shadow-sm'
+                  : 'bg-white/10 text-white border-white/20 hover:bg-white/20'
+              }`}
+            >
+              <Eye className="w-3.5 h-3.5" />
+              <span>{showAllLines ? 'Garis: Semua Ditampilkan' : 'Garis: Hanya Saat Hover'}</span>
+            </button>
+
+            <button
+              onClick={() => setAnimatedLines(!animatedLines)}
+              className={`px-3 py-1.5 rounded-lg border font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                animatedLines
+                  ? 'bg-white text-[#800000] border-white shadow-sm'
+                  : 'bg-white/10 text-white border-white/20 hover:bg-white/20'
+              }`}
+            >
+              <Activity className="w-3.5 h-3.5" />
+              <span>{animatedLines ? 'Animasi Aliran: Aktif' : 'Animasi Aliran: Statis'}</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* 3. SCREEN SELECTOR TABS */}
+      <nav className="sticky top-16 sm:top-20 z-40 bg-white/95 backdrop-blur-md border-b border-stone-200 py-3 shadow-xs">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-center gap-2 sm:gap-3 overflow-x-auto no-scrollbar py-1">
+            {[
+              { id: 'screen1', label: '1. Layar Dashboard Utama', desc: 'Arsip, Nota, Laba & Tombol (+)' },
+              { id: 'screen2', label: '2. Form Transaksi Baru', desc: 'Nama, Kiloan, Satuan & QRIS' },
+              { id: 'screen3', label: '3. Struk & Cetak Thermal', desc: 'Thermal 58mm & Bluetooth' },
+              { id: 'screen4', label: '4. Status Pengerjaan (SLA)', desc: 'Cuci, Kering, Setrika, Staff' },
+            ].map((tab) => {
+              const isActive = activeScreenTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => {
+                    setActiveScreenTab(tab.id as any);
+                    setHighlightedId(null);
+                  }}
+                  className={`px-3 sm:px-5 py-2.5 rounded-xl text-left border transition-all shrink-0 cursor-pointer ${
+                    isActive
+                      ? 'bg-[#800000] text-white border-[#800000] shadow-md scale-102'
+                      : 'bg-stone-50 text-slate-700 border-stone-200 hover:bg-stone-100'
+                  }`}
+                >
+                  <div className="text-xs sm:text-sm font-black">{tab.label}</div>
+                  <div className={`text-[10px] ${isActive ? 'text-amber-200' : 'text-slate-500'}`}>
+                    {tab.desc}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </nav>
+
+      {/* 4. MAIN CANVAS CONTAINER FOR LINES AND PHONE MOCKUP */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
+        <div
+          ref={containerRef}
+          className="relative bg-white rounded-3xl p-4 sm:p-8 border border-stone-300 shadow-xl overflow-hidden min-h-[850px]"
+        >
+          {/* SVG CONNECTOR LINES OVERLAY (Rendered only on Desktop screen width) */}
+          <svg
+            className="absolute inset-0 w-full h-full pointer-events-none hidden lg:block z-20"
+            style={{ width: '100%', height: '100%' }}
+          >
+            <defs>
+              {/* Glow filter for active lines */}
+              <filter id="line-glow" x="-30%" y="-30%" width="160%" height="160%">
+                <feGaussianBlur stdDeviation="4" result="blur" />
+                <feComposite in="SourceGraphic" in2="blur" operator="over" />
+              </filter>
+
+              {/* Normal Arrowhead */}
+              <marker
+                id="arrowhead-normal"
+                markerWidth="8"
+                markerHeight="8"
+                refX="7"
+                refY="4"
+                orient="auto"
+              >
+                <polygon points="0 0, 8 4, 0 8" fill="#800000" />
+              </marker>
+
+              {/* Active Golden Arrowhead */}
+              <marker
+                id="arrowhead-active"
+                markerWidth="10"
+                markerHeight="10"
+                refX="8"
+                refY="5"
+                orient="auto"
+              >
+                <polygon points="0 0, 10 5, 0 10" fill="#f59e0b" />
+              </marker>
+            </defs>
+
+            {lineCoords.map((line) => {
+              const isHighlight = highlightedId === line.id;
+              const isVisible = showAllLines || isHighlight;
+              if (!isVisible) return null;
+
+              // Bezier curve calculations
+              const dx = Math.abs(line.x2 - line.x1) * 0.45;
+              const cp1x = line.side === 'left' ? line.x1 + dx : line.x1 - dx;
+              const cp1y = line.y1;
+              const cp2x = line.side === 'left' ? line.x2 - dx : line.x2 + dx;
+              const cp2y = line.y2;
+              const pathData = `M ${line.x1} ${line.y1} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${line.x2} ${line.y2}`;
+
+              const strokeColor = isHighlight ? '#f59e0b' : '#800000';
+              const strokeWidth = isHighlight ? 4 : 2;
+              const opacity = isHighlight ? 1 : 0.65;
+
+              return (
+                <g key={`svg-line-${line.id}`} className="transition-all duration-300">
+                  {/* Background halo for contrast */}
+                  <path
+                    d={pathData}
+                    fill="none"
+                    stroke="#ffffff"
+                    strokeWidth={strokeWidth + 4}
+                    strokeOpacity={0.8}
+                  />
+
+                  {/* Main connecting line */}
+                  <path
+                    d={pathData}
+                    fill="none"
+                    stroke={strokeColor}
+                    strokeWidth={strokeWidth}
+                    strokeOpacity={opacity}
+                    strokeDasharray={animatedLines ? (isHighlight ? '6,4' : '4,3') : undefined}
+                    className={animatedLines ? 'animate-pulse' : ''}
+                    filter={isHighlight ? 'url(#line-glow)' : undefined}
+                    markerEnd={isHighlight ? 'url(#arrowhead-active)' : 'url(#arrowhead-normal)'}
+                  />
+
+                  {/* Origin Circle on the callout card */}
+                  <circle
+                    cx={line.x1}
+                    cy={line.y1}
+                    r={isHighlight ? 6 : 4}
+                    fill={strokeColor}
+                    stroke="#ffffff"
+                    strokeWidth={2}
+                  />
+
+                  {/* Target Circle on the screen button */}
+                  <circle
+                    cx={line.x2}
+                    cy={line.y2}
+                    r={isHighlight ? 7 : 5}
+                    fill={isHighlight ? '#f59e0b' : '#800000'}
+                    stroke="#ffffff"
+                    strokeWidth={2}
+                  />
+                </g>
+              );
+            })}
+          </svg>
+
+          {/* SCREEN HEADER TITLE */}
+          <div className="text-center max-w-2xl mx-auto pb-6 border-b border-stone-200">
+            <span className="text-xs font-bold text-[#800000] uppercase tracking-wider">
+              {activeScreenTab === 'screen1' && 'PETA TOMBOL LAYAR 1'}
+              {activeScreenTab === 'screen2' && 'PETA TOMBOL LAYAR 2'}
+              {activeScreenTab === 'screen3' && 'PETA TOMBOL LAYAR 3'}
+              {activeScreenTab === 'screen4' && 'PETA TOMBOL LAYAR 4'}
+            </span>
+            <h2 className="text-2xl sm:text-3xl font-black text-slate-900 mt-1">
+              {activeScreenTab === 'screen1' && 'Layar Utama / Dashboard Kasir & Rekap Laba'}
+              {activeScreenTab === 'screen2' && 'Layar Formulir Input Transaksi Baru'}
+              {activeScreenTab === 'screen3' && 'Layar Struk Transaksi & Cetak Bluetooth'}
+              {activeScreenTab === 'screen4' && 'Layar Status Pengerjaan & Serah Terima'}
+            </h2>
+            <p className="text-xs text-slate-500 mt-1">
+              Garis panah ditarik langsung ke tombol dan komponen layar di tengah.
+            </p>
+          </div>
+
+          {/* 3-COLUMN LAYOUT: Left Callouts | Center Phone Mockup | Right Callouts */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center mt-6">
+            
+            {/* ========================================================================= */}
+            {/* LEFT COLUMN: CALLOUTS 1 - 4 */}
+            {/* ========================================================================= */}
+            <div className="lg:col-span-3 space-y-4 order-2 lg:order-1">
+              {currentCallouts
+                .filter((item) => item.side === 'left')
+                .map((item) => {
+                  const isHighlighted = highlightedId === item.id;
+                  return (
+                    <div
+                      key={item.id}
+                      ref={(el) => setCardRef(item.id, el)}
+                      onMouseEnter={() => setHighlightedId(item.id)}
+                      onMouseLeave={() => setHighlightedId(null)}
+                      onClick={() => setHighlightedId(item.id)}
+                      className={`relative p-3.5 rounded-2xl border transition-all duration-200 cursor-pointer ${
+                        isHighlighted
+                          ? 'bg-amber-50/90 border-amber-400 shadow-lg scale-102 ring-2 ring-amber-300'
+                          : 'bg-stone-50 border-stone-200 hover:border-[#800000]/40 hover:bg-stone-100/80 shadow-xs'
+                      }`}
+                    >
+                      {/* Anchor Dot on the Right Edge */}
+                      <div
+                        className={`hidden lg:block absolute -right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full border-2 border-white shadow-xs transition-colors ${
+                          isHighlighted ? 'bg-amber-500' : 'bg-[#800000]'
+                        }`}
+                      />
+
+                      <div className="flex items-start gap-2">
+                        <span
+                          className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black shrink-0 transition-colors ${
+                            isHighlighted ? 'bg-amber-500 text-slate-950' : 'bg-[#800000] text-white'
+                          }`}
+                        >
+                          {item.num}
+                        </span>
+                        <div className="flex-1">
+                          <h4 className="font-bold text-xs text-slate-900 leading-tight">
+                            {item.title}
+                          </h4>
+                          {/* Handwritten note style */}
+                          <div className="font-['Caveat'] text-base text-[#800000] leading-snug mt-0.5">
+                            "{item.handwrittenNote}"
+                          </div>
+                        </div>
+                      </div>
+
+                      <p className="text-[11px] text-slate-600 mt-1.5 leading-relaxed pl-8">
+                        {item.desc}
+                      </p>
+                    </div>
+                  );
+                })}
+            </div>
+
+            {/* ========================================================================= */}
+            {/* CENTER COLUMN: PHONE MOCKUP SCREEN */}
+            {/* ========================================================================= */}
+            <div className="lg:col-span-6 flex justify-center order-1 lg:order-2">
+              <div className="w-full max-w-[340px] sm:max-w-[365px] bg-slate-900 rounded-[44px] p-3 shadow-2xl border-4 border-slate-700 relative">
+                
+                {/* ------------------------------------------------------------- */}
+                {/* SCREEN 1 PHONE VIEW: DASHBOARD KASIR */}
+                {/* ------------------------------------------------------------- */}
+                {activeScreenTab === 'screen1' && (
+                  <div className="rounded-[36px] bg-[#800000] overflow-hidden text-white flex flex-col min-h-[660px] shadow-inner relative">
+                    {/* Status Bar */}
+                    <div className="px-5 pt-3 pb-1 flex justify-between items-center text-[11px] font-semibold text-rose-100">
+                      <span>10:46</span>
+                      <span>⚡ 74%</span>
+                    </div>
+
+                    {/* App Header Bar */}
+                    <div className="px-4 py-2.5 flex items-center justify-between border-b border-white/10 relative">
+                      {/* Left: Store / Archive Icon (Target 1) */}
+                      <div
+                        ref={(el) => setTargetRef('s1_arsip', el)}
+                        onMouseEnter={() => setHighlightedId('s1_arsip')}
+                        onMouseLeave={() => setHighlightedId(null)}
+                        className={`relative p-1.5 rounded-lg transition-all cursor-pointer ${
+                          highlightedId === 's1_arsip'
+                            ? 'bg-amber-400 text-slate-950 ring-4 ring-amber-300 scale-110 shadow-lg'
+                            : 'bg-white/20 text-white hover:bg-white/30'
+                        }`}
+                        title="1. Ikon Arsip Toko"
+                      >
+                        <Store className="w-4 h-4" />
+                        <span className="absolute -top-1.5 -right-1.5 bg-[#800000] text-amber-300 border border-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">
+                          1
+                        </span>
+                      </div>
+
+                      {/* Center: Brand Name */}
+                      <span className="font-bold text-sm tracking-tight text-white">
+                        Kafela's Laundry
+                      </span>
+
+                      {/* Right: Sync & Settings (Target 5) */}
+                      <div
+                        ref={(el) => setTargetRef('s1_settings', el)}
+                        onMouseEnter={() => setHighlightedId('s1_settings')}
+                        onMouseLeave={() => setHighlightedId(null)}
+                        className={`relative flex items-center gap-1.5 p-1 rounded-lg transition-all cursor-pointer ${
+                          highlightedId === 's1_settings'
+                            ? 'bg-amber-400 text-slate-950 ring-4 ring-amber-300 scale-110 shadow-lg'
+                            : 'text-white/80 hover:text-white'
+                        }`}
+                        title="5. Sinkron Cloud & Pengaturan"
+                      >
+                        <RotateCcw className="w-4 h-4" />
+                        <SettingsIcon className="w-4 h-4" />
+                        <span className="absolute -top-1.5 -right-1.5 bg-[#800000] text-amber-300 border border-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">
+                          5
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Dashboard Body */}
+                    <div className="flex-1 bg-stone-100 text-slate-800 p-3 space-y-2.5 font-sans overflow-y-auto">
+                      {/* Search Bar (Target 2) & Badges (Target 6) */}
+                      <div className="flex items-center gap-2">
+                        <div
+                          ref={(el) => setTargetRef('s1_search', el)}
+                          onMouseEnter={() => setHighlightedId('s1_search')}
+                          onMouseLeave={() => setHighlightedId(null)}
+                          className={`relative flex-1 bg-white border rounded-xl px-2.5 py-1.5 flex items-center gap-1.5 text-xs transition-all cursor-pointer ${
+                            highlightedId === 's1_search'
+                              ? 'border-amber-500 ring-4 ring-amber-300 shadow-md'
+                              : 'border-stone-300 text-slate-400'
+                          }`}
+                        >
+                          <Search className="w-3.5 h-3.5" />
+                          <span className="text-[11px]">Cari pelanggan...</span>
+                          <span className="absolute -top-1.5 -right-1.5 bg-[#800000] text-amber-300 border border-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">
+                            2
+                          </span>
+                        </div>
+
+                        {/* Badges Antrean (Target 6) */}
+                        <div
+                          ref={(el) => setTargetRef('s1_badges', el)}
+                          onMouseEnter={() => setHighlightedId('s1_badges')}
+                          onMouseLeave={() => setHighlightedId(null)}
+                          className={`relative flex items-center gap-1 text-[11px] transition-all rounded-lg p-0.5 cursor-pointer ${
+                            highlightedId === 's1_badges' ? 'bg-amber-200 ring-4 ring-amber-400 scale-105' : ''
+                          }`}
+                        >
+                          <span className="bg-[#800000] text-white font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                            <Clock className="w-3 h-3" /> 2
+                          </span>
+                          <span className="bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 rounded-full border border-amber-300">0</span>
+                          <span className="bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded-full border border-emerald-300">0</span>
+                          <span className="absolute -top-1.5 -right-1.5 bg-[#800000] text-amber-300 border border-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">
+                            6
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Transaction Card 1 (Basri - Lunas) (Target 3) */}
+                      <div
+                        ref={(el) => setTargetRef('s1_status', el)}
+                        onMouseEnter={() => setHighlightedId('s1_status')}
+                        onMouseLeave={() => setHighlightedId(null)}
+                        className={`relative bg-white p-2.5 rounded-2xl border shadow-2xs space-y-1 transition-all cursor-pointer ${
+                          highlightedId === 's1_status'
+                            ? 'border-emerald-500 ring-4 ring-emerald-300 shadow-md scale-101'
+                            : 'border-stone-200'
+                        }`}
+                      >
+                        <span className="absolute -top-1.5 -right-1.5 bg-[#800000] text-amber-300 border border-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">
+                          3
+                        </span>
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <div className="text-[9px] text-slate-400">09:45 16 Okt</div>
+                            <div className="font-bold text-xs text-slate-900">
+                              Basri <span className="text-[9px] text-slate-400 font-normal">261016/1</span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                              Lunas
+                            </span>
+                            <div className="w-6 h-6 rounded-full bg-red-600 text-white flex items-center justify-center">
+                              <Clock className="w-3 h-3" />
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-[10px] text-slate-500 italic">
+                          Cuci Setrika (1 Kg), Cuci Express (1 Hari) (1 Kg)
+                        </div>
+                      </div>
+
+                      {/* Transaction Card 2 (Iqbal - Belum Lunas 7.000) */}
+                      <div className="bg-white p-2.5 rounded-2xl border border-stone-200 shadow-2xs space-y-1">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <div className="text-[9px] text-slate-400">06:44 16 Okt</div>
+                            <div className="font-bold text-xs text-slate-900">
+                              Iqbal <span className="text-[9px] text-slate-400 font-normal">261015/1</span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs font-black text-red-600 bg-red-50 px-2 py-0.5 rounded border border-red-200">
+                              7.000
+                            </span>
+                            <div className="w-6 h-6 rounded-full bg-red-600 text-white flex items-center justify-center">
+                              <Clock className="w-3 h-3" />
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-[10px] text-slate-500 italic">
+                          Cuci Setrika (1 Kg)
+                        </div>
+                      </div>
+
+                      <div className="text-center text-[9px] text-slate-400 py-0.5">
+                        Menampilkan 1 - 2 dari 2 transaksi
+                      </div>
+
+                      {/* Daily Summary Card (Target 8) */}
+                      <div
+                        ref={(el) => setTargetRef('s1_rekap_laba', el)}
+                        onMouseEnter={() => setHighlightedId('s1_rekap_laba')}
+                        onMouseLeave={() => setHighlightedId(null)}
+                        className={`relative bg-white p-3 rounded-2xl border shadow-2xs space-y-2 text-xs transition-all cursor-pointer ${
+                          highlightedId === 's1_rekap_laba'
+                            ? 'border-amber-500 ring-4 ring-amber-300 shadow-lg scale-101'
+                            : 'border-stone-200'
+                        }`}
+                      >
+                        <span className="absolute -top-1.5 -right-1.5 bg-[#800000] text-amber-300 border border-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">
+                          8
+                        </span>
+                        <div className="flex justify-between items-center text-[10px] font-bold text-slate-700 pb-1 border-b border-stone-100">
+                          <span>Jumat, 16 Okt 26</span>
+                          <span className="text-slate-500">iqbal ▾</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-[10px]">
+                          <div className="p-1.5 bg-stone-50 rounded-lg">
+                            <span className="text-slate-400 block text-[8px]">Pemasukan</span>
+                            <span className="font-bold text-emerald-700">Rp 17.000</span>
+                          </div>
+                          <div className="p-1.5 bg-stone-50 rounded-lg">
+                            <span className="text-slate-400 block text-[8px]">Pengeluaran</span>
+                            <span className="font-bold text-red-600">Rp 0</span>
+                          </div>
+                        </div>
+                        <div className="p-2 bg-emerald-50/70 border border-emerald-200 rounded-xl flex justify-between items-center">
+                          <span className="font-bold text-emerald-900 text-[11px]">Total Laba Hari Ini:</span>
+                          <span className="font-black text-emerald-800 text-xs">Rp 17.000</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Bottom Nav Bar with Floating Button (Target 4 & 7) */}
+                    <div
+                      ref={(el) => setTargetRef('s1_bottom_nav', el)}
+                      className={`bg-[#800000] text-white py-2 px-3 flex justify-between items-center text-[9px] relative transition-all ${
+                        highlightedId === 's1_bottom_nav' ? 'ring-4 ring-amber-300' : ''
+                      }`}
+                    >
+                      <span className="absolute top-1 left-2 bg-white text-[#800000] border border-amber-300 text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">
+                        4
+                      </span>
+
+                      <div className="flex flex-col items-center pl-4">
+                        <Clock className="w-3.5 h-3.5" />
+                        <span>Status</span>
+                      </div>
+                      <div className="flex flex-col items-center text-rose-200">
+                        <DollarSign className="w-3.5 h-3.5" />
+                        <span>Keuangan</span>
+                      </div>
+
+                      {/* Central Plus Button (Target 7) */}
+                      <div
+                        ref={(el) => setTargetRef('s1_plus_btn', el)}
+                        onMouseEnter={() => setHighlightedId('s1_plus_btn')}
+                        onMouseLeave={() => setHighlightedId(null)}
+                        className={`-mt-7 w-12 h-12 rounded-full bg-[#800000] border-2 border-white text-white flex items-center justify-center shadow-xl cursor-pointer transition-all ${
+                          highlightedId === 's1_plus_btn'
+                            ? 'scale-125 ring-4 ring-amber-300 bg-amber-500 text-slate-950'
+                            : 'hover:scale-110'
+                        }`}
+                        title="7. Tombol Tambah Transaksi (+)"
+                      >
+                        <Plus className="w-6 h-6 stroke-[3]" />
+                        <span className="absolute -top-1 -right-1 bg-amber-400 text-slate-950 border border-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">
+                          7
+                        </span>
+                      </div>
+
+                      <div className="flex flex-col items-center text-rose-200">
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Catat Kas</span>
+                      </div>
+                      <div className="flex flex-col items-center text-rose-200">
+                        <FileText className="w-3.5 h-3.5" />
+                        <span>Laporan</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ------------------------------------------------------------- */}
+                {/* SCREEN 2 PHONE VIEW: FORM TRANSAKSI BARU */}
+                {/* ------------------------------------------------------------- */}
+                {activeScreenTab === 'screen2' && (
+                  <div className="rounded-[36px] bg-[#800000] overflow-hidden text-white flex flex-col min-h-[660px] shadow-inner">
+                    {/* Status Bar */}
+                    <div className="px-5 pt-3 pb-1 flex justify-between items-center text-[11px] font-semibold text-rose-100">
+                      <span>12:32</span>
+                      <span>⚡ 64%</span>
+                    </div>
+
+                    {/* Header */}
+                    <div className="px-4 py-2.5 flex items-center gap-2 border-b border-white/10">
+                      <ArrowLeft className="w-4 h-4 text-white" />
+                      <span className="font-bold text-sm tracking-tight text-white">Transaksi Baru</span>
+                    </div>
+
+                    {/* Form Body */}
+                    <div className="flex-1 bg-stone-100 text-slate-800 p-3 space-y-2.5 font-sans overflow-y-auto text-xs">
+                      {/* Customer Info (Target 1) */}
+                      <div
+                        ref={(el) => setTargetRef('s2_nama', el)}
+                        onMouseEnter={() => setHighlightedId('s2_nama')}
+                        onMouseLeave={() => setHighlightedId(null)}
+                        className={`relative bg-white p-2.5 rounded-xl border space-y-1 transition-all cursor-pointer ${
+                          highlightedId === 's2_nama' ? 'border-amber-500 ring-4 ring-amber-300 shadow-md' : 'border-stone-200'
+                        }`}
+                      >
+                        <span className="absolute -top-1.5 -right-1.5 bg-[#800000] text-amber-300 border border-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">
+                          1
+                        </span>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <span className="block text-[10px] font-bold text-slate-600">Nama Pelanggan *</span>
+                            <div className="p-1.5 bg-stone-50 border border-stone-300 rounded font-bold text-slate-900">
+                              Iqbal
+                            </div>
+                          </div>
+                          <div>
+                            <span className="block text-[10px] font-bold text-slate-600">Alamat (Opsional)</span>
+                            <div className="p-1.5 bg-stone-50 border border-stone-300 rounded text-slate-400 text-[10px] truncate">
+                              Jl. Mawar No. 12
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Service selector (Target 2) */}
+                      <div
+                        ref={(el) => setTargetRef('s2_layanan', el)}
+                        onMouseEnter={() => setHighlightedId('s2_layanan')}
+                        onMouseLeave={() => setHighlightedId(null)}
+                        className={`relative bg-white p-2.5 rounded-xl border space-y-2 transition-all cursor-pointer ${
+                          highlightedId === 's2_layanan' ? 'border-amber-500 ring-4 ring-amber-300 shadow-md' : 'border-stone-200'
+                        }`}
+                      >
+                        <span className="absolute -top-1.5 -right-1.5 bg-[#800000] text-amber-300 border border-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">
+                          2
+                        </span>
+                        <div className="grid grid-cols-12 gap-1.5 items-end">
+                          <div className="col-span-7">
+                            <span className="block text-[10px] font-bold text-slate-600 mb-0.5">Layanan</span>
+                            <div className="p-1.5 bg-stone-50 border border-stone-300 rounded font-bold text-[10px] text-slate-800 flex justify-between">
+                              <span>Cuci Jas / Blazer</span>
+                              <span>▾</span>
+                            </div>
+                          </div>
+                          <div className="col-span-3">
+                            <span className="block text-[10px] font-bold text-slate-600 mb-0.5">(pcs)</span>
+                            <div className="p-1.5 bg-stone-50 border border-stone-300 rounded font-bold text-center">
+                              1
+                            </div>
+                          </div>
+                          <div className="col-span-2">
+                            <div className="py-1.5 bg-emerald-600 text-white rounded font-bold text-center">
+                              +
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex justify-between text-[9px] text-slate-400">
+                          <span>Tarif: Rp 25.000/pcs</span>
+                          <span>Est: 2 Hari</span>
+                        </div>
+                      </div>
+
+                      {/* List items (Target 3) */}
+                      <div
+                        ref={(el) => setTargetRef('s2_daftar_item', el)}
+                        onMouseEnter={() => setHighlightedId('s2_daftar_item')}
+                        onMouseLeave={() => setHighlightedId(null)}
+                        className={`relative bg-white p-2.5 rounded-xl border space-y-1.5 transition-all cursor-pointer ${
+                          highlightedId === 's2_daftar_item' ? 'border-amber-500 ring-4 ring-amber-300 shadow-md' : 'border-stone-200'
+                        }`}
+                      >
+                        <span className="absolute -top-1.5 -right-1.5 bg-[#800000] text-amber-300 border border-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">
+                          3
+                        </span>
+                        <div className="p-1.5 bg-stone-50 rounded-lg flex justify-between items-center text-[11px]">
+                          <div>
+                            <div className="font-bold text-slate-900">Setrika Saja</div>
+                            <div className="text-[9px] text-slate-500">1 Kg x Rp 4.000</div>
+                          </div>
+                          <span className="font-bold">Rp 4.000</span>
+                        </div>
+                        <div className="p-1.5 bg-stone-50 rounded-lg flex justify-between items-center text-[11px]">
+                          <div>
+                            <div className="font-bold text-slate-900">Cuci Kering Saja</div>
+                            <div className="text-[9px] text-slate-500">14 Kg x Rp 5.000</div>
+                          </div>
+                          <span className="font-bold">Rp 70.000</span>
+                        </div>
+                        <div className="p-1.5 bg-stone-50 rounded-lg flex justify-between items-center text-[11px]">
+                          <div>
+                            <div className="font-bold text-slate-900">Cuci Jas / Blazer</div>
+                            <div className="text-[9px] text-slate-500">1 pcs x Rp 25.000</div>
+                          </div>
+                          <span className="font-bold">Rp 25.000</span>
+                        </div>
+                      </div>
+
+                      {/* Total & Options (Target 5, 6, 7) */}
+                      <div className="bg-white p-2.5 rounded-xl border border-stone-200 space-y-2">
+                        {/* Total Tagihan (Target 5) */}
+                        <div
+                          ref={(el) => setTargetRef('s2_total_tagihan', el)}
+                          onMouseEnter={() => setHighlightedId('s2_total_tagihan')}
+                          onMouseLeave={() => setHighlightedId(null)}
+                          className={`relative flex justify-between items-center p-1.5 rounded-lg transition-all cursor-pointer ${
+                            highlightedId === 's2_total_tagihan' ? 'bg-amber-100 ring-2 ring-amber-400' : ''
+                          }`}
+                        >
+                          <span className="text-xs font-bold text-slate-600">Total Tagihan:</span>
+                          <span className="text-base font-black text-slate-900">Rp 99.000</span>
+                          <span className="absolute -top-1 -right-1 bg-[#800000] text-amber-300 border border-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">
+                            5
+                          </span>
+                        </div>
+
+                        {/* Status Lunas (Target 6) */}
+                        <div
+                          ref={(el) => setTargetRef('s2_status_lunas', el)}
+                          onMouseEnter={() => setHighlightedId('s2_status_lunas')}
+                          onMouseLeave={() => setHighlightedId(null)}
+                          className={`relative flex items-center gap-1.5 p-1.5 rounded-lg border transition-all cursor-pointer ${
+                            highlightedId === 's2_status_lunas'
+                              ? 'border-emerald-500 bg-emerald-50 ring-2 ring-emerald-300'
+                              : 'border-stone-200 bg-stone-50'
+                          }`}
+                        >
+                          <Check className="w-3.5 h-3.5 text-emerald-600 stroke-[3]" />
+                          <span className="font-bold text-[11px]">Lunas</span>
+                          <span className="absolute -top-1 -right-1 bg-[#800000] text-amber-300 border border-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">
+                            6
+                          </span>
+                        </div>
+
+                        {/* Non Tunai QRIS (Target 7) */}
+                        <div
+                          ref={(el) => setTargetRef('s2_metode_qris', el)}
+                          onMouseEnter={() => setHighlightedId('s2_metode_qris')}
+                          onMouseLeave={() => setHighlightedId(null)}
+                          className={`relative flex items-center justify-between p-1.5 rounded-lg border transition-all cursor-pointer ${
+                            highlightedId === 's2_metode_qris'
+                              ? 'border-amber-500 bg-amber-50 ring-2 ring-amber-300'
+                              : 'border-stone-200 bg-stone-50'
+                          }`}
+                        >
+                          <div className="flex items-center gap-1.5">
+                            <Check className="w-3.5 h-3.5 text-emerald-600 stroke-[3]" />
+                            <span className="font-bold text-[11px]">Non-Tunai (QRIS)</span>
+                          </div>
+                          <span className="absolute -top-1 -right-1 bg-[#800000] text-amber-300 border border-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">
+                            7
+                          </span>
+                        </div>
+
+                        {/* Catatan (Target 4) */}
+                        <div
+                          ref={(el) => setTargetRef('s2_catatan', el)}
+                          onMouseEnter={() => setHighlightedId('s2_catatan')}
+                          onMouseLeave={() => setHighlightedId(null)}
+                          className={`relative p-1.5 rounded-lg border transition-all cursor-pointer ${
+                            highlightedId === 's2_catatan'
+                              ? 'border-amber-500 bg-amber-50 ring-2 ring-amber-300'
+                              : 'border-stone-200 bg-stone-50'
+                          }`}
+                        >
+                          <span className="block text-[9px] font-bold text-slate-500">Catatan Khusus</span>
+                          <span className="text-[11px] font-medium text-slate-800">Pakai parfum mawar</span>
+                          <span className="absolute -top-1 -right-1 bg-[#800000] text-amber-300 border border-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">
+                            4
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Submit (Target 8) */}
+                      <div
+                        ref={(el) => setTargetRef('s2_btn_simpan', el)}
+                        onMouseEnter={() => setHighlightedId('s2_btn_simpan')}
+                        onMouseLeave={() => setHighlightedId(null)}
+                        className={`relative w-full py-2.5 bg-[#800000] text-white font-bold rounded-xl text-center text-xs shadow-md cursor-pointer transition-all ${
+                          highlightedId === 's2_btn_simpan'
+                            ? 'bg-amber-500 text-slate-950 ring-4 ring-amber-300 scale-102'
+                            : 'hover:bg-[#700000]'
+                        }`}
+                      >
+                        <span>Simpan Transaksi</span>
+                        <span className="absolute -top-1.5 -right-1.5 bg-amber-400 text-slate-950 border border-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">
+                          8
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ------------------------------------------------------------- */}
+                {/* SCREEN 3 PHONE VIEW: STRUK & CETAK BLUETOOTH */}
+                {/* ------------------------------------------------------------- */}
+                {activeScreenTab === 'screen3' && (
+                  <div className="rounded-[36px] bg-[#800000] overflow-hidden text-white flex flex-col min-h-[660px] shadow-inner relative">
+                    {/* Status Bar */}
+                    <div className="px-5 pt-3 pb-1 flex justify-between items-center text-[11px] font-semibold text-rose-100">
+                      <span>10:46</span>
+                      <span>⚡ 74%</span>
+                    </div>
+
+                    {/* Modal Header */}
+                    <div className="px-4 py-2 flex justify-between items-center border-b border-white/10">
+                      <div>
+                        <div className="font-bold text-xs text-white">Struk Transaksi</div>
+                        <div className="text-[10px] text-rose-200">261015/1</div>
+                      </div>
+                      <X className="w-4 h-4 text-white/80" />
+                    </div>
+
+                    {/* Struk Paper */}
+                    <div className="flex-1 bg-stone-300 p-2.5 overflow-y-auto flex flex-col items-center">
+                      <div className="w-full bg-white rounded-xl shadow p-3.5 text-slate-900 font-mono text-[10px] relative border border-stone-300 space-y-1">
+                        
+                        {/* Kop Toko (Target 1) */}
+                        <div
+                          ref={(el) => setTargetRef('s3_kop_toko', el)}
+                          onMouseEnter={() => setHighlightedId('s3_kop_toko')}
+                          onMouseLeave={() => setHighlightedId(null)}
+                          className={`relative text-center pb-1 p-1 rounded transition-all cursor-pointer ${
+                            highlightedId === 's3_kop_toko' ? 'bg-amber-100 ring-2 ring-amber-400' : ''
+                          }`}
+                        >
+                          <span className="absolute -top-1 -right-1 bg-[#800000] text-amber-300 border border-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">
+                            1
+                          </span>
+                          <div className="w-7 h-7 rounded-full border border-stone-400 mx-auto flex items-center justify-center text-[7px] font-bold mb-0.5">
+                            kafelas
+                          </div>
+                          <div className="font-bold text-xs">KAFELA'S LAUNDRY</div>
+                          <div className="text-[9px] text-slate-500">0812-3456-7890 · Jl. Utama, Bandung</div>
+                        </div>
+
+                        <div className="border-t border-dashed border-stone-400 my-1" />
+
+                        {/* Meta Nota (Target 2 & 3) */}
+                        <div className="space-y-0.5 text-[9px]">
+                          {/* No Nota (Target 2) */}
+                          <div
+                            ref={(el) => setTargetRef('s3_nomor_nota', el)}
+                            onMouseEnter={() => setHighlightedId('s3_nomor_nota')}
+                            onMouseLeave={() => setHighlightedId(null)}
+                            className={`relative flex justify-between p-0.5 rounded cursor-pointer ${
+                              highlightedId === 's3_nomor_nota' ? 'bg-amber-100 ring-2 ring-amber-400' : ''
+                            }`}
+                          >
+                            <span>No.</span>
+                            <span className="font-bold">261015/1</span>
+                            <span className="absolute -top-1 -right-1 bg-[#800000] text-amber-300 border border-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">
+                              2
+                            </span>
+                          </div>
+
+                          {/* Waktu Terima & Target Selesai (Target 3) */}
+                          <div
+                            ref={(el) => setTargetRef('s3_waktu_terima', el)}
+                            onMouseEnter={() => setHighlightedId('s3_waktu_terima')}
+                            onMouseLeave={() => setHighlightedId(null)}
+                            className={`relative space-y-0.5 p-0.5 rounded cursor-pointer ${
+                              highlightedId === 's3_waktu_terima' ? 'bg-amber-100 ring-2 ring-amber-400' : ''
+                            }`}
+                          >
+                            <span className="absolute -top-1 -right-1 bg-[#800000] text-amber-300 border border-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">
+                              3
+                            </span>
+                            <div className="flex justify-between"><span>Terima</span><span>Jumat, 16 Okt 2026 06.44</span></div>
+                            <div className="flex justify-between"><span>Selesai</span><span>Senin, 19 Okt 2026</span></div>
+                          </div>
+                        </div>
+
+                        <div className="border-t border-dashed border-stone-400 my-1" />
+
+                        {/* Big Name & Belum Lunas (Target 5) */}
+                        <div
+                          ref={(el) => setTargetRef('s3_nama_status', el)}
+                          onMouseEnter={() => setHighlightedId('s3_nama_status')}
+                          onMouseLeave={() => setHighlightedId(null)}
+                          className={`relative text-center py-1 p-1 rounded transition-all cursor-pointer ${
+                            highlightedId === 's3_nama_status' ? 'bg-red-50 ring-2 ring-red-400' : ''
+                          }`}
+                        >
+                          <span className="absolute -top-1 -right-1 bg-[#800000] text-amber-300 border border-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">
+                            5
+                          </span>
+                          <div className="font-black text-sm tracking-wider">IQBAL</div>
+                          <div className="font-black text-red-600 text-xs">BELUM LUNAS</div>
+                          <div className="font-black text-red-600 text-xs">Rp. 7.000,-</div>
+                        </div>
+
+                        <div className="border-t border-dashed border-stone-400 my-1" />
+
+                        {/* Items (Target 6) */}
+                        <div
+                          ref={(el) => setTargetRef('s3_rincian_biaya', el)}
+                          onMouseEnter={() => setHighlightedId('s3_rincian_biaya')}
+                          onMouseLeave={() => setHighlightedId(null)}
+                          className={`relative text-[9px] space-y-0.5 p-1 rounded transition-all cursor-pointer ${
+                            highlightedId === 's3_rincian_biaya' ? 'bg-amber-100 ring-2 ring-amber-400' : ''
+                          }`}
+                        >
+                          <span className="absolute -top-1 -right-1 bg-[#800000] text-amber-300 border border-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">
+                            6
+                          </span>
+                          <div className="font-bold">Cuci Setrika</div>
+                          <div className="flex justify-between text-slate-600">
+                            <span>1 Kg x 7.000</span>
+                            <span>= 7.000</span>
+                          </div>
+                          <div className="flex justify-between font-bold pt-1">
+                            <span>Total Transaksi</span>
+                            <span>Rp 7.000</span>
+                          </div>
+                          <div className="flex justify-between font-bold text-red-600">
+                            <span>Sisa Pembayaran</span>
+                            <span>Rp 7.000</span>
+                          </div>
+                        </div>
+
+                        <div className="border-t border-dashed border-stone-400 my-1" />
+
+                        {/* Aturan Toko (Target 4) */}
+                        <div
+                          ref={(el) => setTargetRef('s3_aturan_toko', el)}
+                          onMouseEnter={() => setHighlightedId('s3_aturan_toko')}
+                          onMouseLeave={() => setHighlightedId(null)}
+                          className={`relative text-center text-[8px] text-slate-400 leading-tight p-1 rounded cursor-pointer ${
+                            highlightedId === 's3_aturan_toko' ? 'bg-amber-100 ring-2 ring-amber-400 text-slate-800' : ''
+                          }`}
+                        >
+                          <span className="absolute -top-1 -right-1 bg-[#800000] text-amber-300 border border-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">
+                            4
+                          </span>
+                          Barang yang tidak diambil lebih dari 3 bulan akan disedekahkan.<br />
+                          Terima kasih atas kepercayaan Anda!
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Modal Bottom Buttons (Target 7 & 8) */}
+                    <div className="bg-white p-2.5 border-t border-stone-200 flex gap-2 font-sans">
+                      {/* Tombol Cetak Bluetooth (Target 7) */}
+                      <div
+                        ref={(el) => setTargetRef('s3_btn_bluetooth', el)}
+                        onMouseEnter={() => setHighlightedId('s3_btn_bluetooth')}
+                        onMouseLeave={() => setHighlightedId(null)}
+                        className={`relative flex-1 py-2 bg-[#800000] text-white rounded-lg text-xs font-bold text-center flex items-center justify-center gap-1.5 shadow-sm cursor-pointer transition-all ${
+                          highlightedId === 's3_btn_bluetooth'
+                            ? 'bg-amber-500 text-slate-950 ring-4 ring-amber-300 scale-102'
+                            : 'hover:bg-[#700000]'
+                        }`}
+                      >
+                        <Printer className="w-3.5 h-3.5" />
+                        <span>Cetak Bluetooth</span>
+                        <span className="absolute -top-1.5 -right-1.5 bg-amber-400 text-slate-950 border border-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">
+                          7
+                        </span>
+                      </div>
+
+                      {/* Tombol Bagikan Struk (Target 8) */}
+                      <div
+                        ref={(el) => setTargetRef('s3_btn_bagikan', el)}
+                        onMouseEnter={() => setHighlightedId('s3_btn_bagikan')}
+                        onMouseLeave={() => setHighlightedId(null)}
+                        className={`relative px-3 py-2 bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer transition-all ${
+                          highlightedId === 's3_btn_bagikan'
+                            ? 'bg-emerald-500 ring-4 ring-emerald-300 scale-105'
+                            : 'hover:bg-emerald-800'
+                        }`}
+                      >
+                        <Share2 className="w-3.5 h-3.5" />
+                        <span>Bagikan</span>
+                        <span className="absolute -top-1.5 -right-1.5 bg-[#800000] text-amber-300 border border-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">
+                          8
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ------------------------------------------------------------- */}
+                {/* SCREEN 4 PHONE VIEW: STATUS PENGERJAAN & SLA */}
+                {/* ------------------------------------------------------------- */}
+                {activeScreenTab === 'screen4' && (
+                  <div className="rounded-[36px] bg-[#800000] overflow-hidden text-white flex flex-col min-h-[660px] shadow-inner">
+                    {/* Status Bar */}
+                    <div className="px-5 pt-3 pb-1 flex justify-between items-center text-[11px] font-semibold text-rose-100">
+                      <span>14:15</span>
+                      <span>⚡ 82%</span>
+                    </div>
+
+                    {/* Header */}
+                    <div className="px-4 py-2.5 flex items-center justify-between border-b border-white/10">
+                      <div className="flex items-center gap-2">
+                        <ArrowLeft className="w-4 h-4 text-white" />
+                        <span className="font-bold text-sm tracking-tight text-white">Status Pengerjaan</span>
+                      </div>
+                      <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded font-bold">Outlet Utama</span>
+                    </div>
+
+                    {/* Filter Tabs (Target 1) */}
+                    <div
+                      ref={(el) => setTargetRef('s4_tab_status', el)}
+                      onMouseEnter={() => setHighlightedId('s4_tab_status')}
+                      onMouseLeave={() => setHighlightedId(null)}
+                      className={`relative bg-[#700000] p-1.5 flex gap-1 text-[10px] overflow-x-auto no-scrollbar transition-all cursor-pointer ${
+                        highlightedId === 's4_tab_status' ? 'ring-4 ring-amber-300' : ''
+                      }`}
+                    >
+                      <span className="absolute top-0.5 right-2 bg-amber-400 text-slate-950 border border-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">
+                        1
+                      </span>
+                      <span className="bg-white/15 px-2 py-1 rounded">Semua (2)</span>
+                      <span className="bg-white text-[#800000] font-black px-2 py-1 rounded shadow-xs">Cuci (1)</span>
+                      <span className="bg-white/15 px-2 py-1 rounded">Kering (0)</span>
+                      <span className="bg-white/15 px-2 py-1 rounded">Setrika (1)</span>
+                    </div>
+
+                    {/* Content Body */}
+                    <div className="flex-1 bg-stone-100 text-slate-800 p-3 space-y-2.5 font-sans overflow-y-auto text-xs">
+                      {/* Active Job Card */}
+                      <div className="bg-white p-3 rounded-2xl border border-stone-200 shadow-2xs space-y-2">
+                        {/* Info Pelanggan (Target 2) */}
+                        <div
+                          ref={(el) => setTargetRef('s4_info_pelanggan', el)}
+                          onMouseEnter={() => setHighlightedId('s4_info_pelanggan')}
+                          onMouseLeave={() => setHighlightedId(null)}
+                          className={`relative p-1.5 rounded-lg border transition-all cursor-pointer ${
+                            highlightedId === 's4_info_pelanggan' ? 'border-amber-500 bg-amber-50 ring-2 ring-amber-300' : 'border-stone-100 bg-stone-50'
+                          }`}
+                        >
+                          <span className="absolute -top-1 -right-1 bg-[#800000] text-amber-300 border border-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">
+                            2
+                          </span>
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <div className="font-black text-sm text-slate-900">Iqbal (261015/1)</div>
+                              <div className="text-[10px] text-slate-500">Cuci Setrika · 1 Kg</div>
+                              <div className="text-[9px] text-[#800000] font-medium">Catatan: Parfum Mawar</div>
+                            </div>
+                            <span className="bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded text-[10px] border border-amber-300">
+                              Sedang Dicuci
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Estimasi Waktu SLA (Target 3) */}
+                        <div
+                          ref={(el) => setTargetRef('s4_estimasi_waktu', el)}
+                          onMouseEnter={() => setHighlightedId('s4_estimasi_waktu')}
+                          onMouseLeave={() => setHighlightedId(null)}
+                          className={`relative flex items-center justify-between p-1.5 bg-stone-50 rounded-lg border transition-all cursor-pointer ${
+                            highlightedId === 's4_estimasi_waktu' ? 'border-amber-500 ring-2 ring-amber-300' : 'border-stone-200'
+                          }`}
+                        >
+                          <span className="absolute -top-1 -right-1 bg-[#800000] text-amber-300 border border-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">
+                            3
+                          </span>
+                          <div className="flex items-center gap-1.5 text-[10px] text-slate-600">
+                            <Clock className="w-3.5 h-3.5 text-amber-600" />
+                            <span>Target: Senin, 19 Okt 2026 (Sisa 2 Hari)</span>
+                          </div>
+                        </div>
+
+                        {/* Assign Staff (Target 4) */}
+                        <div
+                          ref={(el) => setTargetRef('s4_pilih_staff', el)}
+                          onMouseEnter={() => setHighlightedId('s4_pilih_staff')}
+                          onMouseLeave={() => setHighlightedId(null)}
+                          className={`relative flex items-center justify-between p-1.5 bg-stone-50 rounded-lg border transition-all cursor-pointer ${
+                            highlightedId === 's4_pilih_staff' ? 'border-amber-500 ring-2 ring-amber-300' : 'border-stone-200'
+                          }`}
+                        >
+                          <span className="absolute -top-1 -right-1 bg-[#800000] text-amber-300 border border-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">
+                            4
+                          </span>
+                          <span className="text-[10px] font-bold text-slate-600">Staff Penanggung Jawab:</span>
+                          <span className="text-[10px] font-black bg-stone-200 px-2 py-0.5 rounded text-slate-800">
+                            Siti Rahma ▾
+                          </span>
+                        </div>
+
+                        {/* Action Buttons: Next Status & Send WA (Target 5 & 6) */}
+                        <div className="grid grid-cols-2 gap-2 pt-1">
+                          {/* Next Status (Target 5) */}
+                          <div
+                            ref={(el) => setTargetRef('s4_btn_next_step', el)}
+                            onMouseEnter={() => setHighlightedId('s4_btn_next_step')}
+                            onMouseLeave={() => setHighlightedId(null)}
+                            className={`relative py-2 bg-emerald-700 text-white rounded-lg text-center font-bold text-[11px] shadow-sm flex items-center justify-center gap-1 cursor-pointer transition-all ${
+                              highlightedId === 's4_btn_next_step' ? 'bg-emerald-500 ring-4 ring-emerald-300 scale-102' : 'hover:bg-emerald-800'
+                            }`}
+                          >
+                            <CheckCheck className="w-3.5 h-3.5" />
+                            <span>Lanjut: Kering</span>
+                            <span className="absolute -top-1.5 -right-1.5 bg-[#800000] text-amber-300 border border-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">
+                              5
+                            </span>
+                          </div>
+
+                          {/* Send WhatsApp (Target 6) */}
+                          <div
+                            ref={(el) => setTargetRef('s4_btn_wa_selesai', el)}
+                            onMouseEnter={() => setHighlightedId('s4_btn_wa_selesai')}
+                            onMouseLeave={() => setHighlightedId(null)}
+                            className={`relative py-2 bg-[#800000] text-white rounded-lg text-center font-bold text-[11px] shadow-sm flex items-center justify-center gap-1 cursor-pointer transition-all ${
+                              highlightedId === 's4_btn_wa_selesai' ? 'bg-amber-500 text-slate-950 ring-4 ring-amber-300 scale-102' : 'hover:bg-[#700000]'
+                            }`}
+                          >
+                            <Send className="w-3 h-3" />
+                            <span>WA Pelanggan</span>
+                            <span className="absolute -top-1.5 -right-1.5 bg-amber-400 text-slate-950 border border-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">
+                              6
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* ========================================================================= */}
+            {/* RIGHT COLUMN: CALLOUTS 5 - 8 */}
+            {/* ========================================================================= */}
+            <div className="lg:col-span-3 space-y-4 order-3">
+              {currentCallouts
+                .filter((item) => item.side === 'right')
+                .map((item) => {
+                  const isHighlighted = highlightedId === item.id;
+                  return (
+                    <div
+                      key={item.id}
+                      ref={(el) => setCardRef(item.id, el)}
+                      onMouseEnter={() => setHighlightedId(item.id)}
+                      onMouseLeave={() => setHighlightedId(null)}
+                      onClick={() => setHighlightedId(item.id)}
+                      className={`relative p-3.5 rounded-2xl border transition-all duration-200 cursor-pointer ${
+                        isHighlighted
+                          ? 'bg-amber-50/90 border-amber-400 shadow-lg scale-102 ring-2 ring-amber-300'
+                          : 'bg-stone-50 border-stone-200 hover:border-[#800000]/40 hover:bg-stone-100/80 shadow-xs'
+                      }`}
+                    >
+                      {/* Anchor Dot on the Left Edge */}
+                      <div
+                        className={`hidden lg:block absolute -left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full border-2 border-white shadow-xs transition-colors ${
+                          isHighlighted ? 'bg-amber-500' : 'bg-[#800000]'
+                        }`}
+                      />
+
+                      <div className="flex items-start gap-2">
+                        <span
+                          className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black shrink-0 transition-colors ${
+                            isHighlighted ? 'bg-amber-500 text-slate-950' : 'bg-[#800000] text-white'
+                          }`}
+                        >
+                          {item.num}
+                        </span>
+                        <div className="flex-1">
+                          <h4 className="font-bold text-xs text-slate-900 leading-tight">
+                            {item.title}
+                          </h4>
+                          {/* Handwritten note style */}
+                          <div className="font-['Caveat'] text-base text-[#800000] leading-snug mt-0.5">
+                            "{item.handwrittenNote}"
+                          </div>
+                        </div>
+                      </div>
+
+                      <p className="text-[11px] text-slate-600 mt-1.5 leading-relaxed pl-8">
+                        {item.desc}
+                      </p>
+                    </div>
+                  );
+                })}
+            </div>
+
+          </div>
+        </div>
+      </main>
+
+      {/* 5. QUICK TUTORIAL WORKFLOW (4 LANGKAH PENGGUNAAN KASIR) */}
+      <section className="py-12 bg-stone-200/70 border-t border-stone-300">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6">
+          <div className="text-center max-w-xl mx-auto mb-8">
+            <span className="text-xs font-bold text-[#800000] uppercase tracking-wider">
+              Langkah Penggunaan Praktis
+            </span>
+            <h3 className="text-xl sm:text-2xl font-black text-slate-900 mt-1">
+              Cara Pakai Kasir Kafela Dalam 4 Langkah Sederhana
+            </h3>
+            <p className="text-xs text-slate-500 mt-1">
+              Dari pelanggan datang hingga struk thermal tercetak rapi.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {[
+              {
+                step: '1',
+                title: 'Pelanggan Datang',
+                desc: 'Timbang pakaian kotor pelanggan. Klik tombol bulat merah (+) di tengah layar kasir.',
+              },
+              {
+                step: '2',
+                title: 'Input Kiloan / Satuan',
+                desc: 'Ketik nama pelanggan, pilih paket layanan, masukkan berat (Kg), lalu centang jika sudah lunas atau bayar QRIS.',
+              },
+              {
+                step: '3',
+                title: 'Simpan & Cetak Struk',
+                desc: 'Klik tombol Simpan Transaksi. Tekan "Cetak Bluetooth" untuk mencetak ke printer thermal 58mm atau bagikan via WhatsApp.',
+              },
+              {
+                step: '4',
+                title: 'Update & Serah Terima',
+                desc: 'Pindahkan status dari Cuci ke Kering dan Setrika. Saat pakaian selesai, kirim notifikasi WA dan serahkan pakaian ke pelanggan.',
+              },
+            ].map((card) => (
+              <div key={card.step} className="bg-white p-4 rounded-2xl border border-stone-300 shadow-xs space-y-2">
+                <div className="w-8 h-8 rounded-full bg-[#800000] text-amber-300 font-black text-sm flex items-center justify-center">
+                  {card.step}
+                </div>
+                <h4 className="font-bold text-sm text-slate-900">{card.title}</h4>
+                <p className="text-xs text-slate-600 leading-relaxed">{card.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* 6. BOTTOM CALL TO ACTION */}
+      <section className="py-14 sm:py-16 bg-[#800000] text-white text-center">
+        <div className="max-w-2xl mx-auto px-4 space-y-4">
+          <h3 className="text-2xl sm:text-3xl font-black">
+            Buka Aplikasi Kasir Kafela's Laundry
+          </h3>
+          <p className="text-rose-100 text-xs sm:text-sm">
+            Gunakan sekarang langsung di peramban web di alamat <strong>kafelaslaundry.web.app</strong> atau coba dengan data simulasi gratis.
+          </p>
+          <div className="pt-2 flex flex-wrap justify-center gap-3">
+            <button
+              onClick={onOpenKasir}
+              className="px-7 py-3 bg-white text-[#800000] font-black rounded-xl text-xs sm:text-sm shadow-md hover:bg-stone-100 transition cursor-pointer"
+            >
+              Buka Kasir Sekarang
+            </button>
+            <button
+              onClick={() => onStartDemo('owner')}
+              className="px-5 py-3 bg-black/25 text-white font-bold rounded-xl text-xs sm:text-sm border border-white/20 hover:bg-black/35 transition cursor-pointer"
+            >
+              Coba Akun Demo
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* FOOTER */}
+      <footer className="bg-stone-900 text-stone-400 py-6 text-xs border-t border-stone-800 text-center">
+        <p>&copy; 2026 Kafela's Laundry — Sistem Kasir POS & Manajemen Operasional Laundry Indonesia.</p>
+      </footer>
+    </div>
+  );
+};

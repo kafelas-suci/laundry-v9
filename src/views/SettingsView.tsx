@@ -20,8 +20,11 @@ import {
   Clock,
   Crown,
   Lock,
-    Plus,
-
+  Plus,
+  Globe,
+  ExternalLink,
+  HelpCircle,
+  Cloud,
 } from 'lucide-react';
 import { SettingsData, User, Laundry } from '../types';
 import { PWAInstallButton } from '../components/PWAInstallButton';
@@ -35,6 +38,7 @@ import {
   pairBluetoothPrinterDirectly,
 } from '../utils/nativeBridge';
 import { TopUpModal } from '../components/TopUpModal';
+import { CloudBackupModal } from '../components/CloudBackupModal';
 
 interface SettingsViewProps {
   onBack: () => void;
@@ -96,6 +100,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [showLogoutConfirmModal, setShowLogoutConfirmModal] = useState(false);
   const [showEditOwnerModal, setShowEditOwnerModal] = useState(false);
   const [showTopUpModal, setShowTopUpModal] = useState(false);
+  const [showBackupModal, setShowBackupModal] = useState(false);
   const [editDisplayName, setEditDisplayName] = useState(currentUser.displayName || '');
   const [editNomorTelepon, setEditNomorTelepon] = useState(currentUser.nomorTelepon || '');
 
@@ -301,25 +306,21 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 </div>
               
 
-              {/* Strip Saldo Berani & Terhubung ke Tombol */}
-              <div className="border-t border-slate-100 pt-0 flex items-center justify-between gap-2">
-                {/* Badge Saldo Mencolok */}
-                <div className="flex items-center gap-2 bg-[#800000]/5 border border-[#800000]/20 px-3 py-1.5 rounded-xl min-w-0 flex-1">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-[#800000]/70 shrink-0">
-                    Saldo
-                  </span>
-                  <div className="h-3.5 w-px bg-[#800000]/20 shrink-0" />
-                  <span className="text-base sm:text-lg font-black text-[#800000] font-mono tracking-tight tabular-nums truncate">
-                    {formatRupiah(currentUser.walletBalance || 0)}
-                  </span>
-                  
-                  
-                </div>
+              {/* Strip Saldo & Tombol Isi Saldo (Khusus Akun Owner, Sembunyikan Saat Admin Masuk) */}
+              {isOwner && (
+                <div className="border-t border-slate-100 pt-0 flex items-center justify-between gap-2">
+                  {/* Badge Saldo Mencolok */}
+                  <div className="flex items-center gap-2 bg-[#800000]/5 border border-[#800000]/20 px-3 py-1.5 rounded-xl min-w-0 flex-1">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-[#800000]/70 shrink-0">
+                      Saldo
+                    </span>
+                    <div className="h-3.5 w-px bg-[#800000]/20 shrink-0" />
+                    <span className="text-base sm:text-lg font-black text-[#800000] font-mono tracking-tight tabular-nums truncate">
+                      {formatRupiah(currentUser.walletBalance || 0)}
+                    </span>
+                  </div>
 
-                
-
-                {/* Tombol Aksi Tambah Saldo Langsung */}
-                {isOwner && (
+                  {/* Tombol Aksi Tambah Saldo Langsung */}
                   <button
                     type="button"
                     onClick={() => setShowTopUpModal(true)}
@@ -329,8 +330,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     <CreditCard className="w-3.5 h-3.5" />
                     <span>(+) Isi Saldo</span>
                   </button>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           );
         })()}
@@ -381,47 +382,49 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </div>
         )}
 
-        {/* SECTION 2: MASTER DATA LAUNDRY */}
-        <div className="space-y-1.5">
-          <div className="text-[11px] font-black text-slate-500 uppercase tracking-wider px-1">
-            Master Data Laundry
-          </div>
-          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs divide-y divide-slate-100 overflow-hidden">
-            <button
-              type="button"
-              onClick={onOpenKelolaPelanggan}
-              className="w-full p-3.5 flex items-center justify-between hover:bg-slate-50 active:bg-slate-100 transition text-left"
-            >
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0">
-                  <Users className="w-4 h-4" />
+        {/* SECTION 2: MASTER DATA LAUNDRY (Khusus Akun Owner, Disembunyikan Saat Admin Masuk) */}
+        {isOwner && (
+          <div className="space-y-1.5">
+            <div className="text-[11px] font-black text-slate-500 uppercase tracking-wider px-1">
+              Master Data Laundry
+            </div>
+            <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs divide-y divide-slate-100 overflow-hidden">
+              <button
+                type="button"
+                onClick={onOpenKelolaPelanggan}
+                className="w-full p-3.5 flex items-center justify-between hover:bg-slate-50 active:bg-slate-100 transition text-left"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0">
+                    <Users className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold text-slate-900">Data Pelanggan</div>
+                    <div className="text-[11px] text-slate-500 truncate">Buku kontak konsumen, nomor WA & alamat</div>
+                  </div>
                 </div>
-                <div className="min-w-0">
-                  <div className="text-xs font-bold text-slate-900">Data Pelanggan</div>
-                  <div className="text-[11px] text-slate-500 truncate">Buku kontak konsumen, nomor WA & alamat</div>
-                </div>
-              </div>
-              <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 ml-2" />
-            </button>
+                <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 ml-2" />
+              </button>
 
-            <button
-              type="button"
-              onClick={onOpenKelolaLayanan}
-              className="w-full p-3.5 flex items-center justify-between hover:bg-slate-50 active:bg-slate-100 transition text-left"
-            >
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center shrink-0">
-                  <Tag className="w-4 h-4" />
+              <button
+                type="button"
+                onClick={onOpenKelolaLayanan}
+                className="w-full p-3.5 flex items-center justify-between hover:bg-slate-50 active:bg-slate-100 transition text-left"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center shrink-0">
+                    <Tag className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold text-slate-900">Daftar Harga Layanan</div>
+                    <div className="text-[11px] text-slate-500 truncate">Kiloan, satuan, durasi kerja, dan tarif jasa</div>
+                  </div>
                 </div>
-                <div className="min-w-0">
-                  <div className="text-xs font-bold text-slate-900">Daftar Harga Layanan</div>
-                  <div className="text-[11px] text-slate-500 truncate">Kiloan, satuan, durasi kerja, dan tarif jasa</div>
-                </div>
-              </div>
-              <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 ml-2" />
-            </button>
+                <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 ml-2" />
+              </button>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* SECTION 3: STRUK & PRINTER BLUETOOTH */}
         <div className="space-y-1.5">
@@ -465,38 +468,120 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </div>
         </div>
 
-        {/* SECTION 4: PENGATURAN FITUR SISTEM */}
+        {/* SECTION 4: PENGATURAN FITUR SISTEM (Khusus Akun Owner, Disembunyikan Saat Admin Masuk) */}
+        {isOwner && (
+          <div className="space-y-1.5">
+            <div className="text-[11px] font-black text-slate-500 uppercase tracking-wider px-1">
+              Fitur & Kebijakan Toko
+            </div>
+            <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
+              <button
+                type="button"
+                onClick={() => {
+                  setWaNotification(settings.waNotificationEnabled ?? true);
+                  setSelesaikanOtomatis(settings.selesaikanSaatDitugaskan ?? true);
+                  setTampilkanAmbilNotaLama(settings.tampilkanTombolAmbilNotaLama ?? true);
+                  setHitungKerjaStaf(settings.hitungKerjaStaf ?? true);
+                  setShowFeatureSettingsModal(true);
+                }}
+                className="w-full p-3.5 flex items-center justify-between hover:bg-slate-50 active:bg-slate-100 transition text-left"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center shrink-0">
+                    <Sliders className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold text-slate-900">Pengaturan Fitur & Kebijakan</div>
+                    <div className="text-[11px] text-slate-500 truncate">Notifikasi WA, alur pengerjaan, dan beban staf</div>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 ml-2" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* SECTION: PENCADANGAN KEAMANAN DATA & GOOGLE DRIVE (Khusus Akun Owner) */}
+        {isOwner && (
+          <div className="space-y-1.5">
+            <div className="text-[11px] font-black text-slate-500 uppercase tracking-wider px-1">
+              Pencadangan & Keamanan Data
+            </div>
+            <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setShowBackupModal(true)}
+                className="w-full p-3.5 flex items-center justify-between hover:bg-slate-50 active:bg-slate-100 transition text-left cursor-pointer"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-9 h-9 rounded-xl bg-teal-50 text-teal-700 flex items-center justify-center shrink-0">
+                    <Cloud className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                      <span>Cadangkan Data ke Google Drive</span>
+                      <span className="text-[9px] bg-teal-100 text-teal-800 font-bold px-1.5 py-0.2 rounded">Aman</span>
+                    </div>
+                    <div className="text-[11px] text-slate-500 truncate">
+                      Simpan manual nota, pelanggan & arsip ke Google Drive / Cloud
+                    </div>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 ml-2" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* SECTION 5: WEBSITE PUBLIK & TUTORIAL (MANDIRI) */}
         <div className="space-y-1.5">
           <div className="text-[11px] font-black text-slate-500 uppercase tracking-wider px-1">
-            Fitur & Kebijakan Toko
+            Website Publik & Panduan Outlet
           </div>
-          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
-            <button
-              type="button"
-              onClick={() => {
-                setWaNotification(settings.waNotificationEnabled ?? true);
-                setSelesaikanOtomatis(settings.selesaikanSaatDitugaskan ?? true);
-                setTampilkanAmbilNotaLama(settings.tampilkanTombolAmbilNotaLama ?? true);
-                setHitungKerjaStaf(settings.hitungKerjaStaf ?? true);
-                setShowFeatureSettingsModal(true);
-              }}
+          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs divide-y divide-slate-100 overflow-hidden">
+            <a
+              href="/landing.html"
+              target="_blank"
+              rel="noopener noreferrer"
               className="w-full p-3.5 flex items-center justify-between hover:bg-slate-50 active:bg-slate-100 transition text-left"
             >
               <div className="flex items-center gap-3 min-w-0">
-                <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center shrink-0">
-                  <Sliders className="w-4 h-4" />
+                <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-800 flex items-center justify-center shrink-0">
+                  <Globe className="w-4 h-4" />
                 </div>
                 <div className="min-w-0">
-                  <div className="text-xs font-bold text-slate-900">Pengaturan Fitur & Kebijakan</div>
-                  <div className="text-[11px] text-slate-500 truncate">Notifikasi WA, alur pengerjaan, dan beban staf</div>
+                  <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                    <span>Lihat Web Profil Resmi Outlet</span>
+                    <span className="text-[9px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.2 rounded">Stand-Alone</span>
+                  </div>
+                  <div className="text-[11px] text-slate-500 truncate">Halaman promosi mandiri: cukup edit public/landing.html</div>
                 </div>
               </div>
-              <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 ml-2" />
-            </button>
+              <ExternalLink className="w-4 h-4 text-slate-400 shrink-0 ml-2" />
+            </a>
+
+            <a
+              href="/tutorial.html"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full p-3.5 flex items-center justify-between hover:bg-slate-50 active:bg-slate-100 transition text-left"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-xl bg-rose-50 text-brand-600 flex items-center justify-center shrink-0">
+                  <HelpCircle className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                    <span>Panduan Interaktif Garis Penunjuk</span>
+                    <span className="text-[9px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.2 rounded">Tutorial</span>
+                  </div>
+                  <div className="text-[11px] text-slate-500 truncate">Peta tombol 4 layar kasir & garis panah penunjuk fungsi</div>
+                </div>
+              </div>
+              <ExternalLink className="w-4 h-4 text-slate-400 shrink-0 ml-2" />
+            </a>
           </div>
         </div>
-
-   
 
         {/* SECTION 6: KELUAR DARI AKUN (LOGOUT) */}
         <div className="pt-0">
@@ -960,6 +1045,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           }
         }}
         sisaHari={sisaHari}
+      />
+
+      {/* MODAL PENCADANGAN KE GOOGLE DRIVE & CLOUD */}
+      <CloudBackupModal
+        isOpen={showBackupModal}
+        onClose={() => setShowBackupModal(false)}
+        currentUser={currentUser}
+        activeLaundry={activeLaundry}
       />
     </div>
   );

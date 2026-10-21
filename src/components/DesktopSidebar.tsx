@@ -21,6 +21,8 @@ import {
   Crown,
   Shirt,
   BarChart3,
+  Globe,
+  HelpCircle,
 } from 'lucide-react';
 import { User, Laundry, Transaksi } from '../types';
 import { isProTier, getLaundryLimits } from '../utils/subscription';
@@ -99,7 +101,22 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
   const subIsExpired = !isNewcomer && subDiffMs <= 0;
   const subPaketNama = limits.label;
 
-  const navGroups = [
+  interface NavItem {
+    id: string;
+    label: string;
+    icon: any;
+    badge?: string | number;
+    badgeColor?: string;
+    isExternal?: boolean;
+    href?: string;
+  }
+
+  interface NavGroup {
+    title: string;
+    items: NavItem[];
+  }
+
+  const navGroups: NavGroup[] = [
     {
       title: 'Operasional Kasir',
       items: [
@@ -134,32 +151,36 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
           label: 'Buku Kas Harian',
           icon: Wallet,
         },
-        {
-          id: 'laporan',
-          label: 'Laporan Keuangan',
-          icon: BarChart3,
-        },
-      ],
-    },
-    {
-      title: 'Master Data & Outlet',
-      items: [
-        {
-          id: 'kelola_pelanggan',
-          label: 'Data Pelanggan',
-          icon: Users,
-          badge: pelangganCount > 0 ? pelangganCount : undefined,
-          badgeColor: 'bg-slate-100 text-slate-600',
-        },
-        {
-          id: 'kelola_layanan',
-          label: 'Harga Layanan',
-          icon: Tag,
-          badge: layananCount > 0 ? layananCount : undefined,
-          badgeColor: 'bg-slate-100 text-slate-600',
-        },
         ...(isOwner
           ? [
+              {
+                id: 'laporan',
+                label: 'Laporan Keuangan',
+                icon: BarChart3,
+              },
+            ]
+          : []),
+      ],
+    },
+    ...(isOwner
+      ? [
+          {
+            title: 'Master Data & Outlet',
+            items: [
+              {
+                id: 'kelola_pelanggan',
+                label: 'Data Pelanggan',
+                icon: Users,
+                badge: pelangganCount > 0 ? pelangganCount : undefined,
+                badgeColor: 'bg-slate-100 text-slate-600',
+              },
+              {
+                id: 'kelola_layanan',
+                label: 'Harga Layanan',
+                icon: Tag,
+                badge: layananCount > 0 ? layananCount : undefined,
+                badgeColor: 'bg-slate-100 text-slate-600',
+              },
               {
                 id: 'kelola_kasir',
                 label: 'Kelola Kasir / Staf',
@@ -172,17 +193,31 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
                 badge: laundries.length > 1 ? `${laundries.length}` : undefined,
                 badgeColor: 'bg-emerald-100 text-emerald-800',
               },
-            ]
-          : []),
-      ],
-    },
+            ],
+          },
+        ]
+      : []),
     {
-      title: 'Sistem',
+      title: 'Sistem & Publik',
       items: [
         {
           id: 'settings',
           label: 'Pengaturan Laundry',
           icon: SettingsIcon,
+        },
+        {
+          id: 'landing_link',
+          label: 'Web Profil',
+          icon: Globe,
+          isExternal: true,
+          href: '/landing.html',
+        },
+        {
+          id: 'tutorial_link',
+          label: 'Tutorial Garis Penunjuk',
+          icon: HelpCircle,
+          isExternal: true,
+          href: '/tutorial.html',
         },
       ],
     },
@@ -325,10 +360,21 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
                     key={item.id}
                     type="button"
                     onClick={() => {
-                      if ((item.id === 'kelola_kasir' || item.id === 'kelola_owner') && currentUser.role !== 'owner') {
+                      if ((item as any).isExternal && (item as any).href) {
+                        window.open((item as any).href, '_blank');
                         return;
                       }
-                      onSelectView(item.id);
+                      if (
+                        (item.id === 'kelola_kasir' ||
+                          item.id === 'kelola_owner' ||
+                          item.id === 'kelola_pelanggan' ||
+                          item.id === 'kelola_layanan' ||
+                          item.id === 'laporan') &&
+                        currentUser.role !== 'owner'
+                      ) {
+                        return;
+                      }
+                      onSelectView(item.id as NavViewType);
                     }}
                     title={collapsed ? item.label : undefined}
                     className={`w-full flex items-center ${

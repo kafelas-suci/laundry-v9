@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+<html lang="id" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tutorial Kafelas Laundry</title>
+  <meta name="description" content="Panduan interaktif tombol dan fungsi aplikasi kasir Kafela's Laundry dengan garis panah penunjuk langsung ke tiap bagian layar." />
+  <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+  <!-- Tailwind CSS via CDN (Mandiri, Tanpa Kompilasi) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              600: '#800000',
+              700: '#700000',
+              800: '#590000',
+              900: '#3a0000',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Google Web Fonts for Handwritten Callout Style -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Kalam:wght@700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;700&display=swap"
+    rel="stylesheet"
+  />
+
+  <style>
+    body { font-family: 'Plus Jakarta Sans', sans-serif; }
+    .font-hand { font-family: 'Caveat', cursive; }
+    .font-mono { font-family: 'JetBrains Mono', monospace; }
+  </style>
+</head>
+<body class="bg-stone-100 text-slate-800 antialiased selection:bg-[#800000] selection:text-white">
+
+  <!-- ===================================================================== -->
+  <!-- HALAMAN 2: TUTORIAL INTERAKTIF BERGARIS PENUNJUK (STANDALONE)         -->
+  <!-- Berdiri sendiri di /public/tutorial.html                              -->
+  <!-- ===================================================================== -->
+
+  <!-- 1. TOP HEADER NAVIGATION -->
+  <header class="sticky top-0 z-50 bg-[#800000] text-white shadow-md">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 sm:h-20 flex items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+       
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="font-black text-base sm:text-xl tracking-tight text-white">
+              Kafelas Laundry
+            </span>
+        
+          </div>
+        
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2 sm:gap-3">
+
+        <a
+          href="/"
+          class="px-3.5 sm:px-5 py-2 text-xs sm:text-sm font-black text-[#800000] bg-white hover:bg-stone-100 rounded-lg shadow-sm transition-all flex items-center gap-1.5"
+        >
+          <span>Buka Kasir Asli</span>
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- 2. HERO HEADLINE & INSTRUCTIONS -->
+  <section class="bg-gradient-to-b from-[#800000] via-[#700000] to-[#590000] text-white py-1 sm:py-12 border-b border-black/10">
+    <div class=" text-center space-y-3">
+  
+
+      <!-- Interactive Controls Bar -->
+      <div class="pt-1 flex flex-wrap items-center justify-center gap-3 text-xs">
+        <button
+          id="btnToggleAllLines"
+          type="button"
+          class="px-3 py-1.5 rounded-lg border font-bold flex items-center gap-1.5 transition-all bg-amber-400 text-slate-900 border-amber-300 shadow-sm"
+        >
+          <span>👁️ Garis Ditampilkan</span>
+        </button>
+
+        <button
+          id="btnToggleAnimation"
+          type="button"
+          class="px-3 py-1.5 rounded-lg border font-bold flex items-center gap-1.5 transition-all bg-white text-[#800000] border-white shadow-sm"
+        >
+          <span>⚡ Animasi Aliran</span>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. SCREEN SELECTOR TABS -->
+  <nav class="sticky top-1 sm:top-20 z-40 bg-white/95 backdrop-blur-md border-b border-stone-200 py-1 shadow-xs">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-center gap-2 sm:gap-3 overflow-x-auto no-scrollbar py-1" id="screenTabsContainer">
+        <button
+          data-screen="screen1"
+          class="tab-btn px-3 sm:px-5 py-2.5 rounded-xl text-left border transition-all shrink-0 bg-[#800000] text-white border-[#800000] shadow-md scale-102"
+        >
+          <div class="text-xs sm:text-sm font-black">1. Dashboard Utama</div>
+        </button>
+
+        <button
+          data-screen="screen2"
+          class="tab-btn px-3 sm:px-5 py-2.5 rounded-xl text-left border transition-all shrink-0 bg-stone-50 text-slate-700 border-stone-200 hover:bg-stone-100"
+        >
+          <div class="text-xs sm:text-sm font-black">2. Form Transaksi Baru</div>
+        </button>
+
+        <button
+          data-screen="screen3"
+          class="tab-btn px-3 sm:px-5 py-2.5 rounded-xl text-left border transition-all shrink-0 bg-stone-50 text-slate-700 border-stone-200 hover:bg-stone-100"
+        >
+          <div class="text-xs sm:text-sm font-black">3. Struk & Cetak Thermal</div>
+        </button>
+
+        <button
+          data-screen="screen4"
+          class="tab-btn px-3 sm:px-5 py-2.5 rounded-xl text-left border transition-all shrink-0 bg-stone-50 text-slate-700 border-stone-200 hover:bg-stone-100"
+        >
+          <div class="text-xs sm:text-sm font-black">4. Status Pengerjaan (SLA)</div>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- 4. MAIN CANVAS CONTAINER FOR LINES AND PHONE MOCKUP -->
+  <main>
+    <div
+      id="mainCanvasContainer"
+      class=""
+    >
+      <!-- SVG CONNECTOR LINES OVERLAY -->
+      <svg
+        id="svgOverlay"
+        class="absolute inset-0 w-full h-full pointer-events-none hidden lg:block z-20"
+        style="width: 100%; height: 100%;"
+      >
+        <defs>
+          <filter id="line-glow" x="-30%" y="-30%" width="160%" height="160%">
+            <feGaussianBlur stdDeviation="4" result="blur" />
+            <feComposite in="SourceGraphic" in2="blur" operator="over" />
+          </filter>
+
+          <marker id="arrowhead-normal" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+            <polygon points="0 0, 8 4, 0 8" fill="#800000" />
+          </marker>
+
+          <marker id="arrowhead-active" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+            <polygon points="0 0, 10 5, 0 10" fill="#f59e0b" />
+          </marker>
+        </defs>
+        <g id="svgLinesGroup"></g>
+      </svg>
+
+      <!-- SCREEN HEADER TITLE -->
+      <div class="text-center border-b border-stone-200">
+        <span id="screenBadgeLabel" class="text-xs font-bold text-[#800000] uppercase tracking-wider">
+          PETA TOMBOL LAYAR 1
+        </span>
+        <h2 id="screenTitleLabel" class="text-2xl sm:text-3xl font-black text-slate-900">
+          Layar Utama
+        </h2>
+      
+      </div>
+
+      <!-- 3-COLUMN LAYOUT -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center mt-6">
+        
+        <!-- LEFT COLUMN: CALLOUTS 1 - 4 -->
+        <div class="lg:col-span-3 space-y-4 order-2 lg:order-1" id="leftCalloutsContainer">
+          <!-- Dynamically populated or static -->
+        </div>
+
+        <!-- CENTER COLUMN: PHONE MOCKUP SCREEN -->
+        <div class="lg:col-span-6 flex justify-center order-1 lg:order-2">
+          <div class="w-full max-w-[340px] sm:max-w-[365px] bg-slate-900 rounded-[44px] p-3 shadow-2xl border-4 border-slate-700 relative" id="phoneMockupWrapper">
+            <!-- Screen content injected dynamically via JS -->
+          </div>
+        </div>
+
+        <!-- RIGHT COLUMN: CALLOUTS 5 - 8 -->
+        <div class="lg:col-span-3 space-y-4 order-3" id="rightCalloutsContainer">
+          <!-- Dynamically populated or static -->
+        </div>
+
+      </div>
+    </div>
+  </main>
+
+  <!-- 5. QUICK TUTORIAL WORKFLOW (4 LANGKAH PENGGUNAAN KASIR) -->
+  <section class="py-12 bg-stone-200/70 border-t border-stone-300">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6">
+      <div class="text-center max-w-xl mx-auto mb-8">
+        <span class="text-xs font-bold text-[#800000] uppercase tracking-wider">
+          Langkah Penggunaan Praktis
+        </span>
+        <h3 class="text-xl sm:text-2xl font-black text-slate-900 mt-1">
+          Cara Pakai Kasir Kafela Dalam 4 Langkah Sederhana
+        </h3>
+        <p class="text-xs text-slate-500 mt-1">
+          Dari pelanggan datang hingga struk thermal tercetak rapi.
+        </p>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="bg-white p-4 rounded-2xl border border-stone-300 shadow-xs space-y-2">
+          <div class="w-8 h-8 rounded-full bg-[#800000] text-amber-300 font-black text-sm flex items-center justify-center">1</div>
+          <h4 class="font-bold text-sm text-slate-900">Pelanggan Datang</h4>
+          <p class="text-xs text-slate-600 leading-relaxed">Timbang pakaian kotor pelanggan. Klik tombol bulat merah (+) di tengah layar kasir.</p>
+        </div>
+
+        <div class="bg-white p-4 rounded-2xl border border-stone-300 shadow-xs space-y-2">
+          <div class="w-8 h-8 rounded-full bg-[#800000] text-amber-300 font-black text-sm flex items-center justify-center">2</div>
+          <h4 class="font-bold text-sm text-slate-900">Input Kiloan / Satuan</h4>
+          <p class="text-xs text-slate-600 leading-relaxed">Ketik nama pelanggan, pilih paket layanan, masukkan berat (Kg), lalu centang jika sudah lunas atau bayar QRIS.</p>
+        </div>
+
+        <div class="bg-white p-4 rounded-2xl border border-stone-300 shadow-xs space-y-2">
+          <div class="w-8 h-8 rounded-full bg-[#800000] text-amber-300 font-black text-sm flex items-center justify-center">3</div>
+          <h4 class="font-bold text-sm text-slate-900">Simpan & Cetak Struk</h4>
+          <p class="text-xs text-slate-600 leading-relaxed">Klik tombol Simpan Transaksi. Tekan "Cetak Bluetooth" untuk mencetak ke printer thermal 58mm atau bagikan via WhatsApp.</p>
+        </div>
+
+        <div class="bg-white p-4 rounded-2xl border border-stone-300 shadow-xs space-y-2">
+          <div class="w-8 h-8 rounded-full bg-[#800000] text-amber-300 font-black text-sm flex items-center justify-center">4</div>
+          <h4 class="font-bold text-sm text-slate-900">Update & Serah Terima</h4>
+          <p class="text-xs text-slate-600 leading-relaxed">Pindahkan status dari Cuci ke Kering dan Setrika. Saat pakaian selesai, kirim notifikasi WA dan serahkan pakaian ke pelanggan.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6. BOTTOM CALL TO ACTION -->
+  <section class="py-14 sm:py-16 bg-[#800000] text-white text-center">
+    <div class="max-w-2xl mx-auto px-4 space-y-4">
+      <h3 class="text-2xl sm:text-3xl font-black">
+        Buka Aplikasi Kasir Kafela's Laundry
+      </h3>
+      <p class="text-rose-100 text-xs sm:text-sm">
+        Gunakan sekarang langsung di peramban web atau lihat halaman profil resmi outlet.
+      </p>
+      <div class="pt-2 flex flex-wrap justify-center gap-3">
+        <a
+          href="/"
+          class="px-7 py-3 bg-white text-[#800000] font-black rounded-xl text-xs sm:text-sm shadow-md hover:bg-stone-100 transition"
+        >
+          Buka Kasir Sekarang
+        </a>
+        <a
+          href="/landing.html"
+          class="px-5 py-3 bg-black/25 text-white font-bold rounded-xl text-xs sm:text-sm border border-white/20 hover:bg-black/35 transition"
+        >
+          Lihat Web Profil Toko
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer class="bg-stone-900 text-stone-400 py-6 text-xs border-t border-stone-800 text-center">
+    <p>&copy; 2026 Kafela's Laundry — Sistem Kasir POS & Manajemen Operasional Laundry Indonesia.</p>
+  </footer>
+
+  <!-- STANDALONE SCRIPT FOR DYNAMIC CALLOUTS, PHONE SCREENS & SVG CONNECTOR LINES -->
+  <script>
+    const screenData = {
+      screen1: {
+        badge: '',
+        callouts: [
+          { id: 's1_arsip', num: 1, side: 'left', title: 'Ikon Arsip / Laci Toko', handwrittenNote: 'Klik di sini untuk buka riwayat cucian lama yang sudah selesai atau diambil', desc: 'Membuka arsip transaksi bulan lalu, pencarian nota masa lampau, dan filter status.' },
+          { id: 's1_search', num: 2, side: 'left', title: 'Kotak Cari Pelanggan & Nota', handwrittenNote: 'Ketik nama pelanggan untuk langsung menemukan cucian saat ada yang datang', desc: 'Pencarian instan berdasarkan nama pelanggan atau nomor nota transaksi.' },
+          { id: 's1_status', num: 3, side: 'left', title: 'Status Nota & Antrean Cucian', handwrittenNote: 'Daftar transaksi aktif (misal: Yeyen 51.000, Zenal 13.500) dengan ikon waktu', desc: 'Memudahkan kasir memantau cucian yang sedang dikerjakan dan sisa tagihan pembayaran.' },
+          { id: 's1_bottom_nav', num: 4, side: 'left', title: 'Bilah Navigasi Cepat', handwrittenNote: 'Bilah bawah untuk ganti menu: Pengerjaan, Buku Kas, Atur Kas, & Laporan', desc: 'Navigasi satu jempol untuk berpindah antar fungsi utama operasional laundry.' },
+          { id: 's1_settings', num: 5, side: 'right', title: 'Sinkron Cloud & Pengaturan', handwrittenNote: 'Ikon putar = sinkron Firebase. Ikon roda gigi = atur tarif & printer Bluetooth', desc: 'Konfigurasi lengkap nama toko, printer Bluetooth, logo struk, dan harga layanan per kilo/pcs.' },
+          { id: 's1_badges', num: 6, side: 'right', title: 'Lencana Antrean (Merah & Hijau)', handwrittenNote: 'Merah (17) = antrean proses. Hijau (233) = total pesanan selesai', desc: 'Indikator beban kerja cucian di outlet secara real-time tanpa perlu membuka buku catatan.' },
+          { id: 's1_plus_btn', num: 7, side: 'right', title: 'Tombol Tambah Transaksi (+)', handwrittenNote: 'Tombol bulat merah di tengah untuk buat nota baru saat pelanggan datang', desc: 'Pintu utama kasir memasukkan pesanan cucian kiloan atau satuan dengan cepat.' },
+          { id: 's1_rekap_laba', num: 8, side: 'right', title: 'Kartu Rekapitulasi Laba Hari Ini', handwrittenNote: 'Otomatis hitung pemasukan, belanja operasional, & uang riil di laci kasir', desc: 'Owner dan kasir langsung mengetahui omzet harian bersih, transaksi masuk, dan cucian selesai.' }
+        ],
+        html: `
+          <div class="rounded-[36px] overflow-hidden text-white flex flex-col shadow-inner relative bg-[#800000] select-none">
+            <!-- Tampilan Nyata Tangkapan Layar Asli Aplikasi -->
+            <img 
+              src="/assets/aistudio/WhatsApp_Image_2026-10-20_at_14.28.49_a6804366.jpeg" 
+              alt="Layar Dashboard Kasir Kafela's Laundry" 
+              class="w-full h-auto block select-none pointer-events-none rounded-[36px]"
+              loading="eager"
+            />
+            
+            <!-- Pin Target Interaktif Garis Penunjuk di atas Gambar Asli -->
+            <!-- 1. Ikon Arsip / Laci Toko (Pojok Kiri Atas) -->
+            <div id="target_s1_arsip" class="target-node absolute cursor-pointer rounded-lg transition" style="top: 4.2%; left: 5.5%; width: 34px; height: 34px;">
+              <span class="absolute -top-1.5 -right-1.5 bg-[#800000] text-amber-300 border border-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center shadow-md">1</span>
+            </div>
+
+            <!-- 5. Tombol Sinkron Cloud & Pengaturan (Pojok Kanan Atas) -->
+            <div id="target_s1_settings" class="target-node absolute cursor-pointer rounded-lg transition" style="top: 4.2%; right: 5%; width: 56px; height: 34px;">
+              <span class="absolute -top-1.5 -right-1.5 bg-[#800000] text-amber-300 border border-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center shadow-md">5</span>
+            </div>
+
+            <!-- 2. Kotak Cari Pelanggan & Nota -->
+            <div id="target_s1_search" class="target-node absolute cursor-pointer rounded-xl transition" style="top: 10.4%; left: 5%; width: 44%; height: 28px;">
+              <span class="absolute -top-1.5 -right-1.5 bg-[#800000] text-amber-300 border border-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center shadow-md">2</span>
+            </div>
+
+            <!-- 6. Lencana Antrean Merah (17) & Selesai (233) -->
+            <div id="target_s1_badges" class="target-node absolute cursor-pointer rounded-xl transition" style="top: 10.4%; right: 5%; width: 44%; height: 28px;">
+              <span class="absolute -top-1.5 -right-1.5 bg-[#800000] text-amber-300 border border-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center shadow-md">6</span>
+            </div>
+
+            <!-- 3. Status Pelanggan & Daftar Nota Cucian (Baris Yeyen 51.000) -->
+            <div id="target_s1_status" class="target-node absolute cursor-pointer rounded-xl transition" style="top: 15.2%; left: 4%; width: 92%; height: 42px;">
+              <span class="absolute -top-1.5 -right-1.5 bg-[#800000] text-amber-300 border border-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center shadow-md">3</span>
+            </div>
+
+            <!-- 8. Kartu Rekapitulasi Laba Hari Ini (Selasa, 20 Okt 26) -->
+            <div id="target_s1_rekap_laba" class="target-node absolute cursor-pointer rounded-2xl transition" style="bottom: 9.5%; left: 3.5%; width: 93%; height: 130px;">
+              <span class="absolute -top-1.5 -right-1.5 bg-[#800000] text-amber-300 border border-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center shadow-md">8</span>
+            </div>
+
+            <!-- 7. Tombol Tambah Transaksi (+) Melayang Bulat Merah -->
+            <div id="target_s1_plus_btn" class="target-node absolute cursor-pointer rounded-full transition" style="bottom: 3.8%; left: 50%; transform: translateX(-50%); width: 44px; height: 44px;">
+              <span class="absolute -top-1.5 -right-1.5 bg-amber-400 text-slate-950 border border-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center shadow-md">7</span>
+            </div>
+
+            <!-- 4. Bilah Navigasi Bawah (Pengerjaan, Buku Kas, Atur Kas, Laporan) -->
+            <div id="target_s1_bottom_nav" class="target-node absolute cursor-pointer rounded-b-[36px] transition" style="bottom: 0.5%; left: 2%; width: 96%; height: 42px;">
+              <span class="absolute top-1 left-2 bg-white text-[#800000] border border-amber-300 text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center shadow-md">4</span>
+            </div>
+          </div>
+        `
+      },
+      screen2: {
+        badge: '',
+        title: '',
+        callouts: [
+          { id: 's2_nama', num: 1, side: 'left', title: 'Nama Pelanggan & Alamat', handwrittenNote: 'Ketik nama pelanggan (misal: Iqbal). Alamat untuk antar jemput', desc: 'Sistem otomatis mengingat data pelanggan langganan yang pernah mencuci sebelumnya.' },
+          { id: 's2_layanan', num: 2, side: 'left', title: 'Pilih Layanan & Tambah (+)', handwrittenNote: 'Pilih paket di dropdown, isi berat (Kg/pcs), lalu klik tombol hijau (+)', desc: 'Bisa pilih Cuci Setrika, Setrika Saja, Cuci Kering, Jas, Bedcover, Karpet, dll.' },
+          { id: 's2_daftar_item', num: 3, side: 'left', title: 'Daftar Item Multi-Layanan', handwrittenNote: 'Bisa gabung Kiloan (14 Kg) + Satuan Jas (1 pcs) dalam SATU nota sekaligus!', desc: 'Setiap item memiliki subtotal harga dan tombol hapus jika kasir salah menimbang.' },
+          { id: 's2_catatan', num: 4, side: 'left', title: 'Catatan Khusus Pakaian', handwrittenNote: 'Tulis pesan: "Parfum mawar", "Baju putih pisah", atau "Kancing copot"', desc: 'Catatan ini otomatis tercetak di struk pengerjaan karyawan agar tidak keliru di bagian cuci.' },
+          { id: 's2_total_tagihan', num: 5, side: 'right', title: 'Total Tagihan Otomatis', handwrittenNote: 'Total langsung dihitung otomatis Rp 99.000, kasir bebas dari salah hitung', desc: 'Menjumlahkan semua kiloan dan satuan secara presisi hingga digit terakhir.' },
+          { id: 's2_status_lunas', num: 6, side: 'right', title: 'Centang Status Pelunasan', handwrittenNote: 'Centang "Lunas" jika pelanggan langsung bayar saat serahkan pakaian kotor', desc: 'Jika tidak dicentang, nota otomatis berstatus Belum Lunas dan tercatat sebagai piutang.' },
+          { id: 's2_metode_qris', num: 7, side: 'right', title: 'Metode Non-Tunai / QRIS', handwrittenNote: 'Centang Non-Tunai untuk pembayaran scan QRIS atau transfer bank BCA/Mandiri', desc: 'Memisahkan pembukuan uang fisik di laci dengan uang digital di rekening bank pemilik.' },
+          { id: 's2_btn_simpan', num: 8, side: 'right', title: 'Tombol Simpan Transaksi', handwrittenNote: 'Klik untuk simpan ke database cloud & langsung membuka lembar struk cetak!', desc: 'Proses penyimpanan kilat dengan sinkronisasi offline-first otomatis.' }
+        ],
+        html: `
+          <div class="rounded-[36px] bg-[#800000] overflow-hidden text-white flex flex-col min-h-[660px] shadow-inner">
+            <div class="px-5 pt-3 pb-1 flex justify-between items-center text-[11px] font-semibold text-rose-100">
+              <span>12:32</span>
+              <span>⚡ 64%</span>
+            </div>
+            <div class="px-4 py-2.5 flex items-center gap-2 border-b border-white/10">
+              <span>←</span>
+              <span class="font-bold text-sm tracking-tight text-white">Transaksi Baru</span>
+            </div>
+            <div class="flex-1 bg-stone-100 text-slate-800 p-3 space-y-2.5 font-sans overflow-y-auto text-xs">
+              <div id="target_s2_nama" class="target-node relative bg-white p-2.5 rounded-xl border border-stone-200 space-y-1 cursor-pointer">
+                <span class="absolute -top-1.5 -right-1.5 bg-[#800000] text-amber-300 border border-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">1</span>
+                <div class="grid grid-cols-2 gap-2">
+                  <div><span class="block text-[10px] font-bold text-slate-600">Nama Pelanggan *</span><div class="p-1.5 bg-stone-50 border border-stone-300 rounded font-bold text-slate-900">Iqbal</div></div>
+                  <div><span class="block text-[10px] font-bold text-slate-600">Alamat</span><div class="p-1.5 bg-stone-50 border border-stone-300 rounded text-slate-400 text-[10px] truncate">Jl. Mawar No. 12</div></div>
+                </div>
+              </div>
+              <div id="target_s2_layanan" class="target-node relative bg-white p-2.5 rounded-xl border border-stone-200 space-y-2 cursor-pointer">
+                <span class="absolute -top-1.5 -right-1.5 bg-[#800000] text-amber-300 border border-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">2</span>
+                <div class="grid grid-cols-12 gap-1.5 items-end">
+                  <div class="col-span-7"><span class="block text-[10px] font-bold text-slate-600 mb-0.5">Layanan</span><div class="p-1.5 bg-stone-50 border border-stone-300 rounded font-bold text-[10px] text-slate-800 flex justify-between"><span>Cuci Jas</span><span>▾</span></div></div>
+                  <div class="col-span-3"><span class="block text-[10px] font-bold text-slate-600 mb-0.5">(pcs)</span><div class="p-1.5 bg-stone-50 border border-stone-300 rounded font-bold text-center">1</div></div>
+                  <div class="col-span-2"><div class="py-1.5 bg-emerald-600 text-white rounded font-bold text-center">+</div></div>
+                </div>
+              </div>
+              <div id="target_s2_daftar_item" class="target-node relative bg-white p-2.5 rounded-xl border border-stone-200 space-y-1.5 cursor-pointer">
+                <span class="absolute -top-1.5 -right-1.5 bg-[#800000] text-amber-300 border border-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">3</span>
+                <div class="p-1.5 bg-stone-50 rounded-lg flex justify-between items-center text-[11px]"><div><div class="font-bold text-slate-900">Setrika Saja</div><div class="text-[9px] text-slate-500">1 Kg x Rp 4.000</div></div><span class="font-bold">Rp 4.000</span></div>
+                <div class="p-1.5 bg-stone-50 rounded-lg flex justify-between items-center text-[11px]"><div><div class="font-bold text-slate-900">Cuci Kering Saja</div><div class="text-[9px] text-slate-500">14 Kg x Rp 5.000</div></div><span class="font-bold">Rp 70.000</span></div>
+              </div>
+              <div class="bg-white p-2.5 rounded-xl border border-stone-200 space-y-2">
+                <div id="target_s2_total_tagihan" class="target-node relative flex justify-between items-center p-1.5 rounded-lg cursor-pointer">
+                  <span class="text-xs font-bold text-slate-600">Total Tagihan:</span>
+                  <span class="text-base font-black text-slate-900">Rp 99.000</span>
+                  <span class="absolute -top-1 -right-1 bg-[#800000] text-amber-300 border border-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">5</span>
+                </div>
+                <div id="target_s2_status_lunas" class="target-node relative flex items-center gap-1.5 p-1.5 rounded-lg border border-stone-200 bg-stone-50 cursor-pointer">
+                  <span class="text-emerald-600 font-bold">✓</span>
+                  <span class="font-bold text-[11px]">Lunas</span>
+                  <span class="absolute -top-1 -right-1 bg-[#800000] text-amber-300 border border-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">6</span>
+                </div>
+                <div id="target_s2_metode_qris" class="target-node relative flex items-center justify-between p-1.5 rounded-lg border border-stone-200 bg-stone-50 cursor-pointer">
+                  <div class="flex items-center gap-1.5"><span class="text-emerald-600 font-bold">✓</span><span class="font-bold text-[11px]">Non-Tunai (QRIS)</span></div>
+                  <span class="absolute -top-1 -right-1 bg-[#800000] text-amber-300 border border-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">7</span>
+                </div>
+                <div id="target_s2_catatan" class="target-node relative p-1.5 rounded-lg border border-stone-200 bg-stone-50 cursor-pointer">
+                  <span class="block text-[9px] font-bold text-slate-500">Catatan Khusus</span>
+                  <span class="text-[11px] font-medium text-slate-800">Pakai parfum mawar</span>
+                  <span class="absolute -top-1 -right-1 bg-[#800000] text-amber-300 border border-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">4</span>
+                </div>
+              </div>
+              <div id="target_s2_btn_simpan" class="target-node relative w-full py-2.5 bg-[#800000] text-white font-bold rounded-xl text-center text-xs shadow-md cursor-pointer hover:bg-[#700000]">
+                <span>Simpan Transaksi</span>
+                <span class="absolute -top-1.5 -right-1.5 bg-amber-400 text-slate-950 border border-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">8</span>
+              </div>
+            </div>
+          </div>
+        `
+      },
+      screen3: {
+        badge: '',
+        title: '',
+        callouts: [
+          { id: 's3_kop_toko', num: 1, side: 'left', title: 'Kop Struk & Logo Resmi', handwrittenNote: 'Logo Kafela, nama toko, nomor telepon, & alamat outlet tercetak di atas', desc: 'Membuat tampilan struk sangat profesional dan dipercaya oleh pelanggan.' },
+          { id: 's3_nomor_nota', num: 2, side: 'left', title: 'Nomor Nota Transaksi', handwrittenNote: 'Kode unik 261015/1 untuk penanda gantungan pakaian di rak cucian', desc: 'Memudahkan karyawan mencari pakaian saat pelanggan datang mengambil.' },
+          { id: 's3_waktu_terima', num: 3, side: 'left', title: 'Jadwal Terima & Jadi', handwrittenNote: 'Mencatat jam masuk cucian & tanggal estimasi siap diambil oleh pelanggan', desc: 'Menghindari komplain keterlambatan dan menjaga ketepatan waktu pengerjaan.' },
+          { id: 's3_aturan_toko', num: 4, side: 'left', title: 'Peraturan Pengambilan Cucian', handwrittenNote: 'Aturan: "Pakaian tidak diambil lebih dari 3 bulan akan disedekahkan"', desc: 'Melindungi pemilik laundry dari tumpukan pakaian mati yang ditinggalkan pemiliknya.' },
+          { id: 's3_nama_status', num: 5, side: 'right', title: 'Nama & Teks BELUM LUNAS', handwrittenNote: 'Dicetak TEBAL: "BELUM LUNAS Rp. 7.000,-" agar kasir tidak lupa nagih', desc: 'Peringatan sangat kontras di tengah lembar nota agar uang kas selalu aman.' },
+          { id: 's3_rincian_biaya', num: 6, side: 'right', title: 'Rincian Transaksi & Sisa Bayar', handwrittenNote: 'Kalkulasi rinci tarif per kilo, total tagihan, dan sisa uang yang belum dibayar', desc: 'Transparansi harga yang membuat pelanggan puas dan percaya dengan hitungan toko.' },
+          { id: 's3_btn_bluetooth', num: 7, side: 'right', title: 'Tombol Cetak Bluetooth (Android)', handwrittenNote: 'Tombol merah utama: langsung cetak ke printer thermal 58mm dalam 1 detik!', desc: 'Mendukung printer Bluetooth mini portabel (RPP02N, PT-210, Panda, VSC, dll) tanpa kabel.' },
+          { id: 's3_btn_bagikan', num: 8, side: 'right', title: 'Tombol Bagikan Struk WhatsApp', handwrittenNote: 'Kirim nota digital langsung ke nomor WhatsApp pelanggan dalam bentuk gambar/teks', desc: 'Hemat kertas thermal, ramah lingkungan, dan pelanggan selalu punya arsip digital di HP.' }
+        ],
+        html: `
+          <div class="rounded-[36px] bg-[#800000] overflow-hidden text-white flex flex-col min-h-[660px] shadow-inner relative">
+            <div class="px-5 pt-3 pb-1 flex justify-between items-center text-[11px] font-semibold text-rose-100">
+              <span>10:46</span>
+              <span>⚡ 74%</span>
+            </div>
+            <div class="px-4 py-2 flex justify-between items-center border-b border-white/10">
+              <div><div class="font-bold text-xs text-white">Struk Transaksi</div><div class="text-[10px] text-rose-200">261015/1</div></div>
+              <span>✕</span>
+            </div>
+            <div class="flex-1 bg-stone-300 p-2.5 overflow-y-auto flex flex-col items-center">
+              <div class="w-full bg-white rounded-xl shadow p-3.5 text-slate-900 font-mono text-[10px] relative border border-stone-300 space-y-1">
+                <div id="target_s3_kop_toko" class="target-node relative text-center pb-1 p-1 rounded cursor-pointer">
+                  <span class="absolute -top-1 -right-1 bg-[#800000] text-amber-300 border border-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">1</span>
+                  <div class="font-bold text-xs">KAFELA'S LAUNDRY</div>
+                  <div class="text-[9px] text-slate-500">0812-3456-7890 · Jl. Utama, Bandung</div>
+                </div>
+                <div class="border-t border-dashed border-stone-400 my-1"></div>
+                <div class="space-y-0.5 text-[9px]">
+                  <div id="target_s3_nomor_nota" class="target-node relative flex justify-between p-0.5 rounded cursor-pointer">
+                    <span>No.</span><span class="font-bold">261015/1</span>
+                    <span class="absolute -top-1 -right-1 bg-[#800000] text-amber-300 border border-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">2</span>
+                  </div>
+                  <div id="target_s3_waktu_terima" class="target-node relative space-y-0.5 p-0.5 rounded cursor-pointer">
+                    <span class="absolute -top-1 -right-1 bg-[#800000] text-amber-300 border border-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">3</span>
+                    <div class="flex justify-between"><span>Terima</span><span>Jumat, 16 Okt 2026 06.44</span></div>
+                    <div class="flex justify-between"><span>Selesai</span><span>Senin, 19 Okt 2026</span></div>
+                  </div>
+                </div>
+                <div class="border-t border-dashed border-stone-400 my-1"></div>
+                <div id="target_s3_nama_status" class="target-node relative text-center py-1 p-1 rounded cursor-pointer">
+                  <span class="absolute -top-1 -right-1 bg-[#800000] text-amber-300 border border-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">5</span>
+                  <div class="font-black text-sm tracking-wider">IQBAL</div>
+                  <div class="font-black text-red-600 text-xs">BELUM LUNAS</div>
+                  <div class="font-black text-red-600 text-xs">Rp. 7.000,-</div>
+                </div>
+                <div class="border-t border-dashed border-stone-400 my-1"></div>
+                <div id="target_s3_rincian_biaya" class="target-node relative text-[9px] space-y-0.5 p-1 rounded cursor-pointer">
+                  <span class="absolute -top-1 -right-1 bg-[#800000] text-amber-300 border border-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">6</span>
+                  <div class="font-bold">Cuci Setrika</div>
+                  <div class="flex justify-between text-slate-600"><span>1 Kg x 7.000</span><span>= 7.000</span></div>
+                  <div class="flex justify-between font-bold pt-1"><span>Total Transaksi</span><span>Rp 7.000</span></div>
+                </div>
+                <div class="border-t border-dashed border-stone-400 my-1"></div>
+                <div id="target_s3_aturan_toko" class="target-node relative text-center text-[8px] text-slate-400 leading-tight p-1 rounded cursor-pointer">
+                  <span class="absolute -top-1 -right-1 bg-[#800000] text-amber-300 border border-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">4</span>
+                  Barang yang tidak diambil lebih dari 3 bulan akan disedekahkan.<br />Terima kasih!
+                </div>
+              </div>
+            </div>
+            <div class="bg-white p-2.5 border-t border-stone-200 flex gap-2 font-sans">
+              <div id="target_s3_btn_bluetooth" class="target-node relative flex-1 py-2 bg-[#800000] text-white rounded-lg text-xs font-bold text-center flex items-center justify-center gap-1.5 shadow-sm cursor-pointer hover:bg-[#700000]">
+                <span>🖨️ Cetak Bluetooth</span>
+                <span class="absolute -top-1.5 -right-1.5 bg-amber-400 text-slate-950 border border-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">7</span>
+              </div>
+              <div id="target_s3_btn_bagikan" class="target-node relative px-3 py-2 bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer hover:bg-emerald-800">
+                <span>💬 Bagikan</span>
+                <span class="absolute -top-1.5 -right-1.5 bg-[#800000] text-amber-300 border border-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">8</span>
+              </div>
+            </div>
+          </div>
+        `
+      },
+      screen4: {
+        badge: '',
+        title: '',
+        callouts: [
+          { id: 's4_tab_status', num: 1, side: 'left', title: 'Tab Status Pengerjaan', handwrittenNote: 'Filter cepat: Antrean, Cuci, Kering, Setrika, Selesai, & Sudah Diambil', desc: 'Memantau posisi seluruh pakaian di setiap pos kerja laundry secara akurat.' },
+          { id: 's4_info_pelanggan', num: 2, side: 'left', title: 'Kartu Cucian & Rincian Item', handwrittenNote: 'Lihat daftar pakaian pelanggan, berat cucian, dan catatan khusus parfum', desc: 'Informasi lengkap bagi karyawan bagian produksi tanpa perlu bolak-balik tanya kasir.' },
+          { id: 's4_estimasi_waktu', num: 3, side: 'left', title: 'Indikator Batas Waktu (SLA)', handwrittenNote: 'Tanda jam warna kuning/merah jika cucian ekspres mendekati batas waktu', desc: 'Mencegah pakaian terlambat dicuci atau disetrika sehingga pelanggan tetap puas.' },
+          { id: 's4_pilih_staff', num: 4, side: 'right', title: 'Pilih Kasir / Staff Bertugas', handwrittenNote: 'Catat siapa karyawan yang mencuci atau menyetrika cucian ini', desc: 'Menciptakan akuntabilitas kerja staf: siapa yang mengerjakan dan bertanggung jawab.' },
+          { id: 's4_btn_next_step', num: 5, side: 'right', title: 'Tombol Naikkan Status Cucian', handwrittenNote: 'Klik tombol hijau untuk memindahkan dari Cuci -> Setrika -> Selesai', desc: 'Memperbarui progres cucian secara seketika dan tercatat di timeline pengerjaan.' },
+          { id: 's4_btn_wa_selesai', num: 6, side: 'right', title: 'Kirim WA "Cucian Siap Diambil"', handwrittenNote: 'Otomatis kirim pesan WhatsApp ke pelanggan bahwa cucian sudah wangi & rapi', desc: 'Pelanggan segera datang mengambil dan melunasi pembayaran tanpa perlu ditelepon manual.' }
+        ],
+        html: `
+          <div class="rounded-[36px] bg-[#800000] overflow-hidden text-white flex flex-col min-h-[660px] shadow-inner">
+            <div class="px-5 pt-3 pb-1 flex justify-between items-center text-[11px] font-semibold text-rose-100">
+              <span>14:15</span>
+              <span>⚡ 82%</span>
+            </div>
+            <div class="px-4 py-2.5 flex items-center justify-between border-b border-white/10">
+              <div class="flex items-center gap-2"><span>←</span><span class="font-bold text-sm tracking-tight text-white">Status Pengerjaan</span></div>
+              <span class="text-[10px] bg-white/20 px-2 py-0.5 rounded font-bold">Outlet Utama</span>
+            </div>
+            <div id="target_s4_tab_status" class="target-node relative bg-[#700000] p-1.5 flex gap-1 text-[10px] overflow-x-auto no-scrollbar cursor-pointer">
+              <span class="absolute top-0.5 right-2 bg-amber-400 text-slate-950 border border-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">1</span>
+              <span class="bg-white/15 px-2 py-1 rounded">Semua (2)</span>
+              <span class="bg-white text-[#800000] font-black px-2 py-1 rounded shadow-xs">Cuci (1)</span>
+              <span class="bg-white/15 px-2 py-1 rounded">Kering (0)</span>
+            </div>
+            <div class="flex-1 bg-stone-100 text-slate-800 p-3 space-y-2.5 font-sans overflow-y-auto text-xs">
+              <div class="bg-white p-3 rounded-2xl border border-stone-200 shadow-2xs space-y-2">
+                <div id="target_s4_info_pelanggan" class="target-node relative p-1.5 rounded-lg border border-stone-100 bg-stone-50 cursor-pointer">
+                  <span class="absolute -top-1 -right-1 bg-[#800000] text-amber-300 border border-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">2</span>
+                  <div class="flex justify-between items-start">
+                    <div>
+                      <div class="font-black text-sm text-slate-900">Iqbal (261015/1)</div>
+                      <div class="text-[10px] text-slate-500">Cuci Setrika · 1 Kg</div>
+                      <div class="text-[9px] text-[#800000] font-medium">Catatan: Parfum Mawar</div>
+                    </div>
+                    <span class="bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded text-[10px] border border-amber-300">Sedang Dicuci</span>
+                  </div>
+                </div>
+                <div id="target_s4_estimasi_waktu" class="target-node relative flex items-center justify-between p-1.5 bg-stone-50 rounded-lg border border-stone-200 cursor-pointer">
+                  <span class="absolute -top-1 -right-1 bg-[#800000] text-amber-300 border border-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">3</span>
+                  <div class="flex items-center gap-1.5 text-[10px] text-slate-600">
+                    <span>⏱️</span><span>Target: Senin, 19 Okt 2026 (Sisa 2 Hari)</span>
+                  </div>
+                </div>
+                <div id="target_s4_pilih_staff" class="target-node relative flex items-center justify-between p-1.5 bg-stone-50 rounded-lg border border-stone-200 cursor-pointer">
+                  <span class="absolute -top-1 -right-1 bg-[#800000] text-amber-300 border border-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">4</span>
+                  <span class="text-[10px] font-bold text-slate-600">Staff Penanggung Jawab:</span>
+                  <span class="text-[10px] font-black bg-stone-200 px-2 py-0.5 rounded text-slate-800">Siti Rahma ▾</span>
+                </div>
+                <div class="grid grid-cols-2 gap-2 pt-1">
+                  <div id="target_s4_btn_next_step" class="target-node relative py-2 bg-emerald-700 text-white rounded-lg text-center font-bold text-[11px] shadow-sm flex items-center justify-center gap-1 cursor-pointer hover:bg-emerald-800">
+                    <span>✓ Lanjut: Kering</span>
+                    <span class="absolute -top-1.5 -right-1.5 bg-[#800000] text-amber-300 border border-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">5</span>
+                  </div>
+                  <div id="target_s4_btn_wa_selesai" class="target-node relative py-2 bg-[#800000] text-white rounded-lg text-center font-bold text-[11px] shadow-sm flex items-center justify-center gap-1 cursor-pointer hover:bg-[#700000]">
+                    <span>💬 WA Pelanggan</span>
+                    <span class="absolute -top-1.5 -right-1.5 bg-amber-400 text-slate-950 border border-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">6</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        `
+      }
+    };
+
+    let activeScreen = 'screen1';
+    let highlightedId = null;
+    let showAllLines = true;
+    let animatedLines = true;
+
+    const leftCol = document.getElementById('leftCalloutsContainer');
+    const rightCol = document.getElementById('rightCalloutsContainer');
+    const phoneWrapper = document.getElementById('phoneMockupWrapper');
+    const svgLinesGroup = document.getElementById('svgLinesGroup');
+    const container = document.getElementById('mainCanvasContainer');
+
+    function renderScreen(screenKey) {
+      activeScreen = screenKey;
+      const data = screenData[screenKey];
+
+      document.getElementById('screenBadgeLabel').textContent = data.badge;
+      document.getElementById('screenTitleLabel').textContent = data.title;
+      phoneWrapper.innerHTML = data.html;
+
+      // Update tabs UI
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        if (btn.getAttribute('data-screen') === screenKey) {
+          btn.className = 'tab-btn px-3 sm:px-5 py-2.5 rounded-xl text-left border transition-all shrink-0 bg-[#800000] text-white border-[#800000] shadow-md scale-102';
+          btn.querySelector('div:last-child').className = 'text-[10px] text-amber-200';
+        } else {
+          btn.className = 'tab-btn px-3 sm:px-5 py-2.5 rounded-xl text-left border transition-all shrink-0 bg-stone-50 text-slate-700 border-stone-200 hover:bg-stone-100';
+          btn.querySelector('div:last-child').className = 'text-[10px] text-slate-500';
+        }
+      });
+
+      // Render Callout Cards
+      leftCol.innerHTML = '';
+      rightCol.innerHTML = '';
+
+      data.callouts.forEach(item => {
+        const card = document.createElement('div');
+        card.id = `card_${item.id}`;
+        card.className = `card-item relative p-3.5 rounded-2xl border transition-all duration-200 cursor-pointer bg-stone-50 border-stone-200 hover:border-[#800000]/40 hover:bg-stone-100/80 shadow-xs`;
+        
+        const anchorDot = item.side === 'left'
+          ? `<div class="hidden lg:block absolute -right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full border-2 border-white shadow-xs bg-[#800000] anchor-dot"></div>`
+          : `<div class="hidden lg:block absolute -left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full border-2 border-white shadow-xs bg-[#800000] anchor-dot"></div>`;
+
+        card.innerHTML = `
+          ${anchorDot}
+          <div class="flex items-start gap-2">
+            <span class="badge-num w-6 h-6 rounded-full flex items-center justify-center text-xs font-black shrink-0 bg-[#800000] text-white">
+              ${item.num}
+            </span>
+            <div class="flex-1">
+              <h4 class="font-bold text-xs text-slate-900 leading-tight">${item.title}</h4>
+              <div class="font-hand text-base text-[#800000] leading-snug mt-0.5">"${item.handwrittenNote}"</div>
+            </div>
+          </div>
+          <p class="text-[11px] text-slate-600 mt-1.5 leading-relaxed pl-8">${item.desc}</p>
+        `;
+
+        card.addEventListener('mouseenter', () => setHighlight(item.id));
+        card.addEventListener('mouseleave', () => setHighlight(null));
+        card.addEventListener('click', () => setHighlight(item.id));
+
+        if (item.side === 'left') {
+          leftCol.appendChild(card);
+        } else {
+          rightCol.appendChild(card);
+        }
+      });
+
+      // Bind target hover events
+      data.callouts.forEach(item => {
+        const target = document.getElementById(`target_${item.id}`);
+        if (target) {
+          target.addEventListener('mouseenter', () => setHighlight(item.id));
+          target.addEventListener('mouseleave', () => setHighlight(null));
+          target.addEventListener('click', () => setHighlight(item.id));
+        }
+      });
+
+      const img = phoneWrapper.querySelector('img');
+      if (img) {
+        if (img.complete) {
+          updateLines();
+        } else {
+          img.addEventListener('load', () => {
+            updateLines();
+            setTimeout(updateLines, 100);
+          });
+        }
+      }
+      setTimeout(updateLines, 60);
+      setTimeout(updateLines, 250);
+    }
+
+    function setHighlight(id) {
+      highlightedId = id;
+      const data = screenData[activeScreen];
+
+      data.callouts.forEach(item => {
+        const card = document.getElementById(`card_${item.id}`);
+        const target = document.getElementById(`target_${item.id}`);
+        const isH = highlightedId === item.id;
+
+        if (card) {
+          if (isH) {
+            card.classList.add('bg-amber-50/90', 'border-amber-400', 'shadow-lg', 'scale-102', 'ring-2', 'ring-amber-300');
+            card.classList.remove('bg-stone-50', 'border-stone-200');
+            const dot = card.querySelector('.anchor-dot');
+            if (dot) dot.classList.replace('bg-[#800000]', 'bg-amber-500');
+            const num = card.querySelector('.badge-num');
+            if (num) { num.classList.replace('bg-[#800000]', 'bg-amber-500'); num.classList.replace('text-white', 'text-slate-950'); }
+          } else {
+            card.classList.remove('bg-amber-50/90', 'border-amber-400', 'shadow-lg', 'scale-102', 'ring-2', 'ring-amber-300');
+            card.classList.add('bg-stone-50', 'border-stone-200');
+            const dot = card.querySelector('.anchor-dot');
+            if (dot) dot.classList.replace('bg-amber-500', 'bg-[#800000]');
+            const num = card.querySelector('.badge-num');
+            if (num) { num.classList.replace('bg-amber-500', 'bg-[#800000]'); num.classList.replace('text-slate-950', 'text-white'); }
+          }
+        }
+
+        if (target) {
+          if (isH) {
+            target.classList.add('ring-4', 'ring-amber-300', 'scale-105', 'bg-amber-400');
+          } else {
+            target.classList.remove('ring-4', 'ring-amber-300', 'scale-105', 'bg-amber-400');
+          }
+        }
+      });
+
+      updateLines();
+    }
+
+    function updateLines() {
+      if (!container) return;
+      const cRect = container.getBoundingClientRect();
+      const data = screenData[activeScreen];
+      let svgHtml = '';
+
+      data.callouts.forEach(item => {
+        const card = document.getElementById(`card_${item.id}`);
+        const target = document.getElementById(`target_${item.id}`);
+        if (!card || !target) return;
+
+        const isH = highlightedId === item.id;
+        const isVisible = showAllLines || isH;
+        if (!isVisible) return;
+
+        const cardRect = card.getBoundingClientRect();
+        const targetRect = target.getBoundingClientRect();
+
+        let x1 = 0;
+        const y1 = cardRect.top + cardRect.height / 2 - cRect.top;
+        let x2 = 0;
+        const y2 = targetRect.top + targetRect.height / 2 - cRect.top;
+
+        if (item.side === 'left') {
+          x1 = cardRect.right - cRect.left;
+          x2 = targetRect.left - cRect.left;
+        } else {
+          x1 = cardRect.left - cRect.left;
+          x2 = targetRect.right - cRect.left;
+        }
+
+        const dx = Math.abs(x2 - x1) * 0.45;
+        const cp1x = item.side === 'left' ? x1 + dx : x1 - dx;
+        const cp1y = y1;
+        const cp2x = item.side === 'left' ? x2 - dx : x2 + dx;
+        const cp2y = y2;
+        const pathData = `M ${x1} ${y1} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${x2} ${y2}`;
+
+        const strokeColor = isH ? '#f59e0b' : '#800000';
+        const strokeWidth = isH ? 4 : 2;
+        const opacity = isH ? 1 : 0.65;
+        const dash = animatedLines ? (isH ? '6,4' : '4,3') : 'none';
+        const marker = isH ? 'url(#arrowhead-active)' : 'url(#arrowhead-normal)';
+
+        svgHtml += `
+          <g>
+            <path d="${pathData}" fill="none" stroke="#ffffff" stroke-width="${strokeWidth + 4}" stroke-opacity="0.8" />
+            <path d="${pathData}" fill="none" stroke="${strokeColor}" stroke-width="${strokeWidth}" stroke-opacity="${opacity}" stroke-dasharray="${dash}" marker-end="${marker}" ${isH ? 'filter="url(#line-glow)"' : ''} />
+            <circle cx="${x1}" cy="${y1}" r="${isH ? 6 : 4}" fill="${strokeColor}" stroke="#ffffff" stroke-width="2" />
+            <circle cx="${x2}" cy="${y2}" r="${isH ? 7 : 5}" fill="${isH ? '#f59e0b' : '#800000'}" stroke="#ffffff" stroke-width="2" />
+          </g>
+        `;
+      });
+
+      svgLinesGroup.innerHTML = svgHtml;
+    }
+
+    // Tab buttons event listeners
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        renderScreen(btn.getAttribute('data-screen'));
+      });
+    });
+
+    // Control buttons
+    const btnToggleAllLines = document.getElementById('btnToggleAllLines');
+    btnToggleAllLines.addEventListener('click', () => {
+      showAllLines = !showAllLines;
+      btnToggleAllLines.textContent = showAllLines ? '👁️ Garis: Semua Ditampilkan' : '👁️ Garis: Hanya Saat Hover';
+      updateLines();
+    });
+
+    const btnToggleAnimation = document.getElementById('btnToggleAnimation');
+    btnToggleAnimation.addEventListener('click', () => {
+      animatedLines = !animatedLines;
+      btnToggleAnimation.textContent = animatedLines ? '⚡ Animasi Aliran: Aktif' : '⚡ Animasi Aliran: Statis';
+      updateLines();
+    });
+
+    window.addEventListener('resize', updateLines);
+
+    // Initial render
+    renderScreen('screen1');
+  </script>
+
+</body>
+</html>

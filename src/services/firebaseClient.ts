@@ -48,15 +48,15 @@ import { getLimits } from '../utils/subscription';
 const STORAGE_KEY_FB_CONFIG = 'KAFELA_FIREBASE_CONFIG_V1';
 
 /**
- * Konfigurasi resmi bawaan dari proyek Firebase kafilasuci3 (kfslgnd.web.app)
+ * Konfigurasi resmi bawaan dari proyek Firebase kafilasuci4 (kafilasuci4.firebaseapp.com)
  */
 export const DEFAULT_KAFELA_FIREBASE_CONFIG: FirebaseCustomConfig = {
-  apiKey: (import.meta as any).env?.VITE_FIREBASE_API_KEY || 'AIzaSyDD0XFwZMZcKCc1CAoQTWkyXn-SpBd8x1M',
-  authDomain: (import.meta as any).env?.VITE_FIREBASE_AUTH_DOMAIN || 'kafilasuci3.firebaseapp.com',
-  projectId: (import.meta as any).env?.VITE_FIREBASE_PROJECT_ID || 'kafilasuci3',
-  storageBucket: (import.meta as any).env?.VITE_FIREBASE_STORAGE_BUCKET || 'kafilasuci3.firebasestorage.app',
-  messagingSenderId: (import.meta as any).env?.VITE_FIREBASE_MESSAGING_SENDER_ID || '178353487221',
-  appId: (import.meta as any).env?.VITE_FIREBASE_APP_ID || '1:178353487221:web:c97b7f74fa67ed8b13273c',
+  apiKey: (import.meta as any).env?.VITE_FIREBASE_API_KEY || 'AIzaSyD5iCMLt6XFMI2Wb-JB97a7_DY8tbfLJW4',
+  authDomain: (import.meta as any).env?.VITE_FIREBASE_AUTH_DOMAIN || 'kafilasuci4.firebaseapp.com',
+  projectId: (import.meta as any).env?.VITE_FIREBASE_PROJECT_ID || 'kafilasuci4',
+  storageBucket: (import.meta as any).env?.VITE_FIREBASE_STORAGE_BUCKET || 'kafilasuci4.firebasestorage.app',
+  messagingSenderId: (import.meta as any).env?.VITE_FIREBASE_MESSAGING_SENDER_ID || '125487710715',
+  appId: (import.meta as any).env?.VITE_FIREBASE_APP_ID || '1:125487710715:web:337d5032dba2029eb1cb5e',
 };
 
 export function getSavedFirebaseConfig(): FirebaseCustomConfig {
@@ -64,12 +64,14 @@ export function getSavedFirebaseConfig(): FirebaseCustomConfig {
     const raw = localStorage.getItem(STORAGE_KEY_FB_CONFIG);
     if (raw) {
       const parsed = JSON.parse(raw) as FirebaseCustomConfig;
-      if (parsed && parsed.apiKey && parsed.projectId) {
+      if (parsed && parsed.apiKey && parsed.projectId && parsed.projectId === 'kafilasuci4') {
         return parsed;
       }
+      // Jika tersimpan konfigurasi lama (misal barokah-laundry-suci), migrasikan langsung ke kafilasuci4
+      saveFirebaseConfig(DEFAULT_KAFELA_FIREBASE_CONFIG);
     }
   } catch {
-    // Gunakan konfigurasi bawaan kafilasuci3
+    // Gunakan konfigurasi bawaan kafilasuci4
   }
   return DEFAULT_KAFELA_FIREBASE_CONFIG;
 }

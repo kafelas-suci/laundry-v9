@@ -1,4 +1,4 @@
-import { initializeApp } from 'firebase/app';
+import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
 import {
   getFirestore,
@@ -16,36 +16,30 @@ import {
   orderBy,
   onSnapshot,
 } from 'firebase/firestore';
-import firebaseConfig from '../firebase-applet-config.json';
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
+// Konfigurasi resmi proyek Firebase kafilasuci4 (Email/Password & Google Auth Enabled)
+export const firebaseConfig = {
+  apiKey: (import.meta as any).env?.VITE_FIREBASE_API_KEY || 'AIzaSyD5iCMLt6XFMI2Wb-JB97a7_DY8tbfLJW4',
+  authDomain: (import.meta as any).env?.VITE_FIREBASE_AUTH_DOMAIN || 'kafilasuci4.firebaseapp.com',
+  projectId: (import.meta as any).env?.VITE_FIREBASE_PROJECT_ID || 'kafilasuci4',
+  storageBucket: (import.meta as any).env?.VITE_FIREBASE_STORAGE_BUCKET || 'kafilasuci4.firebasestorage.app',
+  messagingSenderId: (import.meta as any).env?.VITE_FIREBASE_MESSAGING_SENDER_ID || '125487710715',
+  appId: (import.meta as any).env?.VITE_FIREBASE_APP_ID || '1:125487710715:web:337d5032dba2029eb1cb5e',
+};
 
-// Initialize Firestore with Persistent IndexedDB Local Cache to prevent quota leaks
-const databaseId =
-  !firebaseConfig.firestoreDatabaseId || firebaseConfig.firestoreDatabaseId === '(default)'
-    ? undefined
-    : firebaseConfig.firestoreDatabaseId;
+// Initialize Firebase (Singleton app instance)
+const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
+// Initialize Firestore with Persistent IndexedDB Local Cache
 let firestoreInstance;
 try {
-  firestoreInstance = databaseId
-    ? initializeFirestore(
-        app,
-        {
-          localCache: persistentLocalCache({
-            tabManager: persistentMultipleTabManager(),
-          }),
-        },
-        databaseId
-      )
-    : initializeFirestore(app, {
-        localCache: persistentLocalCache({
-          tabManager: persistentMultipleTabManager(),
-        }),
-      });
+  firestoreInstance = initializeFirestore(app, {
+    localCache: persistentLocalCache({
+      tabManager: persistentMultipleTabManager(),
+    }),
+  });
 } catch (e) {
-  firestoreInstance = databaseId ? getFirestore(app, databaseId) : getFirestore(app);
+  firestoreInstance = getFirestore(app);
 }
 
 export const db = firestoreInstance;

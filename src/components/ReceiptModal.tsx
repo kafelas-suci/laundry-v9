@@ -305,6 +305,12 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
 
               {/* Financial Totals */}
               <div className="space-y-1 text-[11px]">
+                {transaksi.diskon && transaksi.diskon > 0 ? (
+                  <div className="flex justify-between text-rose-700">
+                    <span>Potongan Diskon</span>
+                    <span>-Rp {formatNumberOnly(transaksi.diskon)}</span>
+                  </div>
+                ) : null}
                 <div className="flex justify-between font-bold">
                   <span>Total Transaksi</span>
                   <span>Rp {formatNumberOnly(transaksi.totalHarga)}</span>
