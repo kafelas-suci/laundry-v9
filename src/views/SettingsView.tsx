@@ -187,7 +187,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const limits = getLaundryLimits(currentTier);
     if (!limits.canUseCustomLogoOnReceipt) {
-      toast.warning('Fitur upload logo toko di struk hanya untuk Paket Basic / Pro.');
+      toast.warning('Fitur upload logo toko di struk hanya untuk Paket Premium.');
       return;
     }
     const file = e.target.files?.[0];
@@ -287,7 +287,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     {/* Sisa Hari */}
     <div className="text-xl font-bold leading-none">
       {isNewcomer ? (
-        <span className="text-emerald-700 font-extrabold">Aktif (Gratis)</span>
+        <span className="text-emerald-700 font-extrabold text-xs sm:text-sm">Gratis Selamanya</span>
       ) : sisaHari > 0 ? (
         <span className={sisaHari <= 5 ? 'text-amber-700 font-black' : 'text-slate-800 font-black'}>
           {sisaHari} <span className="text-[12px] font-semibold text-slate-500 font-sans">Hari</span>
@@ -539,7 +539,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   onChange={(e) => {
                     const limits = getLaundryLimits(currentTier);
                     if (e.target.checked && !limits.canUseCustomLogoOnReceipt) {
-                      toast.warning('Fitur kustomisasi logo toko di struk hanya untuk Paket Basic / Pro.');
+                      toast.warning('Fitur kustomisasi logo toko di struk hanya untuk Paket Premium.');
                       return;
                     }
                     setUseLogo(e.target.checked);

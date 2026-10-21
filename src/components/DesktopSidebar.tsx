@@ -384,7 +384,7 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
             }}
             title={
               isNewcomer
-                ? `Paket Langganan: ${subPaketNama} • Gratis Selamanya. Klik untuk lihat detail & komparasi paket.`
+                ? `Paket Langganan: ${subPaketNama} • Gratis . Klik untuk lihat detail & komparasi paket.`
                 : `Paket Langganan: ${subPaketNama} • Sisa ${subSisaHari} Hari. Klik untuk lihat detail & komparasi paket.`
             }
             className="mb-2.5 p-2 rounded-xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/90 shadow-2xs cursor-pointer hover:border-amber-300 transition active:scale-98"
@@ -414,7 +414,7 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
             <button
               type="button"
               onClick={() => onSelectView('kelola_owner')}
-              title={`${subPaketNama} • Sisa ${subSisaHari} Hari. Klik untuk kelola.`}
+              title={isNewcomer ? `${subPaketNama} • Gratis. Klik untuk kelola.` : `${subPaketNama} • Sisa ${subSisaHari} Hari. Klik untuk kelola.`}
               className="w-9 h-9 rounded-xl bg-amber-100 text-amber-800 border border-amber-300/80 flex items-center justify-center transition hover:bg-amber-200 active:scale-95 cursor-pointer shadow-2xs"
             >
               <Crown className="w-4 h-4 text-amber-700" />

@@ -1,0 +1,6 @@
+{
+  "summary":  "Rencana implementasi Background Sync otomatis untuk transaksi offline ke Firestore:\n1. Pembuatan antrean Outbox Queue persisten di IndexedDB untuk menampung nota yang dibuat saat offline atau koneksi terputus.\n2. Integrasi Background Sync Service Worker (SyncManager) dan listener event 'online' + visibilitychange untuk otomatis mengirim seluruh antrean ke Firestore seketika internet kembali tanpa reload.\n3. Sinkronisasi senyap di latar belakang tanpa notifikasi popup/toast sesuai permintaan kasir.\n4. Tampilan badge mengambang (floating badge) yang menampilkan jumlah nota tertunda dan otomatis menghilang saat semua transaksi tersinkron.",
+  "updatedAt":  "2026-10-20T19:17:21.005645611Z",
+  "requestFeedback":  true,
+  "userFacing":  true
+}

@@ -1,7 +1,7 @@
 import { Transaksi } from '../types';
 
 const DB_NAME = 'kafelas_laundry_v2';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 export class IndexedDbService {
   private static dbPromise: Promise<IDBDatabase> | null = null;
@@ -39,6 +39,13 @@ export class IndexedDbService {
         // Store 3: Metadata sinkronisasi & cache tracker
         if (!db.objectStoreNames.contains('meta_cache')) {
           db.createObjectStore('meta_cache', { keyPath: 'key' });
+        }
+
+        // Store 4: Outbox Antrean Transaksi Offline untuk Background Sync
+        if (!db.objectStoreNames.contains('outbox_transaksi')) {
+          const outboxStore = db.createObjectStore('outbox_transaksi', { keyPath: 'id' });
+          outboxStore.createIndex('laundryId', 'laundryId', { unique: false });
+          outboxStore.createIndex('queuedAt', 'queuedAt', { unique: false });
         }
       };
 
@@ -410,6 +417,74 @@ export class IndexedDbService {
       });
     } catch (e) {
       console.warn('Gagal simpan meta cache:', e);
+    }
+  }
+
+  // --- OUTBOX BACKGROUND SYNC QUEUE ---
+  static async addToOutbox(trx: Transaksi): Promise<void> {
+    try {
+      const db = await this.getDB();
+      const tx = db.transaction('outbox_transaksi', 'readwrite');
+      const store = tx.objectStore('outbox_transaksi');
+      store.put({ ...trx, queuedAt: Date.now() });
+      await new Promise<void>((resolve, reject) => {
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('kafelas-outbox-updated'));
+      }
+    } catch (e) {
+      console.warn('Gagal menambahkan transaksi ke outbox:', e);
+    }
+  }
+
+  static async getOutbox(): Promise<Transaksi[]> {
+    try {
+      const db = await this.getDB();
+      const tx = db.transaction('outbox_transaksi', 'readonly');
+      const store = tx.objectStore('outbox_transaksi');
+      const req = store.getAll();
+      return new Promise<Transaksi[]>((resolve, reject) => {
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => reject(req.error);
+      });
+    } catch (e) {
+      console.warn('Gagal membaca outbox:', e);
+      return [];
+    }
+  }
+
+  static async removeFromOutbox(id: string): Promise<void> {
+    try {
+      const db = await this.getDB();
+      const tx = db.transaction('outbox_transaksi', 'readwrite');
+      const store = tx.objectStore('outbox_transaksi');
+      store.delete(id);
+      await new Promise<void>((resolve, reject) => {
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('kafelas-outbox-updated'));
+      }
+    } catch (e) {
+      console.warn('Gagal menghapus transaksi dari outbox:', e);
+    }
+  }
+
+  static async getOutboxCount(): Promise<number> {
+    try {
+      const db = await this.getDB();
+      const tx = db.transaction('outbox_transaksi', 'readonly');
+      const store = tx.objectStore('outbox_transaksi');
+      const req = store.count();
+      return new Promise<number>((resolve, reject) => {
+        req.onsuccess = () => resolve(req.result || 0);
+        req.onerror = () => reject(req.error);
+      });
+    } catch (e) {
+      return 0;
     }
   }
 }

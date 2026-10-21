@@ -32,6 +32,7 @@ import {
   BarChart3,
   History,
   X,
+  Receipt,
 } from 'lucide-react';
 import { Transaksi, SettingsData, User, Laundry, Pengeluaran } from '../types';
 import { formatRupiah, formatShortDate, formatShortTime, extractTransaksiCashInEntries } from '../utils/formatters';
@@ -281,28 +282,38 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   const totalLaba = Math.max(0, stats.totalUangMasuk - stats.totalPengeluaran);
 
-  // Perhitungan Status Langganan & Masa Aktif
-  const now = Date.now();
-  const subscriptionEnd = currentUser.subscriptionEndDate || (now + 30 * 24 * 60 * 60 * 1000);
-  const diffMs = subscriptionEnd - now;
-  const sisaHari = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
-  const isExpiringSoon = sisaHari <= 5 && sisaHari > 0;
-  const isExpired = diffMs <= 0;
-
-  const formatTanggalKadaluarsa = useMemo(() => {
-    return new Intl.DateTimeFormat('id-ID', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-    }).format(new Date(subscriptionEnd));
-  }, [subscriptionEnd]);
-
   const limits = useMemo(() => {
     return getLaundryLimits(currentTier || currentUser.subscriptionType);
   }, [currentTier, currentUser.subscriptionType]);
 
   const isNewcomer = limits.tier === 'newcomer';
   const paketNama = limits.label;
+
+  // Perhitungan Transaksi Bulan Berjalan (Kuota Bulanan)
+  const currentMonthTrxCount = useMemo(() => {
+    const d = new Date();
+    const startOfMonth = new Date(d.getFullYear(), d.getMonth(), 1).getTime();
+    return transaksiList.filter((t) => t.laundryId === activeLaundry.id && (t.tanggalMasuk || 0) >= startOfMonth).length;
+  }, [transaksiList, activeLaundry.id]);
+
+  const isMonthlyQuotaFull = currentMonthTrxCount >= limits.maxMonthlyTransactions;
+
+  // Perhitungan Status Langganan & Masa Aktif
+  const now = Date.now();
+  const subscriptionEnd = currentUser.subscriptionEndDate || 0;
+  const diffMs = subscriptionEnd - now;
+  const sisaHari = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+  const isExpiringSoon = !isNewcomer && sisaHari <= 5 && sisaHari > 0;
+  const isExpired = !isNewcomer && subscriptionEnd > 0 && diffMs <= 0;
+
+  const formatTanggalKadaluarsa = useMemo(() => {
+    if (isNewcomer || !subscriptionEnd) return 'Gratis';
+    return new Intl.DateTimeFormat('id-ID', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    }).format(new Date(subscriptionEnd));
+  }, [isNewcomer, subscriptionEnd]);
 
   const formattedToday = new Intl.DateTimeFormat('id-ID', {
     weekday: 'long',
@@ -404,6 +415,29 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>
+                </div>
+              )}
+
+              {/* Indikator Kuota Transaksi Bulanan Newcomer */}
+              {isNewcomer && (
+                <div
+                  onClick={() => onOpenUpgradeModal?.('Batas kuota 50 transaksi per bulan untuk Paket Newcomer (Gratis) telah tercapai')}
+                  title={`Terpakai ${currentMonthTrxCount} dari ${limits.maxMonthlyTransactions} nota bulan ini. Klik untuk lihat opsi upgrade.`}
+                  className={`px-3 py-2 rounded-xl border flex items-center gap-1.5 text-xs font-bold transition cursor-pointer select-none active:scale-95 ${
+                    isMonthlyQuotaFull
+                      ? 'bg-rose-50 border-rose-300 text-rose-700 animate-pulse'
+                      : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                  }`}
+                >
+                  <Receipt className={`w-3.5 h-3.5 ${isMonthlyQuotaFull ? 'text-rose-600' : 'text-[#800000]'}`} />
+                  <span className="font-mono tabular-nums">
+                    {currentMonthTrxCount} / {limits.maxMonthlyTransactions} Nota
+                  </span>
+                  {isMonthlyQuotaFull ? (
+                    <span className="px-1.5 py-0.5 rounded-md bg-rose-600 text-white text-[10px] font-black uppercase">Penuh</span>
+                  ) : (
+                    <span className="text-[10px] text-emerald-700 font-semibold hidden xl:inline">Gratis</span>
+                  )}
                 </div>
               )}
 
@@ -1167,6 +1201,65 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     className="px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs shrink-0 shadow-sm transition active:scale-95 cursor-pointer"
                   >
                     Perpanjang
+                  </button>
+                </div>
+              )}
+
+              {/* Alert Banner Kuota Bulanan Newcomer di HP */}
+              {isNewcomer && (
+                <div
+                  onClick={() => onOpenUpgradeModal?.('Batas kuota 50 transaksi per bulan untuk Paket Newcomer (Gratis) telah tercapai')}
+                  className={`p-2.5 sm:p-3 rounded-2xl border transition flex items-center justify-between gap-2.5 shadow-2xs cursor-pointer active:scale-98 ${
+                    isMonthlyQuotaFull
+                      ? 'bg-rose-50 border-rose-300 text-rose-950 animate-pulse'
+                      : currentMonthTrxCount >= 40
+                      ? 'bg-amber-50 border-amber-200 text-amber-950'
+                      : 'bg-emerald-50/60 border-emerald-200/80 text-emerald-950'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div
+                      className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
+                        isMonthlyQuotaFull
+                          ? 'bg-rose-600 text-white'
+                          : currentMonthTrxCount >= 40
+                          ? 'bg-amber-600 text-white'
+                          : 'bg-emerald-600 text-white'
+                      }`}
+                    >
+                      <Receipt className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-extrabold text-xs">
+                          {isMonthlyQuotaFull
+                            ? 'Kuota Bulanan Newcomer Penuh'
+                            : 'Paket Newcomer'}
+                        </span>
+                        <span className="text-[10px] bg-white/70 px-1.5 py-0.2 rounded font-bold font-mono border border-slate-200">
+                          {currentMonthTrxCount} / {limits.maxMonthlyTransactions} Nota
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                        {isMonthlyQuotaFull
+                          ? 'Batas 50 nota/bulan tercapai. Klik untuk upgrade ke Paket Basic.'
+                          : 'Gratis selamanya tanpa batas hari. Dibatasi kuota 50 nota/bulan.'}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onOpenUpgradeModal?.('Batas kuota 50 transaksi per bulan untuk Paket Newcomer (Gratis) telah tercapai');
+                    }}
+                    className={`px-3 py-1.5 rounded-xl font-bold text-xs shrink-0 shadow-2xs transition active:scale-95 cursor-pointer ${
+                      isMonthlyQuotaFull
+                        ? 'bg-rose-600 hover:bg-rose-700 text-white'
+                        : 'bg-white border border-slate-200 hover:bg-slate-50 text-slate-700'
+                    }`}
+                  >
+                    {isMonthlyQuotaFull ? 'Upgrade' : 'Detail'}
                   </button>
                 </div>
               )}

@@ -51,7 +51,7 @@ export class FirebaseSyncService {
       walletBalance: 0,
       createdAt: Date.now(),
       subscriptionType: 'newcomer',
-      subscriptionEndDate: Date.now() + 30 * 24 * 60 * 60 * 1000,
+      subscriptionEndDate: null, // Newcomer aktif gratis selamanya berbasis kuota
     };
 
     const userDocRef = doc(db, 'users', firebaseUser.uid);
@@ -63,8 +63,10 @@ export class FirebaseSyncService {
         while (typeof displayName === 'object' && displayName !== null) {
           displayName = displayName.namaLaundry || displayName.displayName || displayName.name || 'Owner';
         }
+        const isNewcomerProfile = !rawUser.subscriptionType || rawUser.subscriptionType === 'newcomer';
         const user: User = {
           ...rawUser,
+          subscriptionEndDate: isNewcomerProfile ? null : rawUser.subscriptionEndDate,
           displayName: typeof displayName === 'string' && displayName.trim() ? displayName : (userName || 'Owner'),
         };
         StorageService.set('active_user', user);
@@ -486,7 +488,6 @@ export class FirebaseSyncService {
 
   // 6. SAVE TRANSAKSI - Selalu sertakan terakhirDieditPada agar Delta Sync bekerja sempurna
   static async saveTransaksi(trx: Transaksi): Promise<void> {
-    const path = `laundries/${trx.laundryId}/transaksi/${trx.id}`;
     const payload: Transaksi = {
       ...trx,
       terakhirDieditPada: Date.now(),
@@ -504,10 +505,78 @@ export class FirebaseSyncService {
       return;
     }
 
+    // Jika perangkat sedang offline, langsung simpan ke Outbox antrean background sync
+    const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+    if (!isOnline) {
+      await IndexedDbService.addToOutbox(payload);
+      if (typeof window !== 'undefined' && 'serviceWorker' in navigator && 'SyncManager' in window) {
+        navigator.serviceWorker.ready
+          .then((reg: any) => reg.sync?.register('sync-laundry-trx'))
+          .catch(() => {});
+      }
+      return;
+    }
+
     try {
       await setDoc(doc(db, 'laundries', trx.laundryId, 'transaksi', trx.id), payload);
+      // Hapus dari outbox jika sebelumnya pernah tertunda
+      await IndexedDbService.removeFromOutbox(trx.id);
     } catch (e) {
-      handleFirestoreError(e, OperationType.WRITE, path);
+      console.warn('Gagal setDoc ke Firestore langsung (koneksi terputus), simpan ke Outbox antrean:', e);
+      await IndexedDbService.addToOutbox(payload);
+      if (typeof window !== 'undefined' && 'serviceWorker' in navigator && 'SyncManager' in window) {
+        navigator.serviceWorker.ready
+          .then((reg: any) => reg.sync?.register('sync-laundry-trx'))
+          .catch(() => {});
+      }
+    }
+  }
+
+  // 6.1 SINKRONISASI ANTREAN OUTBOX SAAT ONLINE KEMBALI (BACKGROUND SYNC)
+  private static isSyncingOutbox = false;
+
+  static async syncPendingOutbox(): Promise<{ synced: number; remaining: number }> {
+    if (this.isSyncingOutbox) return { synced: 0, remaining: 0 };
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return { synced: 0, remaining: 0 };
+    if (!auth.currentUser) return { synced: 0, remaining: 0 };
+
+    this.isSyncingOutbox = true;
+    let synced = 0;
+
+    try {
+      const pendingList = await IndexedDbService.getOutbox();
+      if (pendingList.length === 0) {
+        this.isSyncingOutbox = false;
+        return { synced: 0, remaining: 0 };
+      }
+
+      console.log(`⚡ Background Sync: Menemukan ${pendingList.length} nota tertunda, memulai sinkronisasi ke Firestore...`);
+
+      for (const trx of pendingList) {
+        try {
+          const payload: Transaksi = {
+            ...trx,
+            terakhirDieditPada: trx.terakhirDieditPada || Date.now(),
+          };
+          await setDoc(doc(db, 'laundries', trx.laundryId, 'transaksi', trx.id), payload);
+          await IndexedDbService.removeFromOutbox(trx.id);
+          synced++;
+        } catch (err) {
+          console.warn(`Gagal sinkronkan nota ${trx.id} saat background sync:`, err);
+          if (typeof navigator !== 'undefined' && !navigator.onLine) {
+            break;
+          }
+        }
+      }
+
+      const remaining = await IndexedDbService.getOutboxCount();
+      console.log(`✅ Background Sync selesai: ${synced} terkirim, ${remaining} tersisa.`);
+      return { synced, remaining };
+    } catch (err) {
+      console.warn('Terjadi kesalahan saat syncPendingOutbox:', err);
+      return { synced, remaining: await IndexedDbService.getOutboxCount() };
+    } finally {
+      this.isSyncingOutbox = false;
     }
   }
 

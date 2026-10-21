@@ -185,16 +185,16 @@ export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
               {/* Header Masa Aktif */}
               <div
                 onClick={() => {
-                  if (sisaHari <= 0 && onOpenExpiredModal) {
+                  if (!isNewcomer && sisaHari <= 0 && onOpenExpiredModal) {
                     onOpenExpiredModal();
                   }
                 }}
                 className={`px-3.5 py-2 text-center text-xs font-bold flex items-center justify-center gap-1.5 shadow-inner transition ${
-                  sisaHari <= 0
+                  !isNewcomer && sisaHari <= 0
                     ? 'bg-rose-700 hover:bg-rose-800 cursor-pointer text-white animate-pulse'
                     : 'bg-[#800000] text-white'
                 }`}
-                title={sisaHari <= 0 ? 'Masa langganan habis! Klik untuk buka halaman perpanjangan' : undefined}
+                title={!isNewcomer && sisaHari <= 0 ? 'Masa langganan habis! Klik untuk buka halaman perpanjangan' : undefined}
               >
                 <Clock className="w-3.5 h-3.5" />
                 <span>
@@ -243,8 +243,8 @@ export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
                   </button>
                 </div>
 
-                {/* Tombol Khusus Habis Hari Langganan jika sisaHari <= 0 */}
-                {sisaHari <= 0 && onOpenExpiredModal && (
+                {/* Tombol Khusus Habis Hari Langganan jika sisaHari <= 0 (Hanya untuk Paket Berbayar) */}
+                {!isNewcomer && sisaHari <= 0 && onOpenExpiredModal && (
                   <button
                     type="button"
                     onClick={onOpenExpiredModal}

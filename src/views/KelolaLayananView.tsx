@@ -98,7 +98,7 @@ export const KelolaLayananView: React.FC<KelolaLayananViewProps> = ({
 
   const openAddModal = () => {
     if (isLimitReached) {
-      toast.warning(`Batas ${limits.maxServices} jenis layanan telah tercapai. Fitur penambahan layanan lebih banyak hanya untuk Paket Basic / Pro.`);
+      toast.warning(`Batas ${limits.maxServices} jenis layanan telah tercapai. Fitur penambahan layanan lebih banyak hanya untuk Paket Premium.`);
       return;
     }
     setEditingLayanan(null);
@@ -145,7 +145,7 @@ export const KelolaLayananView: React.FC<KelolaLayananViewProps> = ({
     }
 
     if (!editingLayanan && isLimitReached) {
-      toast.warning(`Batas ${limits.maxServices} jenis layanan telah tercapai. Fitur penambahan layanan lebih banyak hanya untuk Paket Basic / Pro.`);
+      toast.warning(`Batas ${limits.maxServices} jenis layanan telah tercapai. Fitur penambahan layanan lebih banyak hanya untuk Paket Premium.`);
       return;
     }
 

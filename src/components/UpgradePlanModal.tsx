@@ -319,7 +319,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                 </div>
                 <div className="mt-2 text-2xl font-black text-emerald-400 font-mono tabular-nums">
                   Gratis (Rp 0)
-                  <span className="text-xs font-normal text-slate-400 ml-1.5">/ starter awal</span>
+                  <span className="text-xs font-normal text-slate-400 ml-1.5">/ selamanya (batas kuota)</span>
                 </div>
                 <p className="text-xs text-slate-400 mt-1 leading-relaxed">
                   {newcomerConfig.tagline}
@@ -338,7 +338,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
               <div className="mt-5 pt-3 border-t border-slate-700/60">
                 {activeTier === 'newcomer' ? (
                   <div className="w-full py-2.5 px-3 rounded-xl bg-slate-900/80 border border-emerald-500/30 text-emerald-300 text-xs text-center font-bold">
-                    ✓ Aktif Otomatis untuk Akun Baru
+                    ✓ Aktif Gratis (Maks. 50 Nota/Bulan)
                   </div>
                 ) : (
                   <div className="w-full py-2.5 px-3 rounded-xl bg-slate-900/50 border border-slate-700/60 text-slate-400 text-xs text-center font-medium">

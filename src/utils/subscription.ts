@@ -30,8 +30,8 @@ export const LAUNDRY_TIER_CONFIG: Record<LaundryTier, LaundrySubscriptionLimits>
   newcomer: {
     tier: 'newcomer',
     label: 'Paket Newcomer',
-    tagline: 'Starter otomatis untuk akun baru tanpa biaya langganan bulanan',
-    badgeText: 'Paket Newcomer (Starter)',
+    tagline: 'Gratis selamanya tanpa batas hari untuk operasional awal UMKM (kuota 50 nota/bulan)',
+    badgeText: 'Paket Newcomer',
     priceMonthly: 0,
     maxBranches: 1,
     pricePerExtraBranch: 25000,
@@ -48,14 +48,14 @@ export const LAUNDRY_TIER_CONFIG: Record<LaundryTier, LaundrySubscriptionLimits>
     canUseCustomLogoOnReceipt: false,
     canUseSignatureOnReceipt: false,
     highlights: [
-      'Gratis Starter Akun Baru (Rp 0)',
+      'Gratis Selamanya (Rp 0 Tanpa Batas Hari)',
       'Aktif Otomatis Saat Pertama Kali Mendaftar',
       '1 Cabang Outlet & 1 Owner (Tanpa Kasir)',
-      'Maksimal 50 Data Pelanggan',
+      'Maksimal 50 Data Pelanggan Tersimpan',
       'Maksimal 50 Nota Transaksi per Bulan',
       'Maksimal 5 Jenis Layanan Cucian',
       'Cetak Struk Thermal Standar & Bagikan WhatsApp',
-      'Wajib Upgrade ke Paket Basic saat Batas Tercapai',
+      'Tingkatkan ke Paket Basic saat Kuota Tercapai',
     ],
   },
   basic: {
@@ -233,7 +233,9 @@ export function canAddMonthlyTransaction(monthlyTransactionCount: number, rawTie
   if (monthlyTransactionCount >= limits.maxMonthlyTransactions) {
     return {
       allowed: false,
-      reason: `Kuota ${limits.maxMonthlyTransactions} transaksi per bulan untuk ${limits.label} telah tercapai. Silakan perpanjang atau kelola langganan untuk melanjutkan pembuatan nota baru.`,
+      reason: limits.tier === 'newcomer'
+        ? `Batas kuota 50 nota transaksi per bulan untuk Paket Newcomer (Gratis) telah tercapai. Tingkatkan ke Paket Basic untuk kuota hingga 400 transaksi/bulan!`
+        : `Kuota ${limits.maxMonthlyTransactions} transaksi per bulan untuk ${limits.label} telah tercapai. Silakan perpanjang atau kelola langganan untuk melanjutkan pembuatan nota baru.`,
     };
   }
   return { allowed: true };

@@ -60,7 +60,7 @@ export const KelolaKasirView: React.FC<KelolaKasirViewProps> = ({
 
     const limits = getLaundryLimits(currentTier);
     if (limits.tier === 'newcomer' || limits.maxCashiers <= 0) {
-      toast.warning('Fitur pembuatan akun kasir tambahan hanya untuk Paket Basic / Pro.');
+      toast.warning('Fitur pembuatan akun kasir tambahan hanya untuk Paket Premium.');
       return;
     }
 
@@ -99,7 +99,7 @@ export const KelolaKasirView: React.FC<KelolaKasirViewProps> = ({
   const handleAddOpStaffSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!limits.canAssignStaff) {
-      toast.warning('Fitur penugasan staf operasional hanya untuk Paket Basic / Pro.');
+      toast.warning('Fitur penugasan staf operasional hanya untuk Paket Premium.');
       return;
     }
     if (!opStaffName.trim()) {
@@ -172,10 +172,10 @@ export const KelolaKasirView: React.FC<KelolaKasirViewProps> = ({
                   </p>
                   <button
                     type="button"
-                    onClick={() => toast.warning('Fitur pembuatan akun kasir tambahan hanya untuk Paket Basic / Pro.')}
+                    onClick={() => toast.warning('Fitur pembuatan akun kasir tambahan hanya untuk Paket Premium.')}
                     className="w-full py-1.5 px-3 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
                   >
-                    <span>Fitur Hanya untuk Paket Basic / Pro</span>
+                    <span>Fitur Hanya untuk Paket Premium</span>
                   </button>
                 </div>
               ) : isAtLimit ? (
@@ -299,10 +299,10 @@ export const KelolaKasirView: React.FC<KelolaKasirViewProps> = ({
 
               {!limits.canAssignStaff ? (
                 <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between gap-2">
-                  <p className="text-[11px] text-amber-900">Fitur penugasan staf operasional hanya untuk Paket Basic / Pro.</p>
+                  <p className="text-[11px] text-amber-900">Fitur penugasan staf operasional hanya untuk Paket Premium.</p>
                   <button
                     type="button"
-                    onClick={() => toast.warning('Fitur penugasan staf operasional hanya untuk Paket Basic / Pro.')}
+                    onClick={() => toast.warning('Fitur penugasan staf operasional hanya untuk Paket Premium.')}
                     className="px-2.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-[10px] font-bold shrink-0 cursor-pointer"
                   >
                     Info

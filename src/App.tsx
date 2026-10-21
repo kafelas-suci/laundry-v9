@@ -276,10 +276,6 @@ export default function App() {
   }, [currentUser, activeTier]);
 
   const handleOpenUpgradeModal = (reason?: string) => {
-    if (activeTier === 'newcomer' && reason) {
-      toast.warning(`Fitur ini hanya untuk Paket Basic / Pro.`);
-      return;
-    }
     setUpgradeTriggerReason(reason);
     setIsUpgradeModalOpen(true);
   };
@@ -543,7 +539,6 @@ export default function App() {
       const targetLaundryId = finalLaundries[0]?.id || user.laundryId || `lnd-${user.uid}`;
       if (finalLaundries.length > 0) {
         updateLaundries(finalLaundries);
-        FirebaseSyncService.saveLaundry(finalLaundries[0]).catch(console.warn);
       } else {
         let initialName = settings.headerStruk;
         if (typeof initialName !== 'string' || !initialName.trim()) {
@@ -619,6 +614,7 @@ export default function App() {
           setCurrentUser(profile);
           StorageService.set('active_user', profile);
           await loadFirestoreData(profile, true);
+          FirebaseSyncService.syncPendingOutbox().catch(console.warn);
         } catch (err) {
           console.warn('Gagal memuat data pengguna pada onAuthStateChanged:', err);
         }
@@ -678,7 +674,14 @@ export default function App() {
       const limits = getLaundryLimits(activeTier);
       if (currentMonthTransactions.length >= limits.maxMonthlyTransactions) {
         toast.warning(
-          `Batas transaksi bulanan (${limits.maxMonthlyTransactions} transaksi/bulan) telah tercapai. Fitur kuota transaksi lebih banyak hanya untuk Paket Basic / Pro.`
+          limits.tier === 'newcomer'
+            ? `Batas kuota 50 nota transaksi per bulan untuk Paket Newcomer (Gratis) telah tercapai.`
+            : `Batas transaksi bulanan (${limits.maxMonthlyTransactions} transaksi/bulan) telah tercapai.`
+        );
+        handleOpenUpgradeModal(
+          limits.tier === 'newcomer'
+            ? `Batas kuota 50 transaksi per bulan untuk Paket Newcomer (Gratis) telah tercapai`
+            : `Batas transaksi bulanan (${limits.maxMonthlyTransactions} transaksi/bulan) telah tercapai`
         );
         return;
       }
@@ -907,7 +910,14 @@ export default function App() {
     const limits = getLaundryLimits(activeTier);
     if (currentMonthTransactions.length >= limits.maxMonthlyTransactions) {
       toast.warning(
-        `Batas transaksi bulanan (${limits.maxMonthlyTransactions} transaksi/bulan) telah tercapai. Fitur kuota transaksi lebih banyak hanya untuk Paket Basic / Pro.`
+        limits.tier === 'newcomer'
+          ? `Batas kuota 50 nota transaksi per bulan untuk Paket Newcomer (Gratis) telah tercapai.`
+          : `Batas transaksi bulanan (${limits.maxMonthlyTransactions} transaksi/bulan) telah tercapai.`
+      );
+      handleOpenUpgradeModal(
+        limits.tier === 'newcomer'
+          ? `Batas kuota 50 transaksi per bulan untuk Paket Newcomer (Gratis) telah tercapai`
+          : `Batas transaksi bulanan (${limits.maxMonthlyTransactions} transaksi/bulan) telah tercapai`
       );
       return;
     }
@@ -936,7 +946,7 @@ export default function App() {
     const exists = pelangganList.some((p) => p.id === cust.id);
     if (!exists && pelangganList.length >= limits.maxCustomers) {
       toast.warning(
-        `Batas maksimal ${limits.maxCustomers} data pelanggan telah tercapai. Fitur kapasitas pelanggan lebih besar hanya untuk Paket Basic / Pro.`
+        `Batas maksimal ${limits.maxCustomers} data pelanggan telah tercapai. Fitur kapasitas pelanggan lebih besar hanya untuk Paket Premium.`
       );
       return;
     }
@@ -956,7 +966,7 @@ export default function App() {
     const exists = layananList.some((l) => l.id === lay.id);
     if (!exists && layananList.length >= limits.maxServices) {
       toast.warning(
-        `Batas maksimal ${limits.maxServices} jenis layanan telah tercapai. Fitur penambahan layanan lebih banyak hanya untuk Paket Basic / Pro.`
+        `Batas maksimal ${limits.maxServices} jenis layanan telah tercapai. Fitur penambahan layanan lebih banyak hanya untuk Paket Premium.`
       );
       return;
     }
@@ -1064,7 +1074,7 @@ export default function App() {
     const limits = getLaundryLimits(activeTier);
 
     if (limits.tier === 'newcomer' || limits.maxCashiers <= 0) {
-      toast.warning('Fitur pembuatan akun kasir tambahan hanya untuk Paket Basic / Pro.');
+      toast.warning('Fitur pembuatan akun kasir tambahan hanya untuk Paket Premium.');
       return;
     }
 
