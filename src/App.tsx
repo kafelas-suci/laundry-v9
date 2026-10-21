@@ -48,18 +48,6 @@ import { LaundryTier, normalizeTier, getLaundryLimits, EXTRA_BRANCH_PRICE } from
 import { formatRupiah, formatLocalInvoiceDateKey } from './utils/formatters';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { DesktopSidebar } from './components/DesktopSidebar';
-import { DemoBanner } from './components/DemoBanner';
-import {
-  demoOwnerUser,
-  demoKasirUser,
-  demoLaundries,
-  demoSettings,
-  demoLayananList,
-  demoPelangganList,
-  getDemoTransaksiList,
-  getDemoPengeluaranList,
-  getDemoManualCashLogs,
-} from './utils/demoService';
 import { useDeviceDetect } from './hooks/useDeviceDetect';
 import { Lock } from 'lucide-react';
 import { useToast } from './components/NotificationContext';
@@ -92,9 +80,6 @@ export default function App() {
     }
     return 'splash';
   });
-  const [isDemoMode, setIsDemoMode] = useState<boolean>(() =>
-    StorageService.get<boolean>('is_demo_mode', false)
-  );
   const [initialSignUpMode, setInitialSignUpMode] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(() =>
     StorageService.get<User | null>('active_user', null)
@@ -117,13 +102,7 @@ export default function App() {
 
   const [laundries, setLaundries] = useState<Laundry[]>(() => {
     const raw = StorageService.get<Laundry[]>('laundries', []);
-    const isDemo = StorageService.get<boolean>('is_demo_mode', false);
-    const user = StorageService.get<User | null>('active_user', null);
-    if (!isDemo && user && user.uid && !user.uid.startsWith('demo')) {
-      const filtered = raw.filter(l => l.id !== 'lnd-1' && l.id !== 'demo-lnd-1');
-      return filtered.length > 0 ? filtered : raw;
-    }
-    return raw;
+    return raw.length > 0 ? raw : [{ id: 'lnd-1', ownerId: 'own-1', namaLaundry: "Kafela's Laundry", alamat: '', nomorTelepon: '' }];
   });
 
   const [activeLaundryId, setActiveLaundryId] = useState<string>(() =>
@@ -156,7 +135,7 @@ export default function App() {
 
   // Real-time Live Synchronization untuk Multi-User Kasir & Owner
   useEffect(() => {
-    if (isDemoMode || !auth.currentUser || !activeLaundryId) return;
+    if (!auth.currentUser || !activeLaundryId) return;
 
     const unsubscribe = FirebaseSyncService.subscribeTransaksi(
       activeLaundryId,
@@ -182,7 +161,7 @@ export default function App() {
     return () => {
       unsubscribe();
     };
-  }, [activeLaundryId, isDemoMode, currentUser?.uid]);
+  }, [activeLaundryId, currentUser?.uid]);
 
   const [layananList, setLayananList] = useState<Layanan[]>(() =>
     StorageService.get<Layanan[]>('layanan', [])
@@ -481,7 +460,7 @@ export default function App() {
   const updateSettings = (newSettings: SettingsData) => {
     setSettings(newSettings);
     StorageService.set('settings', newSettings);
-    if (!isDemoMode && activeLaundryId) {
+    if (activeLaundryId) {
       FirebaseSyncService.saveSettings(activeLaundryId, newSettings).catch(console.error);
     }
   };
@@ -525,14 +504,14 @@ export default function App() {
 
   // Load real user and real Firestore data when authenticated
   const loadFirestoreData = async (user: User, forceSync = false) => {
-    if (isDemoMode || !auth.currentUser) {
+    if (!auth.currentUser) {
       return;
     }
     const now = Date.now();
 
     try {
       const userLaundries = await FirebaseSyncService.fetchLaundries(user.uid, laundries, forceSync);
-      const cleanLaundries = !isDemoMode && user && user.uid && !user.uid.startsWith('demo')
+      const cleanLaundries = user && user.uid && !user.uid.startsWith('demo')
         ? userLaundries.filter(l => l.id !== 'lnd-1' && l.id !== 'demo-lnd-1')
         : userLaundries;
       const finalLaundries = cleanLaundries.length > 0 ? cleanLaundries : userLaundries;
@@ -663,9 +642,7 @@ export default function App() {
         t.id === data.id ? updatedTrx : t
       );
       updateTransaksiList(updatedList);
-      if (!isDemoMode) {
-        FirebaseSyncService.saveTransaksi(updatedTrx).catch(console.error);
-      }
+      FirebaseSyncService.saveTransaksi(updatedTrx).catch(console.error);
       setSelectedTransaksiId(data.id);
       setReceiptModalTrx(updatedTrx);
       setActiveView('dashboard');
@@ -703,9 +680,7 @@ export default function App() {
 
       const updatedList = [newTrx, ...transaksiList];
       updateTransaksiList(updatedList);
-      if (!isDemoMode) {
-        FirebaseSyncService.saveTransaksi(newTrx).catch(console.error);
-      }
+      FirebaseSyncService.saveTransaksi(newTrx).catch(console.error);
 
       // Save customer contact if new (check customer limit)
       if (data.namaPelanggan) {
@@ -727,9 +702,7 @@ export default function App() {
               poin: 0,
             };
             updatePelangganList([...pelangganList, newCust]);
-            if (!isDemoMode) {
-              FirebaseSyncService.savePelanggan(newCust).catch(console.error);
-            }
+            FirebaseSyncService.savePelanggan(newCust).catch(console.error);
           }
         } else if (data.nomorTelepon || data.alamat) {
           const updatedCust = {
@@ -740,9 +713,7 @@ export default function App() {
           updatePelangganList(
             pelangganList.map((p) => (p.id === existingCust.id ? updatedCust : p))
           );
-          if (!isDemoMode) {
-            FirebaseSyncService.savePelanggan(updatedCust).catch(console.error);
-          }
+          FirebaseSyncService.savePelanggan(updatedCust).catch(console.error);
         }
       }
 
@@ -852,9 +823,7 @@ export default function App() {
 
     const updatedList = [newTrx, ...transaksiList];
     updateTransaksiList(updatedList);
-    if (!isDemoMode) {
-      FirebaseSyncService.saveTransaksi(newTrx).catch(console.error);
-    }
+    FirebaseSyncService.saveTransaksi(newTrx).catch(console.error);
 
     if (data.namaPelanggan) {
       const existingCust = pelangganList.find(
@@ -871,9 +840,7 @@ export default function App() {
             poin: 0,
           };
           updatePelangganList([...pelangganList, newCust]);
-          if (!isDemoMode) {
-            FirebaseSyncService.savePelanggan(newCust).catch(console.error);
-          }
+          FirebaseSyncService.savePelanggan(newCust).catch(console.error);
         }
       }
     }
@@ -1031,9 +998,7 @@ export default function App() {
       nomorTelepon: telepon || null,
     };
     updateLaundries([...laundries, newLnd]);
-    if (!isDemoMode) {
-      FirebaseSyncService.saveLaundry(newLnd).catch(console.warn);
-    }
+    FirebaseSyncService.saveLaundry(newLnd).catch(console.warn);
 
     // Copy services if requested
     if (copyFromId) {
@@ -1056,9 +1021,7 @@ export default function App() {
 
   const handleUpdateLaundry = (lnd: Laundry) => {
     updateLaundries(laundries.map((l) => (l.id === lnd.id ? lnd : l)));
-    if (!isDemoMode) {
-      FirebaseSyncService.saveLaundry(lnd).catch(console.warn);
-    }
+    FirebaseSyncService.saveLaundry(lnd).catch(console.warn);
   };
 
   const handleDeleteLaundry = (laundryId: string) => {
@@ -1203,9 +1166,7 @@ export default function App() {
       laundryId: activeLaundryId,
     };
     updatePengeluaranList([newPeng, ...pengeluaranList]);
-    if (!isDemoMode) {
-      FirebaseSyncService.savePengeluaran(newPeng).catch(console.error);
-    }
+    FirebaseSyncService.savePengeluaran(newPeng).catch(console.error);
     toast.success('Pengeluaran berhasil dicatat!');
   };
 
@@ -1216,79 +1177,7 @@ export default function App() {
     toast.success('Pemasukan manual berhasil dicatat!');
   };
 
-  // Demo Mode Handlers for Prospective Trial Users
-  const handleStartDemo = (role: 'owner' | 'karyawan') => {
-    setIsDemoMode(true);
-    StorageService.set('is_demo_mode', true);
-    const demoUser = role === 'owner' ? demoOwnerUser : demoKasirUser;
-    setCurrentUser(demoUser);
-    StorageService.set('active_user', demoUser);
-    setLaundries(demoLaundries);
-    StorageService.set('laundries', demoLaundries);
-    setActiveLaundryId(demoLaundries[0].id);
-    StorageService.set('current_laundry_id', demoLaundries[0].id);
-    setSettings(demoSettings);
-    StorageService.set('settings', demoSettings);
-    setLayananList(demoLayananList);
-    StorageService.set('layanan', demoLayananList);
-    setPelangganList(demoPelangganList);
-    StorageService.set('pelanggan', demoPelangganList);
-    const dTrx = getDemoTransaksiList();
-    setTransaksiList(dTrx);
-    StorageService.set('transaksi', dTrx);
-    const dExp = getDemoPengeluaranList();
-    setPengeluaranList(dExp);
-    StorageService.set('pengeluaran', dExp);
-    const dCash = getDemoManualCashLogs();
-    setManualCashLogs(dCash);
-    StorageService.set('manual_cash_logs', dCash);
-    setActiveView('dashboard');
-  };
 
-  const handleResetDemoData = () => {
-    setLaundries(demoLaundries);
-    StorageService.set('laundries', demoLaundries);
-    setActiveLaundryId(demoLaundries[0].id);
-    StorageService.set('current_laundry_id', demoLaundries[0].id);
-    setSettings(demoSettings);
-    StorageService.set('settings', demoSettings);
-    setLayananList(demoLayananList);
-    StorageService.set('layanan', demoLayananList);
-    setPelangganList(demoPelangganList);
-    StorageService.set('pelanggan', demoPelangganList);
-    const dTrx = getDemoTransaksiList();
-    setTransaksiList(dTrx);
-    StorageService.set('transaksi', dTrx);
-    const dExp = getDemoPengeluaranList();
-    setPengeluaranList(dExp);
-    StorageService.set('pengeluaran', dExp);
-    const dCash = getDemoManualCashLogs();
-    setManualCashLogs(dCash);
-    StorageService.set('manual_cash_logs', dCash);
-  };
-
-  const handleSwitchDemoRole = (role: 'owner' | 'karyawan') => {
-    const demoUser = role === 'owner' ? demoOwnerUser : demoKasirUser;
-    setCurrentUser(demoUser);
-    StorageService.set('active_user', demoUser);
-  };
-
-  const handleExitDemo = () => {
-    setIsDemoMode(false);
-    StorageService.set('is_demo_mode', false);
-    setCurrentUser(null);
-    StorageService.set('active_user', null);
-    setActiveView('auth');
-  };
-
-  const handleSwitchToRealRegister = () => {
-    setIsDemoMode(false);
-    StorageService.set('is_demo_mode', false);
-    setCurrentUser(null);
-    StorageService.set('active_user', null);
-    setInitialSignUpMode(true);
-    setActiveView('auth');
-  };
 
   // Selected Transaction Object
   const currentSelectedTransaksi =
@@ -1326,21 +1215,6 @@ export default function App() {
     <div className="min-h-screen bg-slate-100 flex flex-col items-center justify-start text-slate-800 antialiased selection:bg-[#800000] selection:text-white">
       {/* Offline Toast */}
       <OfflineIndicator />
-
-      {/* Demo Trial Banner for Prospective Users */}
-      {isDemoMode &&
-        currentUser &&
-        activeView !== 'splash' &&
-        activeView !== 'auth' &&
-        activeView !== 'landing' && (
-          <DemoBanner
-            currentUser={currentUser}
-            onResetDemoData={handleResetDemoData}
-            onSwitchToRealRegister={handleSwitchToRealRegister}
-            onExitDemo={handleExitDemo}
-            onSwitchDemoRole={handleSwitchDemoRole}
-          />
-        )}
 
       {/* Main Container: Full Web App Shell with Sidebar on PC/Tablet, Original Container on HP */}
       <div
@@ -1403,11 +1277,8 @@ export default function App() {
             ownerUser={defaultOwnerUser}
             staffList={staffList}
             initialSignUp={initialSignUpMode}
-            onStartDemo={handleStartDemo}
             onOpenLandingPage={() => setActiveView('landing')}
             onLoginSuccess={async (user) => {
-              setIsDemoMode(false);
-              StorageService.set('is_demo_mode', false);
               setInitialSignUpMode(false);
               setCurrentUser(user);
               StorageService.set('active_user', user);
@@ -1420,7 +1291,6 @@ export default function App() {
         {activeView === 'landing' && (
           <LandingPageView
             onOpenKasir={() => setActiveView('auth')}
-            onStartDemo={(role) => handleStartDemo(role || 'owner')}
             onOpenApkModal={() => setIsApkModalOpen(true)}
           />
         )}

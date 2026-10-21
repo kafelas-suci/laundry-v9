@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Lock, Mail, User, Phone, Building2, Eye, EyeOff, ShieldCheck, X, Loader2, AlertCircle, Sparkles, Crown, Receipt, ArrowRight, Download, Smartphone, Laptop, Apple, CheckCircle2 } from 'lucide-react';
+import { Lock, Mail, User, Phone, Building2, Eye, EyeOff, ShieldCheck, X, Loader2, AlertCircle, Sparkles, Receipt, ArrowRight, Download, Smartphone, Laptop, Apple, CheckCircle2 } from 'lucide-react';
 import {
   signInWithPopup,
   signInWithEmailAndPassword,
@@ -18,7 +18,6 @@ interface AuthViewProps {
   onLoginSuccess: (user: UserType) => void;
   staffList: UserType[];
   ownerUser: UserType;
-  onStartDemo?: (role: 'owner' | 'karyawan') => void;
   onOpenLandingPage?: () => void;
   initialSignUp?: boolean;
 }
@@ -27,7 +26,6 @@ export const AuthView: React.FC<AuthViewProps> = ({
   onLoginSuccess,
   staffList,
   ownerUser,
-  onStartDemo,
   onOpenLandingPage,
   initialSignUp = false,
 }) => {
@@ -492,47 +490,13 @@ export const AuthView: React.FC<AuthViewProps> = ({
         </div>
       </div>
 
-      {/* Footer Branding & Demo Mode */}
+      {/* Footer Branding */}
       <footer className="text-center space-y-2 pb-2">
         <p className="text-[11px] text-slate-500 max-w-sm mx-auto">
           Terima kasih telah mempercayakan kami menjadi teman bisnis Anda
         </p>
         <div className="inline-block px-4 py-1.5 rounded-full bg-[#800000] text-white text-xs font-bold tracking-wide shadow-xs">
           Jazakumullah Ahsanal Jaza
-        </div>
-
-        {/* Uji Coba Calon Pengguna / Interactive Demo Mode */}
-        <div className="pt-2 max-w-md mx-auto w-full px-4">
-          <div className="p-3.5 rounded-2xl bg-rose-50/80 border border-rose-200/80 text-left space-y-2 shadow-2xs">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5 font-black text-xs text-[#800000]">
-                <Sparkles className="w-3.5 h-3.5 text-amber-500 animate-pulse" />
-                <span>Coba Gratis Mode Demo</span>
-              </div>
-              <span className="text-[10px] bg-white text-[#800000] border border-rose-200 px-2 py-0.5 rounded-full font-bold">
-                Tanpa Daftar
-              </span>
-            </div>
-            <p className="text-[11px] text-slate-600 leading-relaxed">
-              Jelajahi fitur kasir, cetak struk thermal 58mm, dan laporan laba rugi dengan data contoh siap pakai.
-            </p>
-
-            <button
-              type="button"
-              onClick={() => {
-                if (onStartDemo) {
-                  onStartDemo('owner');
-                } else {
-                  onLoginSuccess(ownerUser);
-                }
-              }}
-              className="w-full p-2.5 rounded-xl bg-[#800000] hover:bg-[#660000] text-white font-black text-xs flex items-center justify-center gap-1.5 shadow-xs transition active:scale-95 cursor-pointer"
-              title="Simulasi sebagai Pemilik Laundry (Akses Semua Fitur)"
-            >
-              <Crown className="w-3.5 h-3.5 text-amber-400" />
-              <span>Masuk Mode Demo Owner</span>
-            </button>
-          </div>
         </div>
       </footer>
 
