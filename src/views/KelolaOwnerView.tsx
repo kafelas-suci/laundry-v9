@@ -82,7 +82,7 @@ export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
 
   const currentLimits = getLaundryLimits(currentUser.subscriptionType);
   const isNewcomer = currentLimits.tier === 'newcomer';
-  const isPremium = currentLimits.tier === 'Premium';
+  const isPremium = currentLimits.tier === 'premium';
   const HARGA_Premium_BULANAN = 27000;
 
   const sisaHari = Math.max(

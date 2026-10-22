@@ -1,4 +1,4 @@
-export type LaundryTier = 'newcomer' | 'Premium';
+export type LaundryTier = 'newcomer' | 'premium';
 
 export interface LaundrySubscriptionLimits {
   tier: LaundryTier;
@@ -25,8 +25,9 @@ export interface LaundrySubscriptionLimits {
 
 export const EXTRA_BRANCH_PRICE = 25000;
 export const HARGA_Premium_BULANAN = 27000;
+export const HARGA_PREMIUM_BULANAN = 27000;
 
-export const LAUNDRY_TIER_CONFIG: Record<LaundryTier, LaundrySubscriptionLimits> = {
+export const LAUNDRY_TIER_CONFIG: Record<LaundryTier | 'Premium', LaundrySubscriptionLimits> = {
   newcomer: {
     tier: 'newcomer',
     label: 'Paket Newcomer',
@@ -58,8 +59,42 @@ export const LAUNDRY_TIER_CONFIG: Record<LaundryTier, LaundrySubscriptionLimits>
       'Tingkatkan ke Paket Premium saat Kuota Tercapai',
     ],
   },
+  premium: {
+    tier: 'premium',
+    label: 'Paket Premium',
+    tagline: 'Solusi handal lengkap operasional kasir, staf & pembukuan laporan',
+    badgeText: 'Paket Premium',
+    priceMonthly: 27000,
+    maxBranches: 1,
+    pricePerExtraBranch: 25000,
+    maxCashiers: 1,
+    maxAdminPerOutlet: 1,
+    maxOwnerPerOutlet: 1,
+    maxCustomers: 1000,
+    maxMonthlyTransactions: 400,
+    maxServices: 50,
+    canAssignStaff: true,
+    canExportExcel: true,
+    canExportOfficialPdf: true,
+    canViewComparisonGrowth: true,
+    canUseCustomLogoOnReceipt: true,
+    canUseSignatureOnReceipt: true,
+    highlights: [
+      '1 Cabang Outlet Utama (Bisa Tambah Cabang Rp 25.000/cabang)',
+      '1 Admin Kasir & 1 Owner per Outlet',
+      'Hingga 1.000 Data Pelanggan',
+      'Hingga 300 Nota Transaksi per Bulan',
+      'Hingga 50 Jenis Layanan Cucian',
+      'Penugasan Staf Pengerjaan Cucian (Cuci, Setrika, Packing)',
+      'Ekspor Pembukuan Lengkap ke Excel Spreadsheet (.xlsx)',
+      'Cetak Dokumen Laporan Keuangan Resmi A4 Siap Audit (.pdf)',
+      'Grafik Analisis Komparasi Pertumbuhan Omzet & Laba (MoM & YoY)',
+      'Kustomisasi Logo Toko & Tanda Tangan Resmi di Struk Thermal',
+    ],
+  },
+  // Backward-compatible alias untuk akses berhuruf besar
   Premium: {
-    tier: 'Premium',
+    tier: 'premium',
     label: 'Paket Premium',
     tagline: 'Solusi handal lengkap operasional kasir, staf & pembukuan laporan',
     badgeText: 'Paket Premium',
@@ -94,7 +129,7 @@ export const LAUNDRY_TIER_CONFIG: Record<LaundryTier, LaundrySubscriptionLimits>
 };
 
 /**
- * Normalisasi string tier menjadi 'newcomer' | 'Premium'
+ * Normalisasi string tier menjadi 'newcomer' | 'premium'
  * Akun baru tanpa riwayat paket otomatis mendapatkan 'newcomer' (Starter)
  */
 export function normalizeTier(rawTier?: string | null): LaundryTier {
@@ -110,7 +145,7 @@ export function normalizeTier(rawTier?: string | null): LaundryTier {
   ) {
     return 'newcomer';
   }
-  return 'Premium';
+  return 'premium';
 }
 
 /**
@@ -126,7 +161,7 @@ export function canDowngradeToNewcomer(): boolean {
  */
 export function getLaundryLimits(rawTier?: string | null): LaundrySubscriptionLimits {
   const tier = normalizeTier(rawTier);
-  return LAUNDRY_TIER_CONFIG[tier] || LAUNDRY_TIER_CONFIG.Premium;
+  return LAUNDRY_TIER_CONFIG[tier] || LAUNDRY_TIER_CONFIG.premium;
 }
 
 /**

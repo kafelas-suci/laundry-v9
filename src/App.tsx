@@ -33,7 +33,6 @@ import { KelolaLayananView } from './views/KelolaLayananView';
 import { KelolaOwnerView } from './views/KelolaOwnerView';
 import { KelolaKasirView } from './views/KelolaKasirView';
 import { SettingsView } from './views/SettingsView';
-import { TutorialView } from './views/TutorialView';
 
 import { AturKasModal } from './components/AturKasModal';
 import { SwitchBranchModal } from './components/SwitchBranchModal';
@@ -66,8 +65,7 @@ type ViewType =
   | 'kelola_layanan'
   | 'kelola_owner'
   | 'kelola_kasir'
-  | 'settings'
-  | 'tutorial';
+  | 'settings';
 
 export default function App() {
   const toast = useToast();
@@ -264,10 +262,10 @@ export default function App() {
       toast.warning('Paket Newcomer adalah paket awal otomatis untuk akun baru dan tidak dapat dipilih kembali.');
       return;
     }
-    setActiveTier('Premium');
-    StorageService.set('active_subscription_tier', 'Premium');
+    setActiveTier('premium');
+    StorageService.set('active_subscription_tier', 'premium');
     if (currentUser) {
-      const updatedUser = { ...currentUser, subscriptionType: 'Premium' };
+      const updatedUser = { ...currentUser, subscriptionType: 'premium' };
       setCurrentUser(updatedUser);
       StorageService.set('active_user', updatedUser);
       FirebaseSyncService.updateUserProfile(updatedUser).catch(console.error);
@@ -1114,12 +1112,12 @@ export default function App() {
       ...currentUser,
       walletBalance: Math.max(0, currentUser.walletBalance - cost),
       subscriptionEndDate: newEnd,
-      subscriptionType: 'Premium',
+      subscriptionType: 'premium',
     };
     setCurrentUser(updatedUser);
     StorageService.set('active_user', updatedUser);
-    setActiveTier('Premium');
-    StorageService.set('active_subscription_tier', 'Premium');
+    setActiveTier('premium');
+    StorageService.set('active_subscription_tier', 'premium');
 
     const historyItem: SubscriptionHistory = {
       id: `sub-${Date.now()}`,
@@ -1684,24 +1682,6 @@ export default function App() {
             onTopUpWallet={handleTopUpWallet}
             onUpdateOwnerProfile={handleUpdateOwnerProfile}
             onLogout={handleLogoutUser}
-          />
-        )}
-
-        {activeView === 'tutorial' && (
-          <TutorialView
-            onOpenKasir={() => {
-              if (currentUser) {
-                setActiveView('dashboard');
-              } else {
-                setActiveView('auth');
-              }
-            }}
-            onStartDemo={() => {
-              setActiveView('dashboard');
-            }}
-            onOpenLandingPage={() => {
-              window.open('/landing.html', '_blank');
-            }}
           />
         )}
         </div>

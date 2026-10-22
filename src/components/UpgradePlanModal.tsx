@@ -22,7 +22,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
 
   const activeTier = normalizeTier(currentTier);
   const newcomerConfig = LAUNDRY_TIER_CONFIG.newcomer;
-  const PremiumConfig = LAUNDRY_TIER_CONFIG.Premium;
+  const PremiumConfig = LAUNDRY_TIER_CONFIG.premium;
 
   const handleContactWhatsApp = (targetTier: string = 'Paket Premium') => {
     const text = encodeURIComponent(
@@ -75,7 +75,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
 
               <div className={`p-4 rounded-xl border flex flex-col justify-between bg-white transition ${
-              activeTier === 'Premium'
+              activeTier === 'premium'
                 ? 'border-[#800000] shadow-md ring-1 ring-[#800000]/20'
                 : 'border-[#800000]/60 shadow-md'
             }`}>
@@ -85,7 +85,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                     <Crown className="w-3.5 h-3.5 text-amber-500" />
                     {PremiumConfig.label}
                   </span>
-                  {activeTier === 'Premium' ? (
+                  {activeTier === 'premium' ? (
                     <span className="text-[9px] font-bold text-sky-700 bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded">
                       Aktif
                     </span>
@@ -132,7 +132,7 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                 {activeTier === 'newcomer' ? (
                   <button
                     type="button"
-                    onClick={() => onSwitchTier?.('Premium')}
+                    onClick={() => onSwitchTier?.('premium')}
                     className="w-full py-2 px-3 rounded-xl bg-[#800000] hover:bg-[#660000] text-white font-bold text-xs transition active:scale-95 cursor-pointer shadow-xs"
                   >
                     Upgrade Sekarang
