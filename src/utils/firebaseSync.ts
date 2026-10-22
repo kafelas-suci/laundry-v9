@@ -486,12 +486,36 @@ export class FirebaseSyncService {
     return [];
   }
 
+  /**
+   * Membersihkan objek secara rekursif dari nilai `undefined`
+   * agar Firestore setDoc() tidak error 'Unsupported field value: undefined'
+   */
+  static sanitizeForFirestore<T>(data: T): T {
+    if (data === null || data === undefined) {
+      return null as any;
+    }
+    if (Array.isArray(data)) {
+      return data.map((item) => FirebaseSyncService.sanitizeForFirestore(item)) as any;
+    }
+    if (typeof data === 'object' && !(data instanceof Date)) {
+      const clean: any = {};
+      for (const [key, val] of Object.entries(data)) {
+        if (val === undefined) {
+          continue;
+        }
+        clean[key] = FirebaseSyncService.sanitizeForFirestore(val);
+      }
+      return clean;
+    }
+    return data;
+  }
+
   // 6. SAVE TRANSAKSI - Selalu sertakan terakhirDieditPada agar Delta Sync bekerja sempurna
   static async saveTransaksi(trx: Transaksi): Promise<void> {
-    const payload: Transaksi = {
+    const payload: Transaksi = FirebaseSyncService.sanitizeForFirestore({
       ...trx,
       terakhirDieditPada: Date.now(),
-    };
+    });
 
     // Update penyimpanan lokal IndexedDB
     if (trx.status === 'Diambil') {
@@ -521,8 +545,13 @@ export class FirebaseSyncService {
       await setDoc(doc(db, 'laundries', trx.laundryId, 'transaksi', trx.id), payload);
       // Hapus dari outbox jika sebelumnya pernah tertunda
       await IndexedDbService.removeFromOutbox(trx.id);
-    } catch (e) {
-      console.warn('Gagal setDoc ke Firestore langsung (koneksi terputus), simpan ke Outbox antrean:', e);
+    } catch (e: any) {
+      console.warn('Gagal setDoc ke Firestore langsung (koneksi terputus/ditolak):', e);
+      if (e?.code === 'permission-denied') {
+        console.warn('Izin ditolak oleh Firestore Security Rules, nota disimpan secara lokal saja.');
+        await IndexedDbService.removeFromOutbox(trx.id);
+        return;
+      }
       await IndexedDbService.addToOutbox(payload);
       if (typeof window !== 'undefined' && 'serviceWorker' in navigator && 'SyncManager' in window) {
         navigator.serviceWorker.ready
@@ -554,15 +583,19 @@ export class FirebaseSyncService {
 
       for (const trx of pendingList) {
         try {
-          const payload: Transaksi = {
+          const payload: Transaksi = FirebaseSyncService.sanitizeForFirestore({
             ...trx,
             terakhirDieditPada: trx.terakhirDieditPada || Date.now(),
-          };
+          });
           await setDoc(doc(db, 'laundries', trx.laundryId, 'transaksi', trx.id), payload);
           await IndexedDbService.removeFromOutbox(trx.id);
           synced++;
-        } catch (err) {
+        } catch (err: any) {
           console.warn(`Gagal sinkronkan nota ${trx.id} saat background sync:`, err);
+          if (err?.code === 'permission-denied') {
+            // Hapus dari antrean jika ditolak otorisasi agar tidak macet selamanya
+            await IndexedDbService.removeFromOutbox(trx.id);
+          }
           if (typeof navigator !== 'undefined' && !navigator.onLine) {
             break;
           }

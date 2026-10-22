@@ -12,6 +12,9 @@ interface DetailTransaksiViewProps {
   settings: SettingsData;
   currentUser: User;
   pelanggan?: Pelanggan | null;
+  laundryName?: string;
+  laundryPhone?: string;
+  laundryAddress?: string;
   onEdit: (transaksi: Transaksi) => void;
   onDelete: (transaksiId: string) => void;
   onAmbil?: (transaksi: Transaksi) => void;
@@ -23,6 +26,9 @@ export const DetailTransaksiView: React.FC<DetailTransaksiViewProps> = ({
   settings,
   currentUser,
   pelanggan,
+  laundryName,
+  laundryPhone,
+  laundryAddress,
   onEdit,
   onDelete,
   onAmbil,
@@ -43,8 +49,9 @@ export const DetailTransaksiView: React.FC<DetailTransaksiViewProps> = ({
     .replace(/^0/, '62');
 
   const handleShareWhatsAppText = () => {
+    const effectiveLaundryName = laundryName || settings.headerStruk || "Kafela's Laundry";
     let msg = `Halo Kak *${transaksi.namaPelanggan}*,\n\n`;
-    msg += `Terima kasih telah mempercayakan pakaian Anda di *${settings.headerStruk}*.\n`;
+    msg += `Terima kasih telah mempercayakan pakaian Anda di *${effectiveLaundryName}*.\n`;
     msg += `No. Nota: *${transaksi.nomorTransaksi}*\n`;
     msg += `Total Transaksi: ${formatRupiah(transaksi.totalHarga)}\n`;
     if (transaksi.jumlahDp > 0) {
@@ -211,6 +218,7 @@ export const DetailTransaksiView: React.FC<DetailTransaksiViewProps> = ({
         <div className="grid grid-cols-2 gap-2">
           <button
             onClick={() => setShowReceiptModal(true)}
+            data-tour="btn-cetak-nota"
             className="flex items-center justify-center gap-2 py-3 rounded-xl bg-[#800000] hover:bg-[#660000] text-white font-bold text-xs shadow-xs transition active:scale-98"
           >
             <Printer className="w-4 h-4" />
@@ -259,6 +267,9 @@ export const DetailTransaksiView: React.FC<DetailTransaksiViewProps> = ({
         transaksi={transaksi}
         settings={settings}
         pelanggan={pelanggan}
+        laundryName={laundryName || settings.headerStruk}
+        laundryPhone={laundryPhone || settings.phoneNumber}
+        laundryAddress={laundryAddress || settings.address}
       />
 
       {/* Share Receipt Action Sheet / Modal */}
@@ -268,6 +279,9 @@ export const DetailTransaksiView: React.FC<DetailTransaksiViewProps> = ({
         transaksi={transaksi}
         settings={settings}
         pelanggan={pelanggan}
+        laundryName={laundryName || settings.headerStruk}
+        laundryPhone={laundryPhone || settings.phoneNumber}
+        laundryAddress={laundryAddress || settings.address}
       />
 
       {/* MODAL KONFIRMASI PENGAMBILAN TRANSAKSI ("Benar mau diambil?") */}

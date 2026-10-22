@@ -1,0 +1,6 @@
+{
+  "summary":  "Rencana implementasi penyederhanaan formulir transaksi kasir (Quick Transaction Form):\n1. Baris Utama Ringkas: Nama Pelanggan, Nominal Pembayaran (DP/Bayar Sekarang), dan Tombol Status Lunas diletakkan sejajar bersebelahan dalam satu kartu ringkas yang fokus dan mudah digunakan.\n2. Penyembunyian Rincian Tambahan: Detail layanan cucian, berat/kiloan, alamat, nomor telepon, catatan, dan diskon disembunyikan secara default dengan tombol akordeon '+ Buka Rincian Cucian & Layanan' yang dapat diklik saat kasir membutuhkan rincian lengkap.\n3. Otomasi Layanan Default: Jika kasir langsung menyimpan tanpa membuka rincian, transaksi otomatis mengaitkan layanan default toko agar integritas nota dan pembukuan kas tetap valid 100%.",
+  "updatedAt":  "2026-10-22T08:12:50.431121082Z",
+  "requestFeedback":  true,
+  "userFacing":  true
+}

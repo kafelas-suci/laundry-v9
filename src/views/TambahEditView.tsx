@@ -286,7 +286,10 @@ export const TambahEditView: React.FC<TambahEditViewProps> = ({
       {/* Main Content */}
       <main className="flex-1 p-1.5 md:p-6 space-y-2.5 md:space-y-4 overflow-y-auto max-w-xl md:max-w-3xl lg:max-w-4xl mx-auto w-full">
         {/* Customer Section Card */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-2 shadow-2xs space-y-2 relative">
+        <div
+          data-tour="form-transaksi"
+          className="bg-white rounded-2xl border border-slate-200 p-2 shadow-2xs space-y-2 relative"
+        >
           <div className="grid grid-cols-2 gap-2">
             <div className="relative">
               <label className="block text-[11px] font-semibold text-slate-500 mb-1">
@@ -718,6 +721,7 @@ export const TambahEditView: React.FC<TambahEditViewProps> = ({
           <button
             type="button"
             onClick={handleSave}
+            data-tour="btn-simpan-transaksi"
             className="w-full py-3 rounded-2xl bg-[#800000] hover:bg-[#660000] text-white font-bold text-sm shadow-md transition active:scale-98 cursor-pointer flex items-center justify-center gap-2"
           >
             <span>{isEditMode ? 'Simpan Perubahan Transaksi' : 'Simpan Transaksi'}</span>
@@ -726,4 +730,4 @@ export const TambahEditView: React.FC<TambahEditViewProps> = ({
       </div>
     </div>
   );
-};
+};  

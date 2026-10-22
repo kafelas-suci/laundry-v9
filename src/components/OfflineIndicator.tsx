@@ -33,6 +33,9 @@ export const OfflineIndicator: React.FC = () => {
 
   useEffect(() => {
     checkPendingOutbox();
+    if (typeof navigator !== 'undefined' && navigator.onLine) {
+      triggerSilentSync();
+    }
 
     const handleOnline = () => {
       setIsOnline(true);

@@ -1,0 +1,6 @@
+{
+  "summary":  "Rencana implementasi Tur Panduan Interaktif In-App Spotlight untuk Kafelas Laundry:\n1. Menambahkan mode Tur Panduan Interaktif langsung di aplikasi utama (In-App Spotlight Tour) dengan menyorot tombol asli secara real-time.\n2. Alur Panduan:\n   - Langkah 1: Sorot dan arahkan klik tombol \"Tambah Transaksi\" di Dashboard.\n   - Langkah 2: Di form Tambah Transaksi, arahkan pengisian Nama Pelanggan & Layanan laundry.\n   - Langkah 3: Pilih status \"Lunas\" lalu klik Selesai untuk melihat Nota Struk.\n   - Langkah 4: Kembali ke Dashboard, arahkan klik tombol Status Pengerjaan warna merah (\"Kerjakan\").\n   - Langkah 5: Arahkan klik tombol hijau (\"Diambil\") untuk menyelesaikan cucian.\n   - Langkah 6: Tampilkan dialog akhir dengan opsi \"Coba Lagi\" atau \"Selesai & Hapus Transaksi Demo\".\n3. Desain UI bersih sesuai panduan SaaS dashboard dengan modal spotlight transparan dan petunjuk langkah yang jelas.",
+  "updatedAt":  "2026-10-22T03:32:42.375843868Z",
+  "requestFeedback":  true,
+  "userFacing":  true
+}

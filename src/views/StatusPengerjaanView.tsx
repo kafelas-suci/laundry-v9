@@ -579,6 +579,7 @@ export const StatusPengerjaanView: React.FC<StatusPengerjaanViewProps> = ({
                       {trx.status === 'Diterima' ? (
                         <button
                           onClick={() => handleActionButtonClick(trx)}
+                          data-tour="btn-kerjakan"
                           className="px-2.5 py-1 rounded-xl text-white text-[10px] font-bold flex items-center gap-1 shadow-2xs active:scale-90 transition cursor-pointer bg-rose-600 hover:bg-rose-700"
                         >
                           <Clock className="w-3 h-3" />

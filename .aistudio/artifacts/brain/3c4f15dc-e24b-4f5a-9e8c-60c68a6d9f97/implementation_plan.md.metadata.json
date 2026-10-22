@@ -1,0 +1,6 @@
+{
+  "summary":  "Rencana implementasi Tur Sorot Langkah-demi-Langkah (In-App Spotlight Tour) Kafelas Laundry:\n1. Tombol Pemicu di Menu Pengaturan: Menyediakan menu aksi khusus \"Mulai Tur Panduan Kasir\" di SettingsView agar kasir/owner dapat membuka panduan interaktif kapan saja.\n2. Alur Sorot Langkah-demi-Langkah (Spotlight & Balon Panduan):\n   - Langkah 1: Sorot tombol \"+ Transaksi Baru\" di Dashboard.\n   - Langkah 2: Sorot formulir Nama Pelanggan, pilihan Layanan Kiloan/Satuan, dan perhitungan harga.\n   - Langkah 3: Sorot status pembayaran \"Lunas\" & tombol Simpan Transaksi.\n   - Langkah 4: Sorot preview Nota Struk resmi & tombol aksi cetak/tutup.\n   - Langkah 5: Sorot tombol pengerjaan antrean di Dashboard (\"Kerjakan\").\n   - Langkah 6: Sorot tombol penyerahan cucian (\"Diambil\") dan pencatatan kas otomatis.\n3. Kontrol Navigasi Tur: Dilengkapi tombol \"Lanjut\", \"Sebelumnya\", \"Ulangi Tur\", dan \"Tutup/Selesai\", dengan penempatan spotlight dinamis yang presisi dan aman tanpa mengganggu transaksi asli.",
+  "updatedAt":  "2026-10-22T05:42:13.023649118Z",
+  "requestFeedback":  true,
+  "userFacing":  true
+}

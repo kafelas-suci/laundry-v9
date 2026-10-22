@@ -47,6 +47,7 @@ interface SettingsViewProps {
   activeLaundry: Laundry;
   currentTier?: string | null;
   onUpdateSettings: (newSettings: SettingsData) => void;
+  onUpdateLaundry?: (laundry: Laundry) => void;
   onOpenKelolaPelanggan: () => void;
   onOpenKelolaLayanan: () => void;
   onOpenKelolaOwner: () => void;
@@ -55,6 +56,7 @@ interface SettingsViewProps {
   onOpenUpgradeModal?: (reason?: string) => void;
   onTopUpWallet?: (nominal: number) => void;
   onUpdateOwnerProfile?: (data: { displayName: string; nomorTelepon?: string | null }) => void;
+  onStartTour?: () => void;
   onLogout: () => void;
 }
 
@@ -65,6 +67,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   activeLaundry,
   currentTier,
   onUpdateSettings,
+  onUpdateLaundry,
   onOpenKelolaPelanggan,
   onOpenKelolaLayanan,
   onOpenKelolaOwner,
@@ -73,6 +76,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onOpenUpgradeModal,
   onTopUpWallet,
   onUpdateOwnerProfile,
+  onStartTour,
   onLogout,
 }) => {
   const toast = useToast();
@@ -104,14 +108,25 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [editDisplayName, setEditDisplayName] = useState(currentUser.displayName || '');
   const [editNomorTelepon, setEditNomorTelepon] = useState(currentUser.nomorTelepon || '');
 
-  // Edit receipt info state
-  const [headerStruk, setHeaderStruk] = useState(settings.headerStruk);
-  const [address, setAddress] = useState(settings.address);
-  const [phoneNumber, setPhoneNumber] = useState(settings.phoneNumber);
-  const [footerStruk, setFooterStruk] = useState(settings.footerStruk);
-  const [chattyFooter, setChattyFooter] = useState(settings.chattyFooter);
+  // Edit receipt info state (Tersinkron 1 Pintu dengan Profil Outlet Cabang Aktif)
+  const [headerStruk, setHeaderStruk] = useState(activeLaundry?.namaLaundry || settings.headerStruk || '');
+  const [address, setAddress] = useState(activeLaundry?.alamat || settings.address || '');
+  const [phoneNumber, setPhoneNumber] = useState(activeLaundry?.nomorTelepon || settings.phoneNumber || '');
+  const [footerStruk, setFooterStruk] = useState(settings.footerStruk || '');
+  const [chattyFooter, setChattyFooter] = useState(settings.chattyFooter || '');
   const [useLogo, setUseLogo] = useState(settings.useLogo);
   const [logoPath, setLogoPath] = useState<string | null>(settings.logoPath);
+
+  // Perbarui nilai form bila cabang aktif atau settings berganti
+  React.useEffect(() => {
+    setHeaderStruk(activeLaundry?.namaLaundry || settings.headerStruk || '');
+    setAddress(activeLaundry?.alamat || settings.address || '');
+    setPhoneNumber(activeLaundry?.nomorTelepon || settings.phoneNumber || '');
+    setFooterStruk(settings.footerStruk || '');
+    setChattyFooter(settings.chattyFooter || '');
+    setUseLogo(settings.useLogo);
+    setLogoPath(settings.logoPath);
+  }, [activeLaundry?.id, activeLaundry?.namaLaundry, activeLaundry?.alamat, activeLaundry?.nomorTelepon, settings]);
 
   // Printer name & auto-reconnect state
   const [printerName, setPrinterName] = useState(settings.printerName);
@@ -145,18 +160,32 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [hitungKerjaStaf, setHitungKerjaStaf] = useState(settings.hitungKerjaStaf ?? true);
 
   const handleSaveInfoStruk = () => {
+    const cleanHeader = headerStruk.trim() || activeLaundry?.namaLaundry || settings.headerStruk || "Kafela's Laundry";
+    const cleanAddress = address.trim();
+    const cleanPhone = phoneNumber.trim();
+
     onUpdateSettings({
       ...settings,
-      headerStruk,
-      address,
-      phoneNumber,
+      headerStruk: cleanHeader,
+      address: cleanAddress,
+      phoneNumber: cleanPhone,
       footerStruk,
       chattyFooter,
       useLogo,
       logoPath,
     });
+
+    if (onUpdateLaundry && activeLaundry) {
+      onUpdateLaundry({
+        ...activeLaundry,
+        namaLaundry: cleanHeader,
+        alamat: cleanAddress,
+        nomorTelepon: cleanPhone,
+      });
+    }
+
     setShowInfoStrukModal(false);
-    toast.success('Informasi struk berhasil disimpan!');
+    toast.success('Pengaturan nama laundry & struk berhasil disatukan & disimpan!');
   };
 
   const handleSavePrinter = () => {
@@ -580,6 +609,29 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </div>
               <ExternalLink className="w-4 h-4 text-slate-400 shrink-0 ml-2" />
             </a>
+            {onStartTour && (
+              <button
+                type="button"
+                onClick={onStartTour}
+                className="w-full p-3.5 flex items-center justify-between hover:bg-slate-50 active:bg-slate-100 transition text-left cursor-pointer"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0">
+                    <Sparkles className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                      <span>Mulai Tur Panduan Kasir (Sorot Interaktif)</span>
+                      <span className="text-[9px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.2 rounded">In-App</span>
+                    </div>
+                    <div className="text-[11px] text-slate-500 truncate">
+                      Panduan langkah demi langkah langsung di tombol aplikasi
+                    </div>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 ml-2" />
+              </button>
+            )}
           </div>
         </div>
 
@@ -658,38 +710,49 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </div>
 
             <div>
-              <label className="block text-[11px] font-semibold text-slate-500 mb-1">
-                Nama Laundry (Header Struk)
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-[11px] font-bold text-slate-700">
+                  Nama Laundry / Header Struk
+                </label>
+                <span className="text-[9px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded-full">
+                  1 Pintu Terpadu
+                </span>
+              </div>
               <input
                 type="text"
                 value={headerStruk}
                 onChange={(e) => setHeaderStruk(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold"
+                placeholder="Contoh: Kafelas Laundry"
+                className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold focus:ring-2 focus:ring-[#800000] focus:outline-none"
               />
+              <p className="text-[10px] text-slate-400 mt-1">
+                Nama ini otomatis menjadi nama outlet aktif dan tercetak di semua struk kasir, Bluetooth &amp; WhatsApp.
+              </p>
             </div>
 
             <div>
-              <label className="block text-[11px] font-semibold text-slate-500 mb-1">
-                Alamat Lengkap
+              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                Alamat Lengkap Outlet
               </label>
               <input
                 type="text"
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs"
+                placeholder="Alamat toko..."
+                className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-[#800000] focus:outline-none"
               />
             </div>
 
             <div>
-              <label className="block text-[11px] font-semibold text-slate-500 mb-1">
-                Nomor Telepon / WhatsApp
+              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                Nomor Telepon / WhatsApp Outlet
               </label>
               <input
                 type="text"
                 value={phoneNumber}
                 onChange={(e) => setPhoneNumber(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs"
+                placeholder="0812..."
+                className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-[#800000] focus:outline-none"
               />
             </div>
 

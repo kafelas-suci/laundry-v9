@@ -53,7 +53,7 @@ export const QuickTransitionPickupModal: React.FC<QuickTransitionPickupModalProp
   const [nomorTelepon, setNomorTelepon] = useState('');
   const [catatan, setCatatan] = useState('');
   
-  // Pembayaran: Kolom nominal, tombol Lunas, tombol Non-Tunai sama seperti form utama
+  // Pembayaran: Kolom nominal & tombol Lunas
   const [nominalInput, setNominalInput] = useState<number>(0);
   const [nominalDisplay, setNominalDisplay] = useState('');
   const [isLunas, setIsLunas] = useState<boolean>(true);
@@ -61,6 +61,9 @@ export const QuickTransitionPickupModal: React.FC<QuickTransitionPickupModalProp
   const [transferDetail, setTransferDetail] = useState<string>('QRIS');
   const [isTransferDropdownOpen, setIsTransferDropdownOpen] = useState(false);
   const [bukaStruk, setBukaStruk] = useState(true);
+
+  // Toggle sembunyikan selain nama pelanggan & pembayaran pelunasan
+  const [showExtraDetails, setShowExtraDetails] = useState<boolean>(false);
 
   // Autocomplete Pelanggan
   const [customerSuggestions, setCustomerSuggestions] = useState<{ nama: string; nomorTelepon?: string | null }[]>([]);
@@ -82,14 +85,18 @@ export const QuickTransitionPickupModal: React.FC<QuickTransitionPickupModalProp
   useEffect(() => {
     if (isOpen) {
       const clean = initialQuery.trim();
-      // If starts with # or is short code, can suggest as nota, otherwise as name
-      if (/^#?\d+$/.test(clean)) {
+      const isNotaQuery = Boolean(clean && /^#?\d+$/.test(clean));
+
+      if (isNotaQuery) {
         setNoNotaLama(clean);
         setNamaPelanggan('');
+        setShowExtraDetails(true); // Tampilkan jika mencari nomor nota spesifik
       } else {
         setNoNotaLama('');
         setNamaPelanggan(clean);
+        setShowExtraDetails(false);
       }
+
       setNomorTelepon('');
       setCatatan('');
       setNominalInput(0);
@@ -166,7 +173,7 @@ export const QuickTransitionPickupModal: React.FC<QuickTransitionPickupModalProp
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
       <div className="bg-white rounded-2xl max-w-lg w-full p-4 sm:p-5 shadow-2xl border border-slate-200 my-auto animate-in fade-in zoom-in-95 duration-150">
         
         {/* Top Header */}
@@ -177,10 +184,10 @@ export const QuickTransitionPickupModal: React.FC<QuickTransitionPickupModalProp
             </div>
             <div>
               <h2 className="text-sm font-bold text-slate-900 tracking-tight">
-                Ambil Cucian (Nota Lama)
+                Ambil Cucian (Transisi Aplikasi)
               </h2>
               <p className="text-[11px] text-slate-500">
-                Input cepat serah terima cucian dari aplikasi / nota sebelumnya
+                Input cepat serah terima dari aplikasi lama
               </p>
             </div>
           </div>
@@ -193,16 +200,16 @@ export const QuickTransitionPickupModal: React.FC<QuickTransitionPickupModalProp
           </button>
         </div>
 
-        {/* Form Body - Disamakan persis dengan Tambah Transaksi */}
-        <form onSubmit={handleSubmit} className="space-y-3">
+        {/* Form Body */}
+        <form onSubmit={handleSubmit} className="space-y-1">
           
-          {/* CARD 1: NAMA PELANGGAN & SAMPINGNYA NO STRUK (OPSIONAL) */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-2.5 shadow-2xs space-y-2">
-            <div className="grid grid-cols-2 gap-2">
+          {/* BARIS UTAMA: NAMA PELANGGAN, NOMINAL PEMBAYARAN, & TOMBOL LUNAS BERSEBELAHAN */}
+          <div className=" rounded-2xl p-0 space-y-2">
+            <div className="grid grid-cols-12 gap-1.5 sm:gap-2 items-end">
               
-              {/* Kolom Nama Pelanggan */}
-              <div className="relative">
-                <label className="block text-[11px] font-semibold text-slate-500 mb-1">
+              {/* 1. Kolom Nama Pelanggan */}
+              <div className="col-span-6 sm:col-span-6 relative">
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
                   Nama Pelanggan <span className="text-[#800000]">*</span>
                 </label>
                 <input
@@ -212,7 +219,7 @@ export const QuickTransitionPickupModal: React.FC<QuickTransitionPickupModalProp
                   value={namaPelanggan}
                   onChange={(e) => handleCustomerNameChange(e.target.value)}
                   placeholder="Ketik nama..."
-                  className="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-xs font-medium focus:ring-2 focus:ring-[#800000] focus:outline-none"
+                  className="w-full px-2.5 sm:px-3 py-2 h-10 rounded-xl border border-slate-300 text-xs font-semibold text-slate-900 bg-white focus:ring-2 focus:ring-[#800000] focus:outline-none"
                 />
 
                 {/* Autocomplete Suggestions */}
@@ -235,36 +242,187 @@ export const QuickTransitionPickupModal: React.FC<QuickTransitionPickupModalProp
                 )}
               </div>
 
-              {/* Kolom Sampingnya: No. Struk / Nota Lama (Opsional) */}
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-500 mb-1">
-                  No. Struk (Opsional)
+              {/* 2. Kolom Nominal Pembayaran Bersebelahan */}
+              <div className="col-span-4 sm:col-span-4 relative">
+                <label className="block text-[11px] font-bold text-slate-700 mb-1 truncate">
+                  Nominal Bayar
                 </label>
-                <input
-                  type="text"
-                  value={noNotaLama}
-                  onChange={(e) => setNoNotaLama(e.target.value)}
-                  placeholder="Contoh: #1082"
-                  className="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-xs font-medium focus:ring-2 focus:ring-[#800000] focus:outline-none"
-                />
+                <div className="relative">
+                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-400 select-none pointer-events-none">
+                    Rp
+                  </span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={nominalDisplay}
+                    onChange={(e) => handleNominalChange(e.target.value)}
+                    onFocus={(e) => e.target.select()}
+                    placeholder="0"
+                    className={`w-full pl-6 sm:pl-7 pr-2 h-10 rounded-xl border text-xs font-bold text-slate-900 bg-white focus:ring-2 focus:ring-[#800000] focus:outline-none text-right ${
+                      isLunas && nominalInput === 0
+                        ? 'border-emerald-200 bg-emerald-50/20'
+                        : 'border-slate-300'
+                    }`}
+                  />
+                </div>
+              </div>
+
+              {/* 3. Tombol Lunas Bersebelahan */}
+              <div className="col-span-2 sm:col-span-4 relative">
+                <label className="block text-[11px] font-bold text-transparent mb-1 select-none">
+                  Status
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setIsLunas(!isLunas)}
+                  className={`w-full h-10 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-1 cursor-pointer shrink-0 ${
+                    isLunas
+                      ? 'bg-[#800000] border-[#800000] text-white shadow-2xs'
+                      : 'bg-white border-slate-300 text-slate-600 hover:bg-slate-100'
+                  }`}
+                  title={isLunas ? 'Klik untuk ubah ke Belum Lunas' : 'Klik untuk tandai Lunas'}
+                >
+                  <span>{isLunas ? 'Lunas' : 'Belum'}</span>
+                </button>
               </div>
             </div>
 
-            {/* Baris Pendukung Ringkas: No WhatsApp & Catatan */}
-            <div className="grid grid-cols-2 gap-2 pt-0.5">
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-500 mb-1">
-                  No. WhatsApp (Opsional)
-                </label>
-                <input
-                  type="tel"
-                  value={nomorTelepon}
-                  onChange={(e) => setNomorTelepon(e.target.value)}
-                  placeholder="0812xxxxxxxx"
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-medium focus:ring-2 focus:ring-[#800000] focus:outline-none"
-                />
+            {/* Info Keterangan Pembayaran Ringkas */}
+            <div className="text-[10px] pt-0.5">
+              {nominalInput > 0 ? (
+                <span className="text-emerald-700 font-bold">
+                  • Pembayaran {isTransfer ? transferDetail : 'Tunai'} sebesar {formatRupiah(nominalInput)} dicatat ke Buku Kas hari ini.
+                </span>
+              ) : isLunas ? (
+                <span className="text-slate-500 italic">
+                  • Nominal Rp 0 (sudah lunas di nota lama, saldo kas tetap aman).
+                </span>
+              ) : (
+                <span className="text-amber-700 font-bold">
+                  • Status Belum Lunas (diserahkan dengan sisa tagihan dicatat sebagai piutang).
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* TOMBOL TOGGLE UNTUK MENAMPILKAN / MENYEMBUNYIKAN OPSI LAINNYA */}
+          <button
+            type="button"
+            onClick={() => setShowExtraDetails(!showExtraDetails)}
+            className="w-full flex items-center justify-between py-2 px-3 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-xs font-semibold text-slate-600 transition cursor-pointer select-none"
+          >
+            <span className="flex items-center gap-1.5">
+              <span className="text-[#800000] font-black">{showExtraDetails ? '−' : '+'}</span>
+              <span>
+                {showExtraDetails
+                  ? 'Sembunyikan Opsi Tambahan'
+                  : 'Opsi Tambahan (No. Struk, WA, Non-Tunai, Catatan)'}
+              </span>
+            </span>
+            <ChevronDown
+              className={`w-3.5 h-3.5 text-slate-400 transition-transform ${
+                showExtraDetails ? 'rotate-180 text-slate-600' : ''
+              }`}
+            />
+          </button>
+
+          {/* OPSI TAMBAHAN YANG DISEMBUNYIKAN: HANYA MUNCUL SAAT DIKLIK */}
+          {showExtraDetails && (
+            <div className="bg-white rounded-2xl border border-slate-200 p-3 space-y-3 animate-in fade-in duration-150">
+              
+              {/* 1. Pilihan Metode Non-Tunai (Transfer / QRIS) */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-semibold text-slate-600">
+                    Metode Pembayaran
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setIsTransfer(!isTransfer)}
+                    className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition flex items-center gap-1 cursor-pointer ${
+                      isTransfer
+                        ? 'bg-[#800000] border-[#800000] text-white shadow-2xs'
+                        : 'bg-slate-100 border-slate-300 text-slate-700 hover:bg-slate-200'
+                    }`}
+                  >
+                    <span>{isTransfer ? '✓ Non-Tunai Aktif' : '+ Ubah ke Non-Tunai'}</span>
+                  </button>
+                </div>
+
+                {isTransfer && (
+                  <div className="relative pt-1 animate-in fade-in duration-100" ref={dropdownRef}>
+                    <button
+                      type="button"
+                      onClick={() => setIsTransferDropdownOpen((prev) => !prev)}
+                      className={`w-full px-3 py-2 rounded-xl border text-xs font-bold transition flex items-center justify-between gap-1 cursor-pointer h-10 ${
+                        isTransferDropdownOpen
+                          ? 'border-[#800000] ring-2 ring-[#800000]/20 bg-rose-50/20 text-[#800000]'
+                          : 'border-slate-300 bg-white text-slate-800 hover:border-slate-400'
+                      }`}
+                    >
+                      <span className="truncate">{transferDetail}</span>
+                      <ChevronDown
+                        className={`w-3.5 h-3.5 transition-transform shrink-0 text-slate-400 ${
+                          isTransferDropdownOpen ? 'rotate-180 text-[#800000]' : ''
+                        }`}
+                      />
+                    </button>
+
+                    {isTransferDropdownOpen && (
+                      <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-white border border-slate-200 rounded-xl shadow-lg p-1 space-y-0.5">
+                        {BANK_OPTIONS.map((opt) => (
+                          <button
+                            key={opt}
+                            type="button"
+                            onClick={() => {
+                              setTransferDetail(opt);
+                              setIsTransferDropdownOpen(false);
+                            }}
+                            className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${
+                              transferDetail === opt
+                                ? 'bg-rose-50 text-[#800000] font-bold'
+                                : 'hover:bg-slate-50 text-slate-700'
+                            }`}
+                          >
+                            {opt}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
+              {/* 2. No. Struk Lama & No. WhatsApp */}
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-500 mb-1">
+                    No. Struk (Opsional)
+                  </label>
+                  <input
+                    type="text"
+                    value={noNotaLama}
+                    onChange={(e) => setNoNotaLama(e.target.value)}
+                    placeholder="Contoh: #1082"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-medium focus:ring-2 focus:ring-[#800000] focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-500 mb-1">
+                    No. WhatsApp (Opsional)
+                  </label>
+                  <input
+                    type="tel"
+                    value={nomorTelepon}
+                    onChange={(e) => setNomorTelepon(e.target.value)}
+                    placeholder="0812xxxxxxxx"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-medium focus:ring-2 focus:ring-[#800000] focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* 3. Catatan / Layanan */}
               <div>
                 <label className="block text-[11px] font-semibold text-slate-500 mb-1">
                   Catatan / Layanan (Opsional)
@@ -277,154 +435,25 @@ export const QuickTransitionPickupModal: React.FC<QuickTransitionPickupModalProp
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-medium focus:ring-2 focus:ring-[#800000] focus:outline-none"
                 />
               </div>
-            </div>
-          </div>
 
-          {/* CARD 2: PEMBAYARAN (SAMA PERSIS DENGAN FORM UTAMA) */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-2.5 shadow-2xs space-y-2">
-            
-            <div className="flex items-center justify-between px-1">
-              <span className="text-[11px] font-bold text-slate-500">
-                Pembayaran Pelunasan
-              </span>
-              <span className="text-[10px] text-slate-400">
-                {nominalInput > 0
-                  ? `Masuk kas: ${formatRupiah(nominalInput)}`
-                  : isLunas
-                  ? 'Sudah lunas sebelumnya (Rp 0 masuk kas)'
-                  : 'Belum lunas'}
-              </span>
-            </div>
-
-            {/* GRID BARIS PEMBAYARAN PERSIS SEPERTI TAMBAH TRANSAKSI (NOMINAL, LUNAS, NON-TUNAI) */}
-            <div className="grid grid-cols-12 gap-1.5 items-center">
-              
-              {/* Kolom Nominal Pembayaran */}
-              <div className="col-span-6 relative">
-                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-400 select-none z-10">
-                  Rp
-                </span>
-
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={nominalDisplay}
-                  onChange={(e) => handleNominalChange(e.target.value)}
-                  onFocus={(e) => e.target.select()}
-                  placeholder="0"
-                  className={`w-full pl-7 pr-2 rounded-xl border text-xs font-bold text-slate-900 bg-white focus:ring-2 focus:ring-[#800000] focus:outline-none text-right h-[36px] ${
-                    isLunas && nominalInput === 0
-                      ? 'border-emerald-200 bg-emerald-50/20'
-                      : 'border-slate-300'
-                  }`}
-                />
-              </div>
-
-              {/* Tombol Lunas (Sama persis seperti Form Utama) */}
-              <button
-                type="button"
-                onClick={() => setIsLunas(!isLunas)}
-                className={`col-span-3 h-[36px] rounded-xl border text-xs font-bold transition flex items-center justify-center gap-1 shrink-0 cursor-pointer ${
-                  isLunas
-                    ? 'bg-[#800000] border-[#800000] text-white shadow-2xs'
-                    : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                <Check className={`w-3 h-3 ${isLunas ? 'block' : 'hidden'}`} />
-                <span>Lunas</span>
-              </button>
-
-              {/* Tombol Non-Tunai (Sama persis seperti Form Utama) */}
-              <button
-                type="button"
-                onClick={() => setIsTransfer(!isTransfer)}
-                className={`col-span-3 h-[36px] rounded-xl border text-xs font-bold transition flex items-center justify-center gap-1 shrink-0 cursor-pointer ${
-                  isTransfer
-                    ? 'bg-[#800000] border-[#800000] text-white shadow-2xs'
-                    : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                <span>Non-Tunai</span>
-              </button>
-            </div>
-
-            {/* Custom Popover Dropdown Bank / QRIS (Jika Non-Tunai Aktif) */}
-            {isTransfer && (
-              <div className="relative pt-0.5 animate-in fade-in duration-100" ref={dropdownRef}>
-                <button
-                  type="button"
-                  onClick={() => setIsTransferDropdownOpen((prev) => !prev)}
-                  className={`w-full px-2.5 rounded-xl border text-xs font-bold transition flex items-center justify-between gap-1 cursor-pointer h-[36px] ${
-                    isTransferDropdownOpen
-                      ? 'border-[#800000] ring-2 ring-[#800000]/20 bg-rose-50/20 text-[#800000]'
-                      : 'border-slate-300 bg-white text-slate-800 hover:border-slate-400'
-                  }`}
-                >
-                  <span className="truncate">{transferDetail}</span>
-                  <ChevronDown
-                    className={`w-3 h-3 transition-transform shrink-0 text-slate-400 ${
-                      isTransferDropdownOpen ? 'rotate-180 text-[#800000]' : ''
-                    }`}
+              {/* 4. Opsi Buka Struk Pengambilan */}
+              <div className="pt-1">
+                <label className="flex items-center gap-2 text-xs text-slate-600 font-medium cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={bukaStruk}
+                    onChange={(e) => setBukaStruk(e.target.checked)}
+                    className="w-4 h-4 rounded text-[#800000] focus:ring-[#800000] cursor-pointer"
                   />
-                </button>
-
-                {isTransferDropdownOpen && (
-                  <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-white border border-slate-200 rounded-xl shadow-lg p-1 space-y-0.5">
-                    {BANK_OPTIONS.map((opt) => (
-                      <button
-                        key={opt}
-                        type="button"
-                        onClick={() => {
-                          setTransferDetail(opt);
-                          setIsTransferDropdownOpen(false);
-                        }}
-                        className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${
-                          transferDetail === opt
-                            ? 'bg-rose-50 text-[#800000] font-bold'
-                            : 'hover:bg-slate-50 text-slate-700'
-                        }`}
-                      >
-                        {opt}
-                      </button>
-                    ))}
-                  </div>
-                )}
+                  <Printer className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Buka Struk Pengambilan setelah simpan</span>
+                </label>
               </div>
-            )}
-
-            {/* Ringkasan Status Kecil di Bawah Pembayaran */}
-            <div className="text-[10px] px-1 pt-0.5">
-              {nominalInput > 0 ? (
-                <span className="text-emerald-700 font-bold">
-                  • Pembayaran {isTransfer ? transferDetail : 'Tunai'} sebesar {formatRupiah(nominalInput)} dicatat ke Buku Kas hari ini.
-                </span>
-              ) : isLunas ? (
-                <span className="text-slate-500 italic">
-                  • Nominal 0 & Lunas: Pakaian diambil tanpa pembayaran tambahan (sudah lunas di nota lama, saldo kas hari ini tetap aman).
-                </span>
-              ) : (
-                <span className="text-amber-700 font-bold">
-                  • Status Belum Lunas: Pakaian diserahkan dengan sisa tagihan dicatat sebagai piutang.
-                </span>
-              )}
             </div>
-          </div>
+          )}
 
-          {/* OPSI STRUK & TOMBOL AKSI */}
-          <div className="pt-1 flex items-center justify-between">
-            <label className="flex items-center gap-1.5 text-xs text-slate-600 font-medium cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={bukaStruk}
-                onChange={(e) => setBukaStruk(e.target.checked)}
-                className="w-3.5 h-3.5 rounded text-[#800000] focus:ring-[#800000] cursor-pointer"
-              />
-              <Printer className="w-3.5 h-3.5 text-slate-500" />
-              <span>Buka Struk Pengambilan</span>
-            </label>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2 pt-1">
+          {/* TOMBOL AKSI: BATAL & SIMPAN */}
+          <div className="grid grid-cols-2 gap-2 pt-2">
             <button
               type="button"
               onClick={onClose}

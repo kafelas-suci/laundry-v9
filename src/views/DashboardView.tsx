@@ -80,6 +80,7 @@ interface DashboardViewProps {
   onAmbilBanyakTransaksi?: (transaksiList: Transaksi[]) => void;
   onSaveTransitionPickup?: (data: TransitionPickupData) => void;
   onUpdateSettings?: (settings: SettingsData) => void;
+  onOpenTour?: () => void;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
@@ -94,6 +95,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onOpenUpgradeModal,
   onOpenExpiredModal,
   onOpenNewTransaksi,
+  onOpenTour,
   onOpenLimitModal,
   onOpenDetailTransaksi,
   onOpenArsip,
@@ -237,7 +239,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
     const branchAll = transaksiList.filter((t) => t.laundryId === activeLaundry.id);
 
-    const masukHariIni = branchAll.filter((t) => t.tanggalMasuk >= startOfToday);
+    const masukHariIni = branchAll.filter((t) => !t.isTransisi && t.tanggalMasuk >= startOfToday);
     const diambilHariIni = branchAll.filter((t) => (t.tanggalPengambilan || 0) >= startOfToday);
     const selesaiHariIni = branchAll.filter((t) => (t.tanggalStatusSelesai || 0) >= startOfToday);
 
@@ -453,7 +455,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
               <button
                 type="button"
+                onClick={onOpenTour}
+                className="px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs shadow-xs flex items-center gap-1.5 transition active:scale-95 cursor-pointer"
+                title="Mulai Tur Panduan Interaktif"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Mulai Tur</span>
+              </button>
+
+              <button
+                type="button"
                 onClick={onOpenNewTransaksi}
+                data-tour="btn-tambah-transaksi"
                 title={
                   activeBranchTrx.length >= 400
                     ? 'Transaksi baru dikunci (Capai 400+ pesanan). Klik untuk kelola arsip.'
@@ -901,6 +914,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                                   settings?.selesaikanSaatDitugaskan ? (
                                     <button
                                       type="button"
+                                      data-tour="btn-dashboard-kerjakan"
                                       onClick={() => onSelesaikanTransaksi(trx)}
                                       title="Langsung Selesai & Siap Ambil"
                                       className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-2xs active:scale-95 transition"
@@ -911,6 +925,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                                   ) : (
                                     <button
                                       type="button"
+                                      data-tour="btn-dashboard-kerjakan"
                                       onClick={() => onSelesaikanTransaksi(trx)}
                                       title="Mulai Pengerjaan"
                                       className="px-3 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-2xs active:scale-95 transition"
@@ -932,6 +947,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                                 ) : (
                                   <button
                                     type="button"
+                                    data-tour="btn-diambil"
                                     onClick={() => setTrxToAmbil(trx)}
                                     title="Ambil / Serahkan ke Pelanggan"
                                     className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-2xs active:scale-95 transition"
@@ -1545,6 +1561,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                                 settings?.selesaikanSaatDitugaskan ? (
                                   <button
                                     type="button"
+                                    data-tour="btn-dashboard-kerjakan"
                                     onClick={() => onSelesaikanTransaksi(trx)}
                                     title="Langsung Selesai & Siap Ambil"
                                     className="w-10 min-h-[20px] rounded-xl bg-rose-600 hover:bg-rose-700 text-white flex flex-col items-center justify-center gap-1 shadow-2xs active:scale-95 transition"
@@ -1554,6 +1571,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                                 ) : (
                                   <button
                                     type="button"
+                                    data-tour="btn-dashboard-kerjakan"
                                     onClick={() => onSelesaikanTransaksi(trx)}
                                     title="Mulai Pengerjaan"
                                     className="w-10 min-h-[20px] rounded-xl bg-rose-600 hover:bg-rose-700 text-white flex flex-col items-center justify-center gap-1 shadow-2xs active:scale-95 transition"
@@ -1573,6 +1591,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                               ) : (
                                 <button
                                   type="button"
+                                  data-tour="btn-diambil"
                                   onClick={() => setTrxToAmbil(trx)}
                                   title="Ambil / Serahkan ke Pelanggan"
                                   className="w-10 min-h-[20px] rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white flex flex-col items-center justify-center gap-1 shadow-2xs active:scale-95 transition"
@@ -1753,6 +1772,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           {/* 6. FLOATING ACTION BUTTON (+) TRANSAKSI BARU */}
           <button
             onClick={onOpenNewTransaksi}
+            data-tour="btn-tambah-transaksi"
             title={
               activeBranchTrx.length >= 400
                 ? 'Transaksi Baru Dikunci (Capai 400+ Pesanan). Klik untuk kelola arsip.'

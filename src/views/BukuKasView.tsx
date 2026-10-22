@@ -1,8 +1,9 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   ArrowLeft,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Wallet,
   ArrowUpRight,
   ArrowDownRight,
@@ -20,7 +21,7 @@ import {
   Clock,
 } from 'lucide-react';
 import { Transaksi, Pengeluaran, ArusKas } from '../types';
-import { formatRupiah, formatShortTime, formatDateIndo, formatTanggalIndo } from '../utils/formatters';
+import { formatRupiah, formatShortTime, formatDateIndo, formatTanggalIndo, formatLocalDateKey } from '../utils/formatters';
 import { FirebaseSyncService } from '../utils/firebaseSync';
 
 interface BukuKasViewProps {
@@ -95,6 +96,37 @@ export const BukuKasView: React.FC<BukuKasViewProps> = ({
     setSelectedDate(new Date());
   };
 
+  const dateInputRef = useRef<HTMLInputElement>(null);
+
+  const handleOpenDatePicker = () => {
+    if (dateInputRef.current) {
+      try {
+        if ('showPicker' in HTMLInputElement.prototype && typeof dateInputRef.current.showPicker === 'function') {
+          dateInputRef.current.showPicker();
+        } else {
+          dateInputRef.current.focus();
+        }
+      } catch {
+        dateInputRef.current.click();
+      }
+    }
+  };
+
+  const handleDateSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    if (!val) return;
+    const parts = val.split('-');
+    if (parts.length === 3) {
+      const year = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const day = parseInt(parts[2], 10);
+      if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
+        const newDate = new Date(year, month, day, 12, 0, 0);
+        setSelectedDate(newDate);
+      }
+    }
+  };
+
   const isSelectedDateToday = useMemo(() => {
     const today = new Date();
     return (
@@ -130,7 +162,15 @@ export const BukuKasView: React.FC<BukuKasViewProps> = ({
 
     // 1. Evaluasi Cucian yang Masuk di Hari Terpilih
     branchTrx.forEach((trx) => {
-      if (trx.tanggalMasuk >= startOfDay && trx.tanggalMasuk <= endOfDay) {
+      const isTransitionTrx = Boolean(
+        trx.isTransisi ||
+        trx.id?.startsWith('trx-transisi-') ||
+        trx.nomorTransaksi?.startsWith('TRANSISI-')
+      );
+
+      // Transaksi dari form transisi nota lama TIDAK dicatat sebagai baju masuk,
+      // melainkan hanya sebagai baju keluar/diambil saat diserahkan
+      if (!isTransitionTrx && trx.tanggalMasuk >= startOfDay && trx.tanggalMasuk <= endOfDay) {
         countBajuMasuk++;
         const dp = trx.jumlahDp || 0;
         const total = trx.totalHarga || 0;
@@ -177,6 +217,15 @@ export const BukuKasView: React.FC<BukuKasViewProps> = ({
           badgeText: bayarAwal >= total ? 'LUNAS' : bayarAwal > 0 ? `DP ${formatRupiah(bayarAwal)}` : 'BAYAR NANTI',
           transaksi: trx,
         });
+      }
+
+      // Jika transaksi transisi belum lunas dan diserahkan hari ini, catat sisa piutangnya
+      if (isTransitionTrx && trx.statusPembayaran !== 'Lunas') {
+        const waktuAmbil = trx.tanggalPengambilan || trx.tanggalMasuk;
+        if (waktuAmbil >= startOfDay && waktuAmbil <= endOfDay) {
+          const sisaTransisi = Math.max(0, trx.totalHarga - (trx.jumlahDp || 0));
+          totalPiutang += sisaTransisi;
+        }
       }
 
       // 2. Evaluasi Pelunasan Kas di Hari Terpilih (baik saat diambil atau pelunasan sisa)
@@ -370,22 +419,45 @@ export const BukuKasView: React.FC<BukuKasViewProps> = ({
           <button
             type="button"
             onClick={handlePrevDay}
-            className="p-1 rounded-lg bg-white/10 hover:bg-white/20 active:scale-90 transition cursor-pointer"
+            className="p-1.5 rounded-xl bg-white/10 hover:bg-white/20 active:scale-90 transition cursor-pointer text-white shrink-0"
             title="Hari Sebelumnya"
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
 
-          <div className="flex items-center gap-2">
-            <Calendar className="w-3.5 h-3.5 text-rose-200" />
-            <span className="font-bold text-xs sm:text-sm tracking-wide">
-              {formatDateIndo(selectedDate.getTime())}
-            </span>
+          <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+            {/* Clickable Date Selector Pill */}
+            <div className="relative group flex items-center">
+              <button
+                type="button"
+                onClick={handleOpenDatePicker}
+                className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1 rounded-xl bg-white/15 hover:bg-white/25 active:bg-white/30 border border-white/25 text-white transition cursor-pointer shadow-xs select-none max-w-full"
+                title="Klik untuk memilih tanggal langsung dari kalender"
+              >
+                <Calendar className="w-3.5 h-3.5 text-rose-200 group-hover:scale-110 transition-transform shrink-0" />
+                <span className="font-bold text-xs sm:text-sm tracking-wide truncate">
+                  {formatDateIndo(selectedDate.getTime())}
+                </span>
+                <ChevronDown className="w-3.5 h-3.5 text-rose-200 group-hover:text-white transition-colors shrink-0" />
+              </button>
+
+              {/* Native Date Input: transparently overlayed and accessible via showPicker & direct touch */}
+              <input
+                ref={dateInputRef}
+                type="date"
+                value={formatLocalDateKey(selectedDate)}
+                onChange={handleDateSelect}
+                className="absolute inset-0 opacity-0 w-full h-full cursor-pointer z-10 [color-scheme:dark]"
+                aria-label="Pilih tanggal buku kas"
+              />
+            </div>
+
             {!isSelectedDateToday && (
               <button
                 type="button"
                 onClick={handleToday}
-                className="text-[10px] font-black bg-white text-[#800000] px-2 py-0.5 rounded-md shadow-xs active:scale-90 transition cursor-pointer"
+                className="text-[10px] font-black bg-white text-[#800000] hover:bg-rose-50 px-2 py-1 rounded-lg shadow-xs active:scale-90 transition cursor-pointer shrink-0"
+                title="Kembali ke Hari Ini"
               >
                 Hari Ini
               </button>
@@ -395,7 +467,7 @@ export const BukuKasView: React.FC<BukuKasViewProps> = ({
           <button
             type="button"
             onClick={handleNextDay}
-            className="p-1 rounded-lg bg-white/10 hover:bg-white/20 active:scale-90 transition cursor-pointer"
+            className="p-1.5 rounded-xl bg-white/10 hover:bg-white/20 active:scale-90 transition cursor-pointer text-white shrink-0"
             title="Hari Berikutnya"
           >
             <ChevronRight className="w-4 h-4" />

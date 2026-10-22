@@ -342,7 +342,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
                         required
                         value={namaLaundry}
                         onChange={(e) => setNamaLaundry(e.target.value)}
-                        placeholder="Contoh: Kafelas Laundry Barokah"
+                        placeholder="Contoh: Kafelas Laundry"
                         className="w-full pl-10 pr-4 h-11 bg-white border border-slate-200 rounded-xl text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#800000] focus:ring-3 focus:ring-[#800000]/10 transition-colors"
                       />
                     </div>

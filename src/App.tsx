@@ -50,6 +50,7 @@ import { DesktopSidebar } from './components/DesktopSidebar';
 import { useDeviceDetect } from './hooks/useDeviceDetect';
 import { Lock } from 'lucide-react';
 import { useToast } from './components/NotificationContext';
+import { InteractiveTourModal, TOUR_STEPS } from './components/InteractiveTourModal';
 
 type ViewType =
   | 'splash'
@@ -82,6 +83,8 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(() =>
     StorageService.get<User | null>('active_user', null)
   );
+  const [isTourActive, setIsTourActive] = useState(false);
+  const [tourStep, setTourStep] = useState(0);
 
   const [settings, setSettings] = useState<SettingsData>(() => {
     const raw = StorageService.get<SettingsData>('settings', defaultSettings);
@@ -455,6 +458,27 @@ export default function App() {
     StorageService.set('settings', newSettings);
     if (activeLaundryId) {
       FirebaseSyncService.saveSettings(activeLaundryId, newSettings).catch(console.error);
+
+      // Sinkronisasi 1 Pintu: Selaraskan cabang aktif dengan identitas struk
+      setLaundries((prev) => {
+        const updated = prev.map((l) => {
+          if (l.id === activeLaundryId) {
+            return {
+              ...l,
+              namaLaundry: newSettings.headerStruk || l.namaLaundry,
+              alamat: newSettings.address !== undefined ? newSettings.address : l.alamat,
+              nomorTelepon: newSettings.phoneNumber !== undefined ? newSettings.phoneNumber : l.nomorTelepon,
+            };
+          }
+          return l;
+        });
+        StorageService.set('laundries', updated);
+        const currentBranch = updated.find((l) => l.id === activeLaundryId);
+        if (currentBranch) {
+          FirebaseSyncService.saveLaundry(currentBranch).catch(console.warn);
+        }
+        return updated;
+      });
     }
   };
 
@@ -604,6 +628,19 @@ export default function App() {
   const handleSelectBranch = (laundryId: string) => {
     setActiveLaundryId(laundryId);
     StorageService.set('current_laundry_id', laundryId);
+
+    // Sinkronisasi 1 Pintu: Sesuaikan identitas struk dengan cabang yang baru dipilih
+    const targetBranch = laundries.find((l) => l.id === laundryId);
+    if (targetBranch) {
+      const syncedSettings: SettingsData = {
+        ...settings,
+        headerStruk: targetBranch.namaLaundry || settings.headerStruk,
+        address: targetBranch.alamat || settings.address,
+        phoneNumber: targetBranch.nomorTelepon || settings.phoneNumber,
+      };
+      setSettings(syncedSettings);
+      StorageService.set('settings', syncedSettings);
+    }
   };
 
   const handleSaveTransaction = (
@@ -775,13 +812,13 @@ export default function App() {
       ? Math.max(0, data.nominal)
       : (data.sudahLunasLama ? 0 : Math.max(0, data.sisaNominal || 0));
 
-    const cleanNota = data.noNotaLama?.trim();
+    const cleanNota = data.noNotaLama?.trim() || null;
     const nomorTrx = cleanNota || `TRANSISI-${String(now).slice(-5)}`;
     const isLunasStatus = data.isLunas !== false;
 
     const newTrx: Transaksi = {
       id: `trx-transisi-${now}`,
-      userId: currentUser?.uid,
+      userId: currentUser?.uid || 'user-local',
       laundryId: activeLaundryId,
       nomorTransaksi: nomorTrx,
       noNotaLama: cleanNota || undefined,
@@ -891,6 +928,109 @@ export default function App() {
       setTransaksiToEdit(null);
       setActiveView('tambah_edit');
     }
+  };
+
+  const TOUR_DEMO_TRX_ID = 'demo-trx-tour';
+
+  const handleStartTour = () => {
+    // Pastikan ada transaksi contoh demo untuk langkah 4, 5, 6 jika belum ada transaksi di antrean
+    const demoNeeded = transaksiList.length === 0 || !transaksiList.some((t) => t.id === TOUR_DEMO_TRX_ID);
+    if (demoNeeded) {
+      const demoTrx: Transaksi = {
+        id: TOUR_DEMO_TRX_ID,
+        laundryId: activeLaundryId,
+        nomorTransaksi: 'DEMO/TUR/01',
+        namaPelanggan: 'Budi Santoso (Demo Tur)',
+        nomorTelepon: '08123456789',
+        alamat: 'Jl. Merdeka No. 45',
+        totalHarga: 25000,
+        diskon: 0,
+        jumlahDp: 25000,
+        tanggalMasuk: Date.now(),
+        tanggalSelesai: Date.now() + 24 * 3600 * 1000,
+        status: 'Diterima',
+        statusPembayaran: 'Lunas',
+        tanggalPelunasan: Date.now(),
+        catatan: 'Pesanan simulasi panduan kasir',
+        metodePembayaran: 'Tunai',
+        metodePembayaranDetail: 'Tunai',
+        items: [
+          {
+            itemId: 1,
+            laundryId: activeLaundryId,
+            namaLayanan: 'Cuci Komplit Reguler',
+            berat: 3,
+            hargaPerKg: 7000,
+            hargaSatuan: 7000,
+            satuan: 'Kg',
+            subtotal: 21000,
+          },
+          {
+            itemId: 2,
+            laundryId: activeLaundryId,
+            namaLayanan: 'Parfum Ekstra Wangi',
+            berat: 1,
+            hargaPerKg: 4000,
+            hargaSatuan: 4000,
+            satuan: 'Pcs',
+            subtotal: 4000,
+          },
+        ],
+      };
+      setTransaksiList((prev) => [demoTrx, ...prev.filter((t) => t.id !== TOUR_DEMO_TRX_ID)]);
+      setSelectedTransaksiId(TOUR_DEMO_TRX_ID);
+    } else {
+      setSelectedTransaksiId(transaksiList[0].id);
+    }
+
+    setTourStep(0);
+    setActiveView('dashboard');
+    setIsTourActive(true);
+  };
+
+  const handleTourStepChange = (newStep: number) => {
+    setTourStep(newStep);
+    const stepDef = TOUR_STEPS[newStep];
+    if (stepDef) {
+      if (stepDef.view === 'dashboard') {
+        if (newStep === 4) {
+          // Langkah 5: Tombol Proses ("Kerjakan" status Diterima)
+          setTransaksiList((prev) =>
+            prev.map((t) => (t.id === TOUR_DEMO_TRX_ID ? { ...t, status: 'Diterima' } : t))
+          );
+        } else if (newStep === 5) {
+          // Langkah 6: Tombol Diambil ("Serahkan" status Selesai)
+          setTransaksiList((prev) =>
+            prev.map((t) => (t.id === TOUR_DEMO_TRX_ID ? { ...t, status: 'Selesai' } : t))
+          );
+        }
+        setActiveView('dashboard');
+      } else if (stepDef.view === 'tambah_edit') {
+        setTransaksiToEdit(null);
+        setActiveView('tambah_edit');
+      } else if (stepDef.view === 'detail_transaksi') {
+        const targetId = transaksiList.some((t) => t.id === TOUR_DEMO_TRX_ID)
+          ? TOUR_DEMO_TRX_ID
+          : (transaksiList[0]?.id || null);
+        setSelectedTransaksiId(targetId);
+        setActiveView('detail_transaksi');
+      }
+    }
+  };
+
+  const handleFinishTour = () => {
+    setIsTourActive(false);
+    setTourStep(0);
+    // Bersihkan transaksi demo tur agar tidak mengotori buku kas & laporan asli
+    setTransaksiList((prev) => prev.filter((t) => t.id !== TOUR_DEMO_TRX_ID));
+    setActiveView('dashboard');
+    toast.success('Selamat! Anda telah menyelesaikan tur panduan operasional kasir.');
+  };
+
+  const handleCloseTour = () => {
+    setIsTourActive(false);
+    setTransaksiList((prev) => prev.filter((t) => t.id !== TOUR_DEMO_TRX_ID));
+    setActiveView('dashboard');
   };
 
   const handleProceedCreateNewFromLimit = () => {
@@ -1019,6 +1159,19 @@ export default function App() {
   const handleUpdateLaundry = (lnd: Laundry) => {
     updateLaundries(laundries.map((l) => (l.id === lnd.id ? lnd : l)));
     FirebaseSyncService.saveLaundry(lnd).catch(console.warn);
+
+    // Sinkronisasi 1 Pintu: Jika cabang yang diedit adalah cabang aktif, sinkronkan juga identitas struk
+    if (lnd.id === activeLaundryId) {
+      const updatedSettings: SettingsData = {
+        ...settings,
+        headerStruk: lnd.namaLaundry,
+        address: lnd.alamat || '',
+        phoneNumber: lnd.nomorTelepon || '',
+      };
+      setSettings(updatedSettings);
+      StorageService.set('settings', updatedSettings);
+      FirebaseSyncService.saveSettings(lnd.id, updatedSettings).catch(console.error);
+    }
   };
 
   const handleDeleteLaundry = (laundryId: string) => {
@@ -1298,6 +1451,7 @@ export default function App() {
             onOpenUpgradeModal={handleOpenUpgradeModal}
             onOpenExpiredModal={() => setIsExpiredModalOpen(true)}
             onOpenNewTransaksi={handleRequestNewTransaksi}
+            onOpenTour={handleStartTour}
             onOpenLimitModal={() => setIsLimitModalOpen(true)}
             onOpenDetailTransaksi={(id) => {
               setSelectedTransaksiId(id);
@@ -1420,6 +1574,9 @@ export default function App() {
                 p.nama.toLowerCase() ===
                 currentSelectedTransaksi.namaPelanggan.toLowerCase()
             )}
+            laundryName={activeLaundry?.namaLaundry || settings.headerStruk}
+            laundryPhone={activeLaundry?.nomorTelepon || settings.phoneNumber}
+            laundryAddress={activeLaundry?.alamat || settings.address}
             onEdit={(trx) => {
               setTransaksiToEdit(trx);
               setActiveView('tambah_edit');
@@ -1673,6 +1830,7 @@ export default function App() {
             activeLaundry={activeLaundry}
             currentTier={activeTier}
             onUpdateSettings={updateSettings}
+            onUpdateLaundry={handleUpdateLaundry}
             onOpenKelolaPelanggan={() => setActiveView('kelola_pelanggan')}
             onOpenKelolaLayanan={() => setActiveView('kelola_layanan')}
             onOpenKelolaOwner={() => setActiveView('kelola_owner')}
@@ -1681,6 +1839,7 @@ export default function App() {
             onOpenUpgradeModal={handleOpenUpgradeModal}
             onTopUpWallet={handleTopUpWallet}
             onUpdateOwnerProfile={handleUpdateOwnerProfile}
+            onStartTour={handleStartTour}
             onLogout={handleLogoutUser}
           />
         )}
@@ -1796,6 +1955,15 @@ export default function App() {
           laundryName={activeLaundry?.namaLaundry || undefined}
           laundryPhone={activeLaundry?.nomorTelepon || undefined}
           laundryAddress={activeLaundry?.alamat || undefined}
+        />
+
+        <InteractiveTourModal
+          isOpen={isTourActive}
+          onClose={handleCloseTour}
+          currentStep={tourStep}
+          onStepChange={handleTourStepChange}
+          onRestart={() => handleTourStepChange(0)}
+          onFinish={handleFinishTour}
         />
 
         {/* Floating Toast: Tekan sekali lagi untuk keluar */}
