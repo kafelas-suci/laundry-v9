@@ -53,12 +53,12 @@ export const BukuKasView: React.FC<BukuKasViewProps> = ({
   const [showGuideModal, setShowGuideModal] = useState(false);
   const [monthArchive, setMonthArchive] = useState<Transaksi[]>([]);
 
-  // Muat arsip bulan terpilih dari IndexedDB lokal
+  const selectedYear = selectedDate.getFullYear();
+  const selectedMonth = selectedDate.getMonth();
+
   useEffect(() => {
     let isMounted = true;
-    const year = selectedDate.getFullYear();
-    const month = selectedDate.getMonth();
-    FirebaseSyncService.fetchArsipBulan(activeLaundryId, year, month)
+    FirebaseSyncService.fetchArsipBulan(activeLaundryId, selectedYear, selectedMonth)
       .then((list) => {
         if (isMounted) setMonthArchive(list);
       })
@@ -66,7 +66,7 @@ export const BukuKasView: React.FC<BukuKasViewProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [activeLaundryId, selectedDate]);
+  }, [activeLaundryId, selectedYear, selectedMonth]);
 
   const startOfDay = useMemo(() => {
     const d = new Date(selectedDate);

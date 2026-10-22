@@ -553,10 +553,10 @@ export default function App() {
       setActiveLaundryId(targetLaundryId);
       StorageService.set('current_laundry_id', targetLaundryId);
 
-      // 1. Sync Transaksi (Lengkap: aktif + riwayat anti-hilang)
       const currentCachedTrx = transaksiList.length > 0 ? transaksiList : StorageService.get<Transaksi[]>('transaksi', []);
-      const trxs = await FirebaseSyncService.fetchTransaksiAktif(targetLaundryId, currentCachedTrx, forceSync);
-      updateTransaksiList(trxs);
+      if (currentCachedTrx.length > 0) {
+        updateTransaksiList(currentCachedTrx);
+      }
 
       // 2. Sync Pelanggan
       const custs = await FirebaseSyncService.fetchPelanggan(targetLaundryId, forceSync ? [] : pelangganList);
@@ -795,15 +795,14 @@ export default function App() {
       return t;
     });
     updateTransaksiList(updatedList);
-    list.forEach((t) => {
-      FirebaseSyncService.saveTransaksi({
-        ...t,
-        status: 'Diambil',
-        statusPembayaran: 'Lunas',
-        tanggalPengambilan: now,
-        tanggalPelunasan: t.statusPembayaran === 'Lunas' ? (t.tanggalPelunasan || t.tanggalMasuk) : now,
-      }).catch(console.error);
-    });
+    const updatedBatch = list.map((t) => ({
+      ...t,
+      status: 'Diambil' as const,
+      statusPembayaran: 'Lunas' as const,
+      tanggalPengambilan: now,
+      tanggalPelunasan: t.statusPembayaran === 'Lunas' ? (t.tanggalPelunasan || t.tanggalMasuk) : now,
+    }));
+    FirebaseSyncService.saveBatchTransaksi(updatedBatch).catch(console.error);
   };
 
   const handleSaveTransitionPickup = (data: TransitionPickupData) => {

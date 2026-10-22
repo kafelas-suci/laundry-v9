@@ -6,6 +6,7 @@ import {
   setDoc,
   updateDoc,
   deleteDoc,
+  writeBatch,
   query,
   orderBy,
   where,
@@ -356,8 +357,7 @@ export class FirebaseSyncService {
     const cachedArsip = await IndexedDbService.getArchiveByMonth(laundryId, monthKey);
     const isSynced = await IndexedDbService.getMeta(`archive_synced_${laundryId}_${monthKey}`, false);
 
-    if (cachedArsip.length > 0 && isSynced && !forceRefresh) {
-      console.log(`⚡ Menggunakan Arsip Bulan ${monthKey} dari IndexedDB Lokal (0 Reads Firestore)`);
+    if (isSynced && !forceRefresh) {
       return cachedArsip;
     }
 
@@ -557,6 +557,51 @@ export class FirebaseSyncService {
         navigator.serviceWorker.ready
           .then((reg: any) => reg.sync?.register('sync-laundry-trx'))
           .catch(() => {});
+      }
+    }
+  }
+
+  static async saveBatchTransaksi(list: Transaksi[]): Promise<void> {
+    if (!list || list.length === 0) return;
+
+    for (const trx of list) {
+      const payload: Transaksi = FirebaseSyncService.sanitizeForFirestore({
+        ...trx,
+        terakhirDieditPada: Date.now(),
+      });
+      if (trx.status === 'Diambil') {
+        IndexedDbService.moveToArchive(trx.laundryId, payload).catch(console.error);
+      } else {
+        IndexedDbService.putSingleActiveTransaksi(trx.laundryId, payload).catch(console.error);
+      }
+    }
+
+    if (!auth.currentUser) return;
+
+    const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+    if (!isOnline) {
+      for (const trx of list) {
+        await IndexedDbService.addToOutbox(FirebaseSyncService.sanitizeForFirestore(trx));
+      }
+      return;
+    }
+
+    try {
+      const batch = writeBatch(db);
+      for (const trx of list) {
+        const payload = FirebaseSyncService.sanitizeForFirestore({
+          ...trx,
+          terakhirDieditPada: Date.now(),
+        });
+        batch.set(doc(db, 'laundries', trx.laundryId, 'transaksi', trx.id), payload);
+      }
+      await batch.commit();
+      for (const trx of list) {
+        await IndexedDbService.removeFromOutbox(trx.id);
+      }
+    } catch {
+      for (const trx of list) {
+        await FirebaseSyncService.saveTransaksi(trx);
       }
     }
   }

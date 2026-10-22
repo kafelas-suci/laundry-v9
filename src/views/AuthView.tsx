@@ -261,22 +261,8 @@ export const AuthView: React.FC<AuthViewProps> = ({
           <div className="text-center space-y-3">
          
 
-              <h1 className="text-1xl sm:text-4xl lg:text-5xl font-black text-slate-900 tracking-tight leading-[1.15]">
-                Kasir & Manajemen <br className="hidden sm:inline" />
-                <span className="text-[#800000] relative inline-block">
-                  Kafelas Laundry
-                  <svg
-                    className="absolute -bottom-1.5 left-0 w-full text-rose-200"
-                    height="6"
-                    viewBox="0 0 100 6"
-                    preserveAspectRatio="none"
-                  >
-                    <path d="M0,5 Q90,0 105,5" stroke="currentColor" strokeWidth="3" fill="none" />
-                  </svg>
-                </span>
-              </h1>
             <div>
-              <p className="text-[18px] pt-4 tracking-wider font-bold text-[#800000]">
+              <p className="text-[18px] pt-4 pb-8 tracking-wider font-bold text-[#800000]">
                 Assalamu'alaikum 
               </p>
               
@@ -578,12 +564,12 @@ export const AuthView: React.FC<AuthViewProps> = ({
 
             {/* PWA Direct Installation Card */}
            <div className="p border-t border-slate-100">
-  <div className="rounded-xl bg-slate-50 border border-slate-200/80  space-y-1">
+  <div className="">
       {/* Tombol Petunjuk Pasang */}
       <button
         type="button"
         onClick={() => setShowInstallModal(true)}
-        className="w-full h-9 px-3 rounded-lg bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 font-semibold text-xs flex items-center justify-center gap-2 transition-colors cursor-pointer shadow-2xs"
+        className="w-full h-9 px-3  text-slate-700 font-semibold text-xs flex items-center justify-center gap-2  cursor-pointer "
       >
         <div className="w-6 h-6 rounded-md bg-rose-50 flex items-center justify-center text-[#800000] shrink-0">
           <Smartphone className="w-3.5 h-3.5" />
