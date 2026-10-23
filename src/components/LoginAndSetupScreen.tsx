@@ -639,7 +639,7 @@ export const LoginAndSetupScreen: React.FC<LoginAndSetupScreenProps> = ({
             <div className="flex items-center justify-between border-b border-[#333333] pb-3">
               <div>
                 <h3 className="text-base font-bold">Konfigurasi Database Firebase</h3>
-                <p className="text-xs text-[#AAAAAA] mt-0.5">Konfigurasi aktif proyek kafilasuci3</p>
+                <p className="text-xs text-[#AAAAAA] mt-0.5">Konfigurasi aktif proyek kafilasuci4</p>
               </div>
               <button
                 type="button"

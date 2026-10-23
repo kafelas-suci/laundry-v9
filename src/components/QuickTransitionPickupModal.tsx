@@ -174,10 +174,10 @@ export const QuickTransitionPickupModal: React.FC<QuickTransitionPickupModalProp
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-      <div className="bg-white rounded-2xl max-w-lg w-full p-4 sm:p-5 shadow-2xl border border-slate-200 my-auto animate-in fade-in zoom-in-95 duration-150">
+      <div className="bg-white rounded-2xl max-w-lg w-full px-3 py-3 sm:p-5 shadow-2xl border border-slate-200 my-auto animate-in fade-in zoom-in-95 duration-150">
         
         {/* Top Header */}
-        <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-3">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-0">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl bg-[#800000]/10 text-[#800000] flex items-center justify-center shrink-0">
               <History className="w-4 h-4" />
@@ -201,7 +201,7 @@ export const QuickTransitionPickupModal: React.FC<QuickTransitionPickupModalProp
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="space-y-1">
+        <form onSubmit={handleSubmit} className="space-y-0">
           
           {/* BARIS UTAMA: NAMA PELANGGAN, NOMINAL PEMBAYARAN, & TOMBOL LUNAS BERSEBELAHAN */}
           <div className=" rounded-2xl p-0 space-y-2">
@@ -316,7 +316,7 @@ export const QuickTransitionPickupModal: React.FC<QuickTransitionPickupModalProp
               <span>
                 {showExtraDetails
                   ? 'Sembunyikan Opsi Tambahan'
-                  : 'Opsi Tambahan (No. Struk, WA, Non-Tunai, Catatan)'}
+                  : 'Tambahan (Struk, WA, Tunai, Catatan)'}
               </span>
             </span>
             <ChevronDown

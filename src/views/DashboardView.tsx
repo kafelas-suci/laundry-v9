@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   Archive,
   Settings as SettingsIcon,
@@ -9,6 +9,7 @@ import {
   Clock,
   Sparkles,
   CheckCircle,
+  Check,
   Truck,
   Building2,
   ChevronDown,
@@ -37,10 +38,11 @@ import {
 import { Transaksi, SettingsData, User, Laundry, Pengeluaran } from '../types';
 import { formatRupiah, formatShortDate, formatShortTime, extractTransaksiCashInEntries } from '../utils/formatters';
 import { IndexedDbService } from '../utils/indexedDb';
+import { StorageService } from '../utils/storage';
 import { PWAInstallButton } from '../components/PWAInstallButton';
 import { getLaundryLimits } from '../utils/subscription';
 import { QuickTransitionPickupModal, TransitionPickupData } from '../components/QuickTransitionPickupModal';
-import { useToast } from '../components/NotificationContext';
+import { useToast, useConfirm } from '../components/NotificationContext';
 
 export type DashboardFilterStatus = 'semua' | 'selesai' | 'baru_masuk' | 'sedang_dikerjakan';
 
@@ -70,11 +72,12 @@ interface DashboardViewProps {
   onOpenLaporan: () => void;
   onOpenAturKas: () => void;
   onOpenSwitchBranch: () => void;
+  onSelectBranch?: (laundryId: string) => void;
   onOpenApkModal: () => void;
   onOpenKelolaPelanggan: () => void;
   onOpenKelolaLayanan: () => void;
   onOpenKelolaOwner: () => void;
-  onSyncCloudData?: () => Promise<void> | void;
+  onSyncCloudData?: () => Promise<{ transaksiCount?: number; pelangganCount?: number; layananCount?: number } | void> | void;
   onSelesaikanTransaksi: (transaksi: Transaksi) => void;
   onAmbilTransaksi: (transaksi: Transaksi) => void;
   onAmbilBanyakTransaksi?: (transaksiList: Transaksi[]) => void;
@@ -91,6 +94,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   pengeluaranList = [],
   isMobile = false,
   deviceInfo,
+  onSelectBranch,
   currentTier,
   onOpenUpgradeModal,
   onOpenExpiredModal,
@@ -118,8 +122,83 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   settings,
 }) => {
   const toast = useToast();
+  const confirm = useConfirm();
   const [searchQuery, setSearchQuery] = useState('');
   const [isSyncing, setIsSyncing] = useState(false);
+  const [lastSyncTime, setLastSyncTime] = useState<number>(() =>
+    StorageService.get<number>('last_force_sync_timestamp', 0)
+  );
+
+  const [isBranchDropdownOpen, setIsBranchDropdownOpen] = useState(false);
+  const branchDropdownRef = useRef<HTMLDivElement>(null);
+  const desktopBranchDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Tutup dropdown cabang saat klik di luar
+  useEffect(() => {
+    if (!isBranchDropdownOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as Node;
+      const insideMobile = branchDropdownRef.current && branchDropdownRef.current.contains(target);
+      const insideDesktop = desktopBranchDropdownRef.current && desktopBranchDropdownRef.current.contains(target);
+      if (!insideMobile && !insideDesktop) {
+        setIsBranchDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isBranchDropdownOpen]);
+
+  const COOLDOWN_MS = 10 * 60 * 1000; // 10 menit jeda pengaman
+
+  const handleManualSync = async (forceBypass = false) => {
+    if (isSyncing || !onSyncCloudData) return;
+
+    const now = Date.now();
+    const elapsed = now - lastSyncTime;
+
+    // Cek Cooldown 10 menit
+    if (!forceBypass && lastSyncTime > 0 && elapsed < COOLDOWN_MS) {
+      const remainingMinutes = Math.ceil((COOLDOWN_MS - elapsed) / 60000);
+      const passedMinutes = Math.max(1, Math.floor(elapsed / 60000));
+      const shouldBypass = await confirm.confirm({
+        title: 'Jeda Pengaman 10 Menit Aktif',
+        message: `Sinkronisasi baru saja dilakukan ${passedMinutes} menit yang lalu.\n\nUntuk menghemat kuota Firestore, disarankan menunggu ${remainingMinutes} menit lagi.\n\nApakah Anda tetap ingin memaksakan sinkronisasi sekarang?`,
+        confirmText: 'Tetap Sinkron',
+        cancelText: 'Tunggu Saja',
+      });
+      if (!shouldBypass) {
+        return;
+      }
+    }
+
+    setIsSyncing(true);
+    try {
+      const res = await onSyncCloudData();
+      const updatedNow = Date.now();
+      setLastSyncTime(updatedNow);
+      StorageService.set('last_force_sync_timestamp', updatedNow);
+
+      const trxCount = res?.transaksiCount ?? 0;
+      const pelCount = res?.pelangganCount ?? 0;
+      const layCount = res?.layananCount ?? 0;
+
+      if (trxCount > 0) {
+        toast.success(
+          `Sinkronisasi Berhasil: ${trxCount} nota baru/mutakhir diperbarui, ${pelCount} pelanggan, ${layCount} layanan tersinkron!`
+        );
+      } else {
+        toast.success(
+          `Sinkronisasi Berhasil: Seluruh koleksi telah konsisten dengan server (${pelCount} pelanggan, ${layCount} layanan).`
+        );
+      }
+    } catch (err) {
+      console.error('Error saat sinkronisasi paksa:', err);
+      toast.error('Gagal menyinkronkan data dengan server. Periksa koneksi internet Anda.');
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   // 3 Tombol Filter: Default awal menampilkan semua transaksi baru masuk
   const [filterStatus, setFilterStatus] = useState<DashboardFilterStatus>('baru_masuk');
   const [isSummaryCollapsed, setIsSummaryCollapsed] = useState(false);
@@ -138,16 +217,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         tampilkanTombolAmbilNotaLama: false,
       });
       toast.info('Tombol Ambil Nota Lama disembunyikan. Dapat diaktifkan kembali di Pengaturan.');
-    }
-  };
-
-  const handleManualSync = async () => {
-    if (isSyncing || !onSyncCloudData) return;
-    setIsSyncing(true);
-    try {
-      await onSyncCloudData();
-    } finally {
-      setIsSyncing(false);
     }
   };
 
@@ -356,9 +425,71 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   <h1 className="font-black text-base text-slate-900 tracking-tight">
                     Dashboard Antrean & Kasir
                   </h1>
-                  <span className="px-2 py-0.5 rounded-md bg-rose-50 text-[#800000] border border-rose-200/80 text-[11px] font-bold">
-                    {typeof activeLaundry.namaLaundry === 'object' ? (activeLaundry.namaLaundry as any)?.namaLaundry || "Kafela's Laundry" : (activeLaundry.namaLaundry || "Kafela's Laundry")}
-                  </span>
+                  {laundries.length > 1 ? (
+                    <div className="relative inline-block" ref={desktopBranchDropdownRef}>
+                      <button
+                        type="button"
+                        onClick={() => setIsBranchDropdownOpen(!isBranchDropdownOpen)}
+                        title="Klik untuk memilih cabang laundry"
+                        className="px-2 py-0.5 rounded-md bg-rose-50 text-[#800000] border border-rose-200/80 text-[11px] font-bold inline-flex items-center gap-1 hover:bg-rose-100 transition cursor-pointer"
+                      >
+                        <span>
+                          {typeof activeLaundry.namaLaundry === 'object' ? (activeLaundry.namaLaundry as any)?.namaLaundry || "Kafela's Laundry" : (activeLaundry.namaLaundry || "Kafela's Laundry")}
+                        </span>
+                        <ChevronDown className={`w-3 h-3 text-[#800000]/80 transition-transform ${isBranchDropdownOpen ? 'rotate-180' : ''}`} />
+                      </button>
+
+                      {isBranchDropdownOpen && (
+                        <div className="absolute left-0 top-full mt-2 w-64 bg-white rounded-2xl shadow-2xl border border-slate-200 py-1.5 z-50 text-slate-800 animate-in fade-in zoom-in-95 overflow-hidden">
+                          <div className="px-3.5 py-2 border-b border-slate-100 flex items-center justify-between">
+                            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Pilih Cabang</span>
+                            <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">{laundries.length} Cabang</span>
+                          </div>
+                          <div className="max-h-64 overflow-y-auto divide-y divide-slate-50">
+                            {laundries.map((lnd) => {
+                              const isCurrent = lnd.id === activeLaundry.id;
+                              const lndName = typeof lnd.namaLaundry === 'object' ? (lnd.namaLaundry as any)?.namaLaundry || "Kafela's Laundry" : (lnd.namaLaundry || "Kafela's Laundry");
+                              return (
+                                <button
+                                  key={lnd.id}
+                                  type="button"
+                                  onClick={() => {
+                                    if (onSelectBranch) {
+                                      onSelectBranch(lnd.id);
+                                    }
+                                    setIsBranchDropdownOpen(false);
+                                    if (!isCurrent) {
+                                      toast.success(`Beralih ke cabang: ${lndName}`);
+                                    }
+                                  }}
+                                  className={`w-full text-left px-3.5 py-2.5 flex items-center justify-between text-xs transition cursor-pointer ${
+                                    isCurrent
+                                      ? 'bg-rose-50 text-[#800000] font-bold'
+                                      : 'text-slate-700 hover:bg-slate-50'
+                                  }`}
+                                >
+                                  <div className="min-w-0 pr-2">
+                                    <div className="flex items-center gap-2">
+                                      <Building2 className={`w-3.5 h-3.5 shrink-0 ${isCurrent ? 'text-[#800000]' : 'text-slate-400'}`} />
+                                      <span className="truncate">{lndName}</span>
+                                    </div>
+                                    {lnd.alamat && (
+                                      <p className="text-[10px] text-slate-400 truncate pl-5 mt-0.5">{lnd.alamat}</p>
+                                    )}
+                                  </div>
+                                  {isCurrent && <Check className="w-4 h-4 text-[#800000] shrink-0" />}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="px-2 py-0.5 rounded-md bg-rose-50 text-[#800000] border border-rose-200/80 text-[11px] font-bold">
+                      {typeof activeLaundry.namaLaundry === 'object' ? (activeLaundry.namaLaundry as any)?.namaLaundry || "Kafela's Laundry" : (activeLaundry.namaLaundry || "Kafela's Laundry")}
+                    </span>
+                  )}
                 </div>
                 <p className="text-xs text-slate-500 font-medium capitalize mt-0.5">
                   {formattedToday} • {activeLaundry.alamat || 'Operasional Kasir Aktif'}
@@ -371,28 +502,23 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
               {/* Badge Status & Sisa Hari Langganan PC */}
        
-              {laundries.length > 1 && (
-                <button
-                  type="button"
-                  onClick={onOpenSwitchBranch}
-                  className="px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xs font-bold text-slate-700 flex items-center gap-1.5 transition"
-                >
-                  <Building2 className="w-3.5 h-3.5 text-[#800000]" />
-                  <span>Ganti Cabang</span>
-                  <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
-                </button>
-              )}
+
 
               {onSyncCloudData && (
                 <button
                   type="button"
-                  onClick={handleManualSync}
+                  onClick={() => handleManualSync(false)}
                   disabled={isSyncing}
-                  title="Sinkronkan data dengan database Cloud (Firestore)"
-                  className="px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xs font-bold text-slate-700 flex items-center gap-1.5 transition active:scale-95 disabled:opacity-60 cursor-pointer"
+                  title="Sinkronisasi Paksa (Smart Delta Sync - Hemat Kuota, Jeda Cooldown 10 Menit)"
+                  className="px-3 py-2 rounded-xl border border-blue-200 bg-blue-50/80 hover:bg-blue-100 text-xs font-bold text-blue-900 flex items-center gap-1.5 transition active:scale-95 disabled:opacity-60 cursor-pointer shadow-2xs"
                 >
                   <RotateCw className={`w-3.5 h-3.5 text-blue-600 ${isSyncing ? 'animate-spin' : ''}`} />
-                  <span className="hidden xl:inline">{isSyncing ? 'Menyinkron...' : 'Sinkron Cloud'}</span>
+                  <span className="hidden xl:inline">{isSyncing ? 'Menyinkron...' : 'Sinkronisasi Paksa'}</span>
+                  {lastSyncTime > 0 && !isSyncing && (
+                    <span className="text-[10px] font-normal text-blue-600/80 hidden 2xl:inline tabular-nums">
+                      • {new Date(lastSyncTime).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  )}
                 </button>
               )}
 
@@ -1139,22 +1265,79 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   <Archive className="w-5 h-5 text-white" />
                 </button>
 
-                {/* Nama Laundry & Switcher Cabang */}
-                <button
-                  onClick={() => onOpenUpgradeModal ? onOpenUpgradeModal() : (laundries.length > 1 ? onOpenSwitchBranch() : onOpenKelolaOwner())}
-                  title={`Paket: ${paketNama} (${isNewcomer ? 'Gratis' : `${sisaHari} hari lagi`}). Klik untuk kelola.`}
-                  className="flex flex-col items-start px-2 py-1 rounded-xl hover:bg-white/10 active:scale-98 transition max-w-[190px]"
-                >
-                  <div className="flex items-center gap-1">
-                    <span className="font-bold text-sl truncate text-white tracking-wide">
-                      {typeof activeLaundry.namaLaundry === 'object' ? (activeLaundry.namaLaundry as any)?.namaLaundry || "Kafela's Laundry" : (activeLaundry.namaLaundry || "Kafela's Laundry")}
-                    </span>
-                    {laundries.length > 1 && (
-                      <ChevronDown className="w-3.5 h-3.5 text-white/80 shrink-0" />
-                    )}
-                  </div>
-                
-                </button>
+                {/* Nama Laundry & Switcher Cabang Langsung */}
+                <div className="relative" ref={branchDropdownRef}>
+                  {laundries.length > 1 ? (
+                    <button
+                      type="button"
+                      onClick={() => setIsBranchDropdownOpen(!isBranchDropdownOpen)}
+                      title="Klik untuk memilih cabang laundry"
+                      className="flex flex-col items-start px-2 py-1 rounded-xl hover:bg-white/10 active:scale-98 transition max-w-[190px] cursor-pointer"
+                    >
+                      <div className="flex items-center gap-1">
+                        <span className="font-bold text-sm truncate text-white tracking-wide">
+                          {typeof activeLaundry.namaLaundry === 'object' ? (activeLaundry.namaLaundry as any)?.namaLaundry || "Kafela's Laundry" : (activeLaundry.namaLaundry || "Kafela's Laundry")}
+                        </span>
+                        <ChevronDown className={`w-3.5 h-3.5 text-white/90 shrink-0 transition-transform ${isBranchDropdownOpen ? 'rotate-180' : ''}`} />
+                      </div>
+                    </button>
+                  ) : (
+                    <div className="flex flex-col items-start px-2 py-1 max-w-[190px]">
+                      <div className="flex items-center gap-1">
+                        <span className="font-bold text-sm truncate text-white tracking-wide">
+                          {typeof activeLaundry.namaLaundry === 'object' ? (activeLaundry.namaLaundry as any)?.namaLaundry || "Kafela's Laundry" : (activeLaundry.namaLaundry || "Kafela's Laundry")}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Dropdown Menu Cabang Langsung */}
+                  {isBranchDropdownOpen && laundries.length > 1 && (
+                    <div className="absolute left-0 top-full mt-1.5 w-60 bg-white rounded-2xl shadow-2xl border border-slate-200 py-1.5 z-50 text-slate-800 animate-in fade-in zoom-in-95 overflow-hidden">
+                      <div className="px-3.5 py-2 border-b border-slate-100 flex items-center justify-between">
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Pilih Cabang</span>
+                        <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">{laundries.length} Cabang</span>
+                      </div>
+                      <div className="max-h-60 overflow-y-auto divide-y divide-slate-50">
+                        {laundries.map((lnd) => {
+                          const isCurrent = lnd.id === activeLaundry.id;
+                          const lndName = typeof lnd.namaLaundry === 'object' ? (lnd.namaLaundry as any)?.namaLaundry || "Kafela's Laundry" : (lnd.namaLaundry || "Kafela's Laundry");
+                          return (
+                            <button
+                              key={lnd.id}
+                              type="button"
+                              onClick={() => {
+                                if (onSelectBranch) {
+                                  onSelectBranch(lnd.id);
+                                }
+                                setIsBranchDropdownOpen(false);
+                                if (!isCurrent) {
+                                  toast.success(`Beralih ke cabang: ${lndName}`);
+                                }
+                              }}
+                              className={`w-full text-left px-3.5 py-2.5 flex items-center justify-between text-xs transition cursor-pointer ${
+                                isCurrent
+                                  ? 'bg-rose-50 text-[#800000] font-bold'
+                                  : 'text-slate-700 hover:bg-slate-50'
+                              }`}
+                            >
+                              <div className="min-w-0 pr-2">
+                                <div className="flex items-center gap-2">
+                                  <Building2 className={`w-3.5 h-3.5 shrink-0 ${isCurrent ? 'text-[#800000]' : 'text-slate-400'}`} />
+                                  <span className="truncate">{lndName}</span>
+                                </div>
+                                {lnd.alamat && (
+                                  <p className="text-[10px] text-slate-400 truncate pl-5 mt-0.5">{lnd.alamat}</p>
+                                )}
+                              </div>
+                              {isCurrent && <Check className="w-4 h-4 text-[#800000] shrink-0" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Tombol Kanan: Pasang PWA, Sinkron Cloud & Settings */}
@@ -1163,10 +1346,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
                 {onSyncCloudData && (
                   <button
-                    onClick={handleManualSync}
+                    type="button"
+                    onClick={() => handleManualSync(false)}
                     disabled={isSyncing}
-                    title="Sinkronkan Cloud"
-                    className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-white/10 active:scale-95 transition disabled:opacity-60 cursor-pointer"
+                    title="Sinkronisasi Paksa (Smart Delta Sync - Jeda Cooldown 10 Menit)"
+                    className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-white/10 active:scale-95 transition disabled:opacity-60 cursor-pointer relative"
                   >
                     <RotateCw className={`w-4 h-4 text-white ${isSyncing ? 'animate-spin' : ''}`} />
                   </button>

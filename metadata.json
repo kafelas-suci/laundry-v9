@@ -1,6 +1,6 @@
 {
-  "name": "Kafelas Laundry",
-  "description": "Aplikasi Manajemen Operasional, Kasir, dan Keuangan Laundry",
+  "name": "Remix laundry-v9",
+  "description": "Imported from GitHub",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"

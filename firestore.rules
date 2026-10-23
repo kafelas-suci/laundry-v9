@@ -51,6 +51,10 @@ service cloud.firestore {
       }
     }
 
+    match /test/{docId} {
+      allow read: if true;
+    }
+
     // Default global deny catch-all
     match /{document=**} {
       allow read, write: if false;

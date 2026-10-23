@@ -1,0 +1,6 @@
+{
+  "summary":  "Rencana implementasi fitur Sinkronisasi Paksa (Smart Delta Sync) di Dashboard:\n1. Mekanisme Smart Delta Sync: Mengambil hanya transaksi, pelanggan, layanan, dan pengeluaran yang baru dibuat atau diubah sejak sinkronisasi terakhir menggunakan filter timestamp ('terakhirDieditPada'), menghemat 95%+ kuota read Firestore.\n2. Jeda Pengaman Cooldown 10 Menit: Membatasi eksekusi berulang agar tidak boros kuota read Firestore jika tombol diklik berkali-kali. Dilengkapi feedback info sisa waktu cooldown dan bypass khusus konfirmasi darurat.\n3. Alur Anti-Hilang: Otomatis mengunggah antrean nota offline di Outbox terlebih dahulu sebelum mengunduh pembaruan server.\n4. Desain Tombol & Feedback: Tombol aksi elegan di header Dashboard (Desktop & Mobile) dengan indikator status putar, waktu sinkronisasi terakhir, dan toast rincian jumlah data yang diperbarui.",
+  "updatedAt":  "2026-10-23T01:29:09.358678176Z",
+  "requestFeedback":  true,
+  "userFacing":  true
+}

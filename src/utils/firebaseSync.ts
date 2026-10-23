@@ -326,6 +326,90 @@ export class FirebaseSyncService {
     }
   }
 
+  // 3.1b SMART DELTA SYNC TRANSAKSI (SUPER HEMAT KUOTA FIRESTORE)
+  // Hanya mengambil transaksi yang baru dibuat atau diubah sejak `sinceTimestamp`
+  static async fetchTransaksiDelta(
+    laundryId: string,
+    sinceTimestamp = 0,
+    existingList: Transaksi[] = []
+  ): Promise<{ updatedList: Transaksi[]; newOrUpdatedCount: number }> {
+    if (!laundryId) {
+      return { updatedList: existingList, newOrUpdatedCount: 0 };
+    }
+
+    // Siapkan list data lokal terlebih dahulu
+    let localList = existingList.filter((t) => t.laundryId === laundryId);
+    if (localList.length === 0) {
+      const idbList = await IndexedDbService.getAllLaundryTransaksi(laundryId);
+      if (idbList.length > 0) {
+        localList = idbList;
+      }
+    }
+
+    if (!auth.currentUser) {
+      return { updatedList: localList, newOrUpdatedCount: 0 };
+    }
+
+    const path = `laundries/${laundryId}/transaksi`;
+    let newOrUpdatedCount = 0;
+
+    try {
+      let snap;
+      // Jika ada timestamp sinkronisasi sebelumnya (> 0), gunakan Delta Query berbasis terakhirDieditPada
+      if (sinceTimestamp > 0) {
+        try {
+          const qDelta = query(
+            collection(db, path),
+            where('terakhirDieditPada', '>', sinceTimestamp),
+            limit(150)
+          );
+          snap = await getDocs(qDelta);
+        } catch (eDelta) {
+          console.warn('Delta query filter terakhirDieditPada fallback:', eDelta);
+          // Fallback query standar jika index komposit belum siap
+          const qStandard = query(collection(db, path), orderBy('tanggalMasuk', 'desc'), limit(150));
+          snap = await getDocs(qStandard).catch(async () => {
+            return await getDocs(query(collection(db, path), limit(150)));
+          });
+        }
+      } else {
+        // First-time sync: ambil batch terbaru
+        try {
+          const qInit = query(collection(db, path), orderBy('tanggalMasuk', 'desc'), limit(200));
+          snap = await getDocs(qInit);
+        } catch {
+          snap = await getDocs(query(collection(db, path), limit(200)));
+        }
+      }
+
+      const map = new Map<string, Transaksi>();
+      localList.forEach((t) => map.set(t.id, t));
+
+      if (snap && !snap.empty) {
+        snap.forEach((d) => {
+          const trxItem = FirebaseSyncService.parseTransaksiDoc(
+            d.id,
+            laundryId,
+            d.data() as Partial<Transaksi>
+          );
+          map.set(trxItem.id, trxItem);
+          newOrUpdatedCount++;
+        });
+      }
+
+      const mergedList = Array.from(map.values()).sort((a, b) => b.tanggalMasuk - a.tanggalMasuk);
+      IndexedDbService.saveAllTransaksi(laundryId, mergedList).catch(console.error);
+
+      return {
+        updatedList: mergedList,
+        newOrUpdatedCount,
+      };
+    } catch (err) {
+      console.warn('Gagal fetchTransaksiDelta, gunakan data lokal:', err);
+      return { updatedList: localList, newOrUpdatedCount: 0 };
+    }
+  }
+
   // 3.2 PASTIKAN DOKUMEN CABANG TERDAFTAR DI FIRESTORE (Mencegah permission-denied)
   static async saveLaundry(laundry: Laundry): Promise<void> {
     if (!laundry || !laundry.id || !auth.currentUser) return;
@@ -671,7 +755,7 @@ export class FirebaseSyncService {
     }
   }
 
-  // 8. FETCH PELANGGAN LANGSUNG DARI SERVER (Multi-user sync)
+  // 8. FETCH PELANGGAN LANGSUNG DARI SERVER (Multi-user sync & smart merge)
   static async fetchPelanggan(laundryId: string, cached: Pelanggan[] = []): Promise<Pelanggan[]> {
     if (!auth.currentUser) {
       return cached;
@@ -680,9 +764,13 @@ export class FirebaseSyncService {
     try {
       const q = query(collection(db, path), limit(150));
       const snap = await getDocs(q);
-      const list: Pelanggan[] = [];
-      snap.forEach((d) => list.push(d.data() as Pelanggan));
-      return list;
+      const map = new Map<string, Pelanggan>();
+      cached.forEach((p) => map.set(p.id, p));
+      snap.forEach((d) => {
+        const item = d.data() as Pelanggan;
+        map.set(item.id, item);
+      });
+      return Array.from(map.values());
     } catch (e) {
       console.warn('Gagal fetch pelanggan:', e);
       return cached;
@@ -701,7 +789,7 @@ export class FirebaseSyncService {
     }
   }
 
-  // 9. FETCH LAYANAN LANGSUNG DARI SERVER (Multi-user sync)
+  // 9. FETCH LAYANAN LANGSUNG DARI SERVER (Multi-user sync & smart merge)
   static async fetchLayanan(laundryId: string, cached: Layanan[] = []): Promise<Layanan[]> {
     if (!auth.currentUser) {
       return cached;
@@ -709,9 +797,16 @@ export class FirebaseSyncService {
     const path = `laundries/${laundryId}/layanan`;
     try {
       const snap = await getDocs(collection(db, path));
-      const list: Layanan[] = [];
-      snap.forEach((d) => list.push(d.data() as Layanan));
-      return list.sort((a, b) => a.urutan - b.urutan);
+      if (snap.empty) {
+        return cached.length > 0 ? cached : defaultLayananList;
+      }
+      const map = new Map<string, Layanan>();
+      cached.forEach((l) => map.set(l.id, l));
+      snap.forEach((d) => {
+        const item = d.data() as Layanan;
+        map.set(item.id, item);
+      });
+      return Array.from(map.values()).sort((a, b) => (a.urutan ?? 999) - (b.urutan ?? 999));
     } catch (e) {
       console.warn('Gagal fetch layanan:', e);
       return cached;

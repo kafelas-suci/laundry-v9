@@ -48,15 +48,15 @@ import { getLimits } from '../utils/subscription';
 const STORAGE_KEY_FB_CONFIG = 'KAFELA_FIREBASE_CONFIG_V1';
 
 /**
- * Konfigurasi resmi bawaan dari proyek Firebase kafilasuci4 (kafilasuci4.firebaseapp.com)
+ * Konfigurasi resmi bawaan dari proyek Firebase kafilasuci4
  */
 export const DEFAULT_KAFELA_FIREBASE_CONFIG: FirebaseCustomConfig = {
-  apiKey: (import.meta as any).env?.VITE_FIREBASE_API_KEY || 'AIzaSyD5iCMLt6XFMI2Wb-JB97a7_DY8tbfLJW4',
-  authDomain: (import.meta as any).env?.VITE_FIREBASE_AUTH_DOMAIN || 'kafilasuci4.firebaseapp.com',
-  projectId: (import.meta as any).env?.VITE_FIREBASE_PROJECT_ID || 'kafilasuci4',
-  storageBucket: (import.meta as any).env?.VITE_FIREBASE_STORAGE_BUCKET || 'kafilasuci4.firebasestorage.app',
-  messagingSenderId: (import.meta as any).env?.VITE_FIREBASE_MESSAGING_SENDER_ID || '125487710715',
-  appId: (import.meta as any).env?.VITE_FIREBASE_APP_ID || '1:125487710715:web:337d5032dba2029eb1cb5e',
+  apiKey: 'AIzaSyD5iCMLt6XFMI2Wb-JB97a7_DY8tbfLJW4',
+  authDomain: 'kafilasuci4.firebaseapp.com',
+  projectId: 'kafilasuci4',
+  storageBucket: 'kafilasuci4.firebasestorage.app',
+  messagingSenderId: '125487710715',
+  appId: '1:125487710715:web:337d5032dba2029eb1cb5e',
 };
 
 export function getSavedFirebaseConfig(): FirebaseCustomConfig {
@@ -67,7 +67,7 @@ export function getSavedFirebaseConfig(): FirebaseCustomConfig {
       if (parsed && parsed.apiKey && parsed.projectId && parsed.projectId === 'kafilasuci4') {
         return parsed;
       }
-      // Jika tersimpan konfigurasi lama (misal barokah-laundry-suci), migrasikan langsung ke kafilasuci4
+      // Jika tersimpan konfigurasi lama, migrasikan langsung ke kafilasuci4
       saveFirebaseConfig(DEFAULT_KAFELA_FIREBASE_CONFIG);
     }
   } catch {
@@ -369,7 +369,7 @@ export async function resolveUserRoleFromFirestore(
 }
 
 /**
- * Tarik Seluruh Data Studio dari proyek kafilasuci3 dalam 1 Sesi Hemat
+ * Tarik Seluruh Data Studio dari proyek kafilasuci4 dalam 1 Sesi Hemat
  */
 export async function fetchOwnerWorkspaceFromFirebase(
   targetOwnerId: string

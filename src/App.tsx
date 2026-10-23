@@ -520,13 +520,25 @@ export default function App() {
   };
 
   // Load real user and real Firestore data when authenticated
-  const loadFirestoreData = async (user: User, forceSync = false) => {
+  const loadFirestoreData = async (user: User, forceSync = false): Promise<{
+    transaksiCount: number;
+    pelangganCount: number;
+    layananCount: number;
+  } | undefined> => {
     if (!auth.currentUser) {
       return;
     }
     const now = Date.now();
 
     try {
+      // 0. Jika forceSync, kuras antrean Outbox terlebih dahulu (agar nota offline kasir tidak tertimpa/hilang)
+      if (forceSync) {
+        await FirebaseSyncService.syncPendingOutbox().catch((err) => {
+          console.warn('Gagal sinkron outbox sebelum forceSync:', err);
+        });
+      }
+
+      // 1. Fetch Laundries
       const userLaundries = await FirebaseSyncService.fetchLaundries(user.uid, laundries, forceSync);
       const cleanLaundries = user && user.uid && !user.uid.startsWith('demo')
         ? userLaundries.filter(l => l.id !== 'lnd-1' && l.id !== 'demo-lnd-1')
@@ -553,36 +565,47 @@ export default function App() {
       setActiveLaundryId(targetLaundryId);
       StorageService.set('current_laundry_id', targetLaundryId);
 
-      const currentCachedTrx = transaksiList.length > 0 ? transaksiList : StorageService.get<Transaksi[]>('transaksi', []);
-      if (currentCachedTrx.length > 0) {
-        updateTransaksiList(currentCachedTrx);
+      // 2. Sync Transaksi (Smart Delta Sync berbasis terakhirDieditPada jika forceSync)
+      let newOrUpdatedTrx = 0;
+      if (forceSync) {
+        const deltaSyncKey = `last_trx_delta_sync_${targetLaundryId}`;
+        const lastDeltaSync = StorageService.get<number>(deltaSyncKey, 0);
+        const { updatedList, newOrUpdatedCount } = await FirebaseSyncService.fetchTransaksiDelta(
+          targetLaundryId,
+          lastDeltaSync,
+          transaksiList
+        );
+        newOrUpdatedTrx = newOrUpdatedCount;
+        if (updatedList.length > 0) {
+          updateTransaksiList(updatedList);
+          StorageService.set(deltaSyncKey, now);
+        }
+      } else {
+        const currentCachedTrx = transaksiList.length > 0 ? transaksiList : StorageService.get<Transaksi[]>('transaksi', []);
+        if (currentCachedTrx.length > 0) {
+          updateTransaksiList(currentCachedTrx);
+        }
       }
 
-      // 2. Sync Pelanggan
-      const custs = await FirebaseSyncService.fetchPelanggan(targetLaundryId, forceSync ? [] : pelangganList);
+      // 3. Sync Pelanggan (Smart merge)
+      const custs = await FirebaseSyncService.fetchPelanggan(targetLaundryId, pelangganList);
       if (custs && custs.length > 0) {
         updatePelangganList(custs);
-      } else if (forceSync) {
-        updatePelangganList([]);
       }
 
-      // 3. Sync Layanan
-      const lays = await FirebaseSyncService.fetchLayanan(targetLaundryId, forceSync ? [] : layananList);
+      // 4. Sync Layanan (Smart merge)
+      const lays = await FirebaseSyncService.fetchLayanan(targetLaundryId, layananList);
       if (lays && lays.length > 0) {
         updateLayananList(lays);
-      } else if (forceSync) {
-        updateLayananList(defaultLayananList);
       }
 
-      // 4. Sync Pengeluaran
-      const exps = await FirebaseSyncService.fetchPengeluaran(targetLaundryId, forceSync ? [] : pengeluaranList);
+      // 5. Sync Pengeluaran (Smart merge)
+      const exps = await FirebaseSyncService.fetchPengeluaran(targetLaundryId, pengeluaranList);
       if (exps && exps.length > 0) {
         updatePengeluaranList(exps);
-      } else if (forceSync) {
-        updatePengeluaranList([]);
       }
 
-      // 5. Sync Settings
+      // 6. Sync Settings
       const st = await FirebaseSyncService.fetchSettings(targetLaundryId, settings);
       if (st) {
         setSettings(st);
@@ -590,8 +613,15 @@ export default function App() {
       }
 
       StorageService.set('last_global_sync', now);
+
+      return {
+        transaksiCount: newOrUpdatedTrx,
+        pelangganCount: custs.length,
+        layananCount: lays.length,
+      };
     } catch (err) {
       console.error('Error loading Firestore data:', err);
+      throw err;
     }
   };
 
@@ -1463,6 +1493,7 @@ export default function App() {
             onOpenLaporan={() => setActiveView('laporan')}
             onOpenAturKas={() => setIsAturKasOpen(true)}
             onOpenSwitchBranch={() => setIsSwitchBranchOpen(true)}
+            onSelectBranch={handleSelectBranch}
             onOpenApkModal={() => setIsApkModalOpen(true)}
             onOpenKelolaPelanggan={() => setActiveView('kelola_pelanggan')}
             onOpenKelolaLayanan={() => setActiveView('kelola_layanan')}

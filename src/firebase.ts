@@ -17,14 +17,14 @@ import {
   onSnapshot,
 } from 'firebase/firestore';
 
-// Konfigurasi resmi proyek Firebase kafilasuci4 (Email/Password & Google Auth Enabled)
+// Konfigurasi resmi proyek Firebase kafilasuci4
 export const firebaseConfig = {
-  apiKey: (import.meta as any).env?.VITE_FIREBASE_API_KEY || 'AIzaSyD5iCMLt6XFMI2Wb-JB97a7_DY8tbfLJW4',
-  authDomain: (import.meta as any).env?.VITE_FIREBASE_AUTH_DOMAIN || 'kafilasuci4.firebaseapp.com',
-  projectId: (import.meta as any).env?.VITE_FIREBASE_PROJECT_ID || 'kafilasuci4',
-  storageBucket: (import.meta as any).env?.VITE_FIREBASE_STORAGE_BUCKET || 'kafilasuci4.firebasestorage.app',
-  messagingSenderId: (import.meta as any).env?.VITE_FIREBASE_MESSAGING_SENDER_ID || '125487710715',
-  appId: (import.meta as any).env?.VITE_FIREBASE_APP_ID || '1:125487710715:web:337d5032dba2029eb1cb5e',
+  apiKey: 'AIzaSyD5iCMLt6XFMI2Wb-JB97a7_DY8tbfLJW4',
+  authDomain: 'kafilasuci4.firebaseapp.com',
+  projectId: 'kafilasuci4',
+  storageBucket: 'kafilasuci4.firebasestorage.app',
+  messagingSenderId: '125487710715',
+  appId: '1:125487710715:web:337d5032dba2029eb1cb5e',
 };
 
 // Initialize Firebase (Singleton app instance)
