@@ -36,7 +36,7 @@ import { usePWAInstall } from '../hooks/usePWAInstall';
 import { InstallGuideModal } from '../components/InstallGuideModal';
 
 interface AuthViewProps {
-  onLoginSuccess: (user: UserType) => void;
+  onLoginSuccess: (user: UserType) => void | Promise<void>;
   staffList: UserType[];
   ownerUser: UserType;
   onOpenLandingPage?: () => void;
@@ -79,6 +79,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
 
     setIsLoading(true);
     setAuthError(null);
+    FirebaseSyncService.beginAuthFlow();
 
     try {
       const res = await signInWithEmailAndPassword(auth, email.trim(), password.trim());
@@ -88,7 +89,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
         displayName: res.user.displayName,
         phoneNumber: res.user.phoneNumber,
       });
-      onLoginSuccess(userProfile);
+      await onLoginSuccess(userProfile);
     } catch (err: any) {
       console.warn('Firebase email login error:', err.code, err.message);
 
@@ -113,7 +114,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
           return;
         }
         toast.success(`Berhasil masuk sebagai kasir ${staffMatch.displayName}`);
-        onLoginSuccess(staffMatch);
+        await onLoginSuccess(staffMatch);
         return;
       }
 
@@ -135,14 +136,20 @@ export const AuthView: React.FC<AuthViewProps> = ({
         setAuthError(err.message || 'Gagal masuk. Pastikan akun sudah terdaftar.');
       }
     } finally {
+      FirebaseSyncService.endAuthFlow();
       setIsLoading(false);
     }
   };
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!namaLaundry.trim() || !email.trim() || !password.trim()) {
-      setAuthError('Semua kolom bertanda bintang (*) wajib diisi.');
+    const cleanLaundryName = namaLaundry.trim();
+    const cleanPhone = telepon.trim();
+    const cleanEmail = email.trim();
+    const cleanPassword = password.trim();
+
+    if (!cleanLaundryName || !cleanPhone || !cleanEmail || !cleanPassword) {
+      setAuthError('Semua kolom bertanda bintang (*) wajib diisi (termasuk Nama Laundry & No. WhatsApp).');
       return;
     }
     if (password !== confirmPassword) {
@@ -158,13 +165,20 @@ export const AuthView: React.FC<AuthViewProps> = ({
       return;
     }
 
+    const chosenDisplayName = displayName.trim() || cleanLaundryName;
+
     setIsLoading(true);
     setAuthError(null);
+    FirebaseSyncService.beginAuthFlow({
+      namaLaundry: cleanLaundryName,
+      phoneNumber: cleanPhone,
+      displayName: chosenDisplayName,
+      email: cleanEmail,
+    });
 
     try {
-      const res = await createUserWithEmailAndPassword(auth, email.trim(), password.trim());
+      const res = await createUserWithEmailAndPassword(auth, cleanEmail, cleanPassword);
 
-      const chosenDisplayName = displayName.trim() || namaLaundry.trim() || 'Owner';
       if (res.user) {
         await updateProfile(res.user, {
           displayName: chosenDisplayName,
@@ -173,14 +187,15 @@ export const AuthView: React.FC<AuthViewProps> = ({
 
       const userProfile = await FirebaseSyncService.getOrCreateUserProfile({
         uid: res.user.uid,
-        email: res.user.email,
+        email: res.user.email || cleanEmail,
         displayName: chosenDisplayName,
         username: chosenDisplayName,
-        phoneNumber: telepon.trim(),
-        namaLaundry: namaLaundry.trim(),
+        phoneNumber: cleanPhone,
+        namaLaundry: cleanLaundryName,
+        isSignUp: true,
       });
       toast.success('Pendaftaran berhasil! Akun Anda siap digunakan.');
-      onLoginSuccess(userProfile);
+      await onLoginSuccess(userProfile);
     } catch (err: any) {
       console.error('Sign up error:', err);
       if (err.code === 'auth/operation-not-allowed') {
@@ -193,6 +208,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
         setAuthError(err.message || 'Gagal mendaftar. Silakan coba lagi.');
       }
     } finally {
+      FirebaseSyncService.endAuthFlow();
       setIsLoading(false);
     }
   };
@@ -200,17 +216,37 @@ export const AuthView: React.FC<AuthViewProps> = ({
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
     setAuthError(null);
+
+    const typedLaundryName = namaLaundry.trim();
+    const typedPhone = telepon.trim();
+    const typedOwnerName = displayName.trim();
+
+    FirebaseSyncService.beginAuthFlow(
+      typedLaundryName || typedPhone || typedOwnerName
+        ? {
+            namaLaundry: typedLaundryName || undefined,
+            phoneNumber: typedPhone || undefined,
+            displayName: typedOwnerName || undefined,
+          }
+        : undefined
+    );
+
     try {
       const res = await signInWithPopup(auth, googleProvider);
+      const resolvedOwnerName = typedOwnerName || res.user.displayName || 'Owner';
+      const resolvedLaundryName =
+        typedLaundryName || (res.user.displayName ? `Laundry ${res.user.displayName}` : "Kafela's Laundry");
+      const resolvedPhone = typedPhone || res.user.phoneNumber || '';
+
       const userProfile = await FirebaseSyncService.getOrCreateUserProfile({
         uid: res.user.uid,
         email: res.user.email,
-        displayName: res.user.displayName,
-        username: res.user.displayName || 'Owner',
-        phoneNumber: res.user.phoneNumber,
-        namaLaundry: res.user.displayName ? `Laundry ${res.user.displayName}` : 'Kafelas Laundry',
+        displayName: resolvedOwnerName,
+        username: resolvedOwnerName,
+        phoneNumber: resolvedPhone,
+        namaLaundry: resolvedLaundryName,
       });
-      onLoginSuccess(userProfile);
+      await onLoginSuccess(userProfile);
     } catch (err: any) {
       console.error('Google Sign In error:', err);
       if (err.code === 'auth/popup-closed-by-user') {
@@ -219,6 +255,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
         setAuthError('Gagal login Google: ' + (err.message || 'Terjadi kendala jaringan'));
       }
     } finally {
+      FirebaseSyncService.endAuthFlow();
       setIsLoading(false);
     }
   };

@@ -66,9 +66,11 @@ export async function generateReceiptCanvas(
   const sisaBayar = isLunas ? 0 : Math.max(0, transaksi.totalHarga - (transaksi.jumlahDp || 0));
   const statusFinal = isLunas || sisaBayar <= 0 ? 'LUNAS' : 'BELUM LUNAS';
 
-  // 1. Muat gambar logo jika diaktifkan
+  // 1. Muat gambar logo jika diaktifkan dan tersedia
   let logoImg: HTMLImageElement | null = null;
-  if (settings.useLogo) {
+  const maxLogoH =
+    settings.logoSize === 'kecil' ? 36 : settings.logoSize === 'besar' ? 68 : 50;
+  if (settings.useLogo && settings.logoPath) {
     try {
       const base64 = await getLogoBase64(settings);
       if (base64) {
@@ -94,7 +96,7 @@ export async function generateReceiptCanvas(
   let estimatedHeight = 60; // Padding atas & bawah
 
   if (logoImg) {
-    estimatedHeight += 60;
+    estimatedHeight += maxLogoH + 12;
   }
 
   // Header toko (Title, phone, address)
@@ -173,8 +175,7 @@ export async function generateReceiptCanvas(
 
   // Logo Toko
   if (logoImg) {
-    const maxLogoH = 50;
-    const scale = Math.min(1, maxLogoH / logoImg.naturalHeight);
+    const scale = Math.min(1, maxLogoH / (logoImg.naturalHeight || logoImg.height || 1));
     const renderW = (logoImg.naturalWidth || logoImg.width) * scale;
     const renderH = (logoImg.naturalHeight || logoImg.height) * scale;
     const logoX = (width - renderW) / 2;

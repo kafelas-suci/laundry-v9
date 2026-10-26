@@ -63,7 +63,8 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
   const handlePrint = async (forcePicker = false) => {
     // 1. Prioritaskan cetak Bluetooth hardware langsung jika berjalan di APK Android
     if (isAndroidPrintAvailable()) {
-      setPrintFeedback('Mengirim struk & logo ke printer Bluetooth...');
+      const hasLogo = Boolean(settings.useLogo && settings.logoPath);
+      setPrintFeedback(hasLogo ? 'Mengirim struk & logo ke printer Bluetooth...' : 'Mengirim struk ke printer Bluetooth...');
       const printed = await printViaAndroidBluetooth(
         transaksi,
         settings,
@@ -72,7 +73,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
         laundryPhone
       );
       if (printed) {
-        setTimeout(() => setPrintFeedback('Struk & logo berhasil dicetak!'), 800);
+        setTimeout(() => setPrintFeedback(hasLogo ? 'Struk & logo berhasil dicetak!' : 'Struk berhasil dicetak!'), 800);
         setTimeout(() => setPrintFeedback(null), 3500);
         return;
       }
@@ -212,25 +213,19 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
 
             <div className="relative z-10 space-y-2">
               {/* Optional Store Logo */}
-              {settings.useLogo && (
+              {settings.useLogo && settings.logoPath && (
                 <div className="flex justify-center mb-1">
-                  {settings.logoPath ? (
-                    <img
-                      src={settings.logoPath}
-                      alt="Logo"
-                      className={`w-auto object-contain filter grayscale contrast-125 ${
-                        settings.logoSize === 'kecil'
-                          ? 'h-7 max-w-[70px]'
-                          : settings.logoSize === 'besar'
-                          ? 'h-13 max-w-[130px]'
-                          : 'h-9 max-w-[95px]'
-                      }`}
-                    />
-                  ) : (
-                    <div className="w-10 h-10 rounded-full border-2 border-slate-900 flex items-center justify-center font-bold text-xs">
-                      LS
-                    </div>
-                  )}
+                  <img
+                    src={settings.logoPath}
+                    alt="Logo"
+                    className={`w-auto object-contain filter grayscale contrast-125 ${
+                      settings.logoSize === 'kecil'
+                        ? 'h-7 max-w-[70px]'
+                        : settings.logoSize === 'besar'
+                        ? 'h-13 max-w-[130px]'
+                        : 'h-9 max-w-[95px]'
+                    }`}
+                  />
                 </div>
               )}
 

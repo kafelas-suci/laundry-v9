@@ -18,12 +18,12 @@ export const defaultSettings: SettingsData = {
   appTitle: "Kafela's Laundry",
   printerName: 'RPP02N',
   headerStruk: "Kafela's Laundry",
-  address: '-',
-  phoneNumber: '0812-3456-7890',
+  address: '',
+  phoneNumber: '',
   footerStruk: 'Barang yang tidak diambil lebih dari 3 bulan akan disedekahkan.',
   chattyFooter: 'Terima kasih atas kepercayaan Anda!',
-  useLogo: true,
-  logoPath: '/logo-kafela.png',
+  useLogo: false,
+  logoPath: null,
   logoSize: 'sedang',
   estimasiDisplayMode: 0, // 0 = per item, 1 = single line
   pengambilanTanpaSelesai: true,
@@ -153,9 +153,15 @@ export class StorageService {
         while (typeof header === 'object' && header !== null) {
           header = header.namaLaundry || header.headerStruk || "Kafela's Laundry";
         }
+        const hasCustomized = Boolean(localStorage.getItem(STORAGE_KEY_PREFIX + 'has_customized_settings'));
+        const rawLogoPath = typeof (parsed as any).logoPath === 'string' ? (parsed as any).logoPath.trim() : null;
+        const cleanLogoPath =
+          !hasCustomized && rawLogoPath === '/logo-kafela.png' ? null : (rawLogoPath || null);
         return {
           ...parsed,
           headerStruk: typeof header === 'string' && header.trim() ? header : "Kafela's Laundry",
+          logoPath: cleanLogoPath,
+          useLogo: Boolean((parsed as any).useLogo && cleanLogoPath),
         } as T;
       }
 

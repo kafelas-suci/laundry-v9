@@ -45,18 +45,20 @@ import {
 import { saveMedia } from './localDb';
 import { getLimits } from '../utils/subscription';
 
+import firebaseAppletConfig from '../../firebase-applet-config.json';
+
 const STORAGE_KEY_FB_CONFIG = 'KAFELA_FIREBASE_CONFIG_V1';
 
 /**
- * Konfigurasi resmi bawaan dari proyek Firebase kafilasuci4
+ * Konfigurasi resmi bawaan dari firebase-applet-config.json
  */
 export const DEFAULT_KAFELA_FIREBASE_CONFIG: FirebaseCustomConfig = {
-  apiKey: 'AIzaSyD5iCMLt6XFMI2Wb-JB97a7_DY8tbfLJW4',
-  authDomain: 'kafilasuci4.firebaseapp.com',
-  projectId: 'kafilasuci4',
-  storageBucket: 'kafilasuci4.firebasestorage.app',
-  messagingSenderId: '125487710715',
-  appId: '1:125487710715:web:337d5032dba2029eb1cb5e',
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || firebaseAppletConfig.apiKey,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || firebaseAppletConfig.authDomain,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || firebaseAppletConfig.projectId,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || firebaseAppletConfig.storageBucket,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || firebaseAppletConfig.messagingSenderId,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || firebaseAppletConfig.appId,
 };
 
 export function getSavedFirebaseConfig(): FirebaseCustomConfig {

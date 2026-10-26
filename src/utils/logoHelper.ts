@@ -1,41 +1,45 @@
 import { SettingsData } from '../types';
 import { DEFAULT_KAFELA_LOGO_BASE64 } from './defaultLogo';
 
-let cachedLogoBase64: string = DEFAULT_KAFELA_LOGO_BASE64;
+let cachedLogoKey = '';
+let cachedLogoBase64 = '';
 
 /**
  * Dapatkan string Base64 logo toko siap cetak untuk printer Bluetooth thermal.
- * Selalu mengembalikan Base64 yang valid dan instan (tanpa delay).
+ * Mengembalikan string kosong jika logo dinonaktifkan atau belum diunggah.
  */
 export async function getLogoBase64(settings: SettingsData): Promise<string> {
-  if (!settings.useLogo) {
+  if (!settings.useLogo || !settings.logoPath || !settings.logoPath.trim()) {
     return '';
   }
 
-  // 1. Jika logoPath berupa Base64 Data URL (misal hasil upload gambar baru di Pengaturan)
-  if (settings.logoPath && settings.logoPath.startsWith('data:image/')) {
-    const commaIdx = settings.logoPath.indexOf(',');
-    const b64 = commaIdx !== -1 ? settings.logoPath.slice(commaIdx + 1) : settings.logoPath;
+  const rawPath = settings.logoPath.trim();
+
+  // 1. Jika logoPath berupa Base64 Data URL (hasil upload gambar di Pengaturan)
+  if (rawPath.startsWith('data:image/')) {
+    const commaIdx = rawPath.indexOf(',');
+    const b64 = commaIdx !== -1 ? rawPath.slice(commaIdx + 1) : rawPath;
+    cachedLogoKey = rawPath;
     cachedLogoBase64 = b64.trim();
     return cachedLogoBase64;
   }
 
-  // 2. Jika logoPath adalah default logo toko Kafela
-  if (!settings.logoPath || settings.logoPath === '/logo-kafela.png' || settings.logoPath.includes('logo-kafela')) {
-    cachedLogoBase64 = DEFAULT_KAFELA_LOGO_BASE64;
+  // 2. Jika logoPath secara eksplisit menggunakan aset demo Kafela
+  if (rawPath === '/logo-kafela.png' || rawPath.includes('logo-kafela')) {
     return DEFAULT_KAFELA_LOGO_BASE64;
   }
 
   // 3. Jika logoPath adalah URL kustom lain
-  if (cachedLogoBase64 && cachedLogoBase64 !== DEFAULT_KAFELA_LOGO_BASE64) {
+  if (cachedLogoKey === rawPath && cachedLogoBase64) {
     return cachedLogoBase64;
   }
 
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 2000);
-    const res = await fetch(settings.logoPath, { signal: controller.signal });
+    const res = await fetch(rawPath, { signal: controller.signal });
     clearTimeout(timeoutId);
+    if (!res.ok) return '';
     const blob = await res.blob();
     return new Promise((resolve) => {
       const reader = new FileReader();
@@ -43,15 +47,16 @@ export async function getLogoBase64(settings: SettingsData): Promise<string> {
         const result = (reader.result as string) || '';
         const commaIdx = result.indexOf(',');
         const b64 = commaIdx !== -1 ? result.slice(commaIdx + 1) : result;
-        cachedLogoBase64 = b64.trim() || DEFAULT_KAFELA_LOGO_BASE64;
-        resolve(cachedLogoBase64);
+        const cleanB64 = b64.trim();
+        cachedLogoKey = rawPath;
+        cachedLogoBase64 = cleanB64;
+        resolve(cleanB64);
       };
-      reader.onerror = () => resolve(DEFAULT_KAFELA_LOGO_BASE64);
+      reader.onerror = () => resolve('');
       reader.readAsDataURL(blob);
     });
   } catch {
-    // Fallback aman ke logo Kafela default jika gagal fetch
-    return DEFAULT_KAFELA_LOGO_BASE64;
+    return '';
   }
 }
 

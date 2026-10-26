@@ -26,7 +26,74 @@ import {
 import { defaultLayananList, defaultSettings, StorageService } from './storage';
 import { IndexedDbService } from './indexedDb';
 
+export interface PendingSignUpInfo {
+  namaLaundry?: string;
+  phoneNumber?: string;
+  displayName?: string;
+  email?: string;
+}
+
+const PENDING_SIGNUP_SESSION_KEY = 'kafelas_pending_signup';
+
+function cleanPlaceholder(val?: string | null): string {
+  if (!val || typeof val !== 'string') return '';
+  const trimmed = val.trim();
+  if (!trimmed || trimmed === '-' || trimmed === '0812-3456-7890') return '';
+  return trimmed;
+}
+
 export class FirebaseSyncService {
+  private static authFlowActive = false;
+  private static pendingSignUp: PendingSignUpInfo | null = null;
+
+  static beginAuthFlow(pending?: PendingSignUpInfo): void {
+    this.authFlowActive = true;
+    if (pending) {
+      this.pendingSignUp = pending;
+      if (typeof window !== 'undefined') {
+        try {
+          sessionStorage.setItem(PENDING_SIGNUP_SESSION_KEY, JSON.stringify(pending));
+        } catch {
+          // ignore storage error
+        }
+      }
+    }
+  }
+
+  static endAuthFlow(): void {
+    this.authFlowActive = false;
+    this.pendingSignUp = null;
+    if (typeof window !== 'undefined') {
+      try {
+        sessionStorage.removeItem(PENDING_SIGNUP_SESSION_KEY);
+      } catch {
+        // ignore storage error
+      }
+    }
+  }
+
+  static isAuthFlowActive(): boolean {
+    return this.authFlowActive;
+  }
+
+  private static getPendingSignUp(email?: string | null): PendingSignUpInfo | null {
+    if (this.pendingSignUp) return this.pendingSignUp;
+    if (typeof window !== 'undefined') {
+      try {
+        const raw = sessionStorage.getItem(PENDING_SIGNUP_SESSION_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw) as PendingSignUpInfo;
+          if (!email || !parsed.email || parsed.email.toLowerCase() === email.toLowerCase()) {
+            return parsed;
+          }
+        }
+      } catch {
+        // ignore parse error
+      }
+    }
+    return null;
+  }
+
   static async getOrCreateUserProfile(firebaseUser: {
     uid: string;
     email?: string | null;
@@ -34,15 +101,26 @@ export class FirebaseSyncService {
     phoneNumber?: string | null;
     username?: string | null;
     namaLaundry?: string | null;
+    isSignUp?: boolean;
   }): Promise<User> {
+    const pending = this.getPendingSignUp(firebaseUser.email);
     const defaultLaundryId = `lnd-${firebaseUser.uid}`;
-    const branchName = firebaseUser.namaLaundry?.trim() || firebaseUser.displayName?.trim() || "Laundry";
-    const userName = firebaseUser.displayName?.trim() || firebaseUser.username?.trim() || 'Owner';
-    const phone = firebaseUser.phoneNumber?.trim() || '';
+
+    const explicitLaundryName = cleanPlaceholder(firebaseUser.namaLaundry) || cleanPlaceholder(pending?.namaLaundry);
+    const explicitPhone = cleanPlaceholder(firebaseUser.phoneNumber) || cleanPlaceholder(pending?.phoneNumber);
+    const explicitOwnerName =
+      cleanPlaceholder(firebaseUser.displayName) ||
+      cleanPlaceholder(firebaseUser.username) ||
+      cleanPlaceholder(pending?.displayName);
+    const emailStr = (firebaseUser.email || pending?.email || '').trim();
+
+    const branchName = explicitLaundryName || explicitOwnerName || "Kafela's Laundry";
+    const userName = explicitOwnerName || explicitLaundryName || 'Owner';
+    const phone = explicitPhone;
 
     const newUser: User = {
       uid: firebaseUser.uid,
-      emailOrPhone: firebaseUser.email || phone || '',
+      emailOrPhone: emailStr || phone || '',
       username: userName,
       displayName: userName,
       nomorTelepon: phone,
@@ -58,52 +136,133 @@ export class FirebaseSyncService {
     const userDocRef = doc(db, 'users', firebaseUser.uid);
     try {
       const snap = await getDoc(userDocRef);
-      if (snap.exists()) {
+
+      // Jika bukan proses signup baru dan dokumen user sudah ada di Firestore
+      if (snap.exists() && !firebaseUser.isSignUp) {
         const rawUser = snap.data() as any;
-        let displayName = rawUser.displayName;
-        while (typeof displayName === 'object' && displayName !== null) {
-          displayName = displayName.namaLaundry || displayName.displayName || displayName.name || 'Owner';
+        let resolvedDisplayName = rawUser.displayName;
+        while (typeof resolvedDisplayName === 'object' && resolvedDisplayName !== null) {
+          resolvedDisplayName =
+            resolvedDisplayName.namaLaundry || resolvedDisplayName.displayName || resolvedDisplayName.name || 'Owner';
         }
+
+        const existingLaundryId = rawUser.laundryId || defaultLaundryId;
+        const existingBranchName = cleanPlaceholder(rawUser.laundries?.[existingLaundryId]);
+        const existingPhone = cleanPlaceholder(rawUser.nomorTelepon);
+
+        const healedBranchName =
+          (!existingBranchName || existingBranchName === 'Laundry') && explicitLaundryName
+            ? explicitLaundryName
+            : existingBranchName || branchName;
+        const healedPhone = !existingPhone && explicitPhone ? explicitPhone : existingPhone;
+        const healedDisplayName =
+          typeof resolvedDisplayName === 'string' && resolvedDisplayName.trim() && resolvedDisplayName !== 'Owner'
+            ? resolvedDisplayName.trim()
+            : explicitOwnerName ||
+              (typeof resolvedDisplayName === 'string' && resolvedDisplayName.trim() ? resolvedDisplayName.trim() : 'Owner');
+
         const isNewcomerProfile = !rawUser.subscriptionType || rawUser.subscriptionType === 'newcomer';
         const user: User = {
           ...rawUser,
+          uid: firebaseUser.uid,
+          emailOrPhone: rawUser.emailOrPhone || emailStr || healedPhone || '',
+          nomorTelepon: healedPhone,
+          laundryId: existingLaundryId,
+          laundries: {
+            ...(rawUser.laundries || {}),
+            [existingLaundryId]: healedBranchName,
+          },
           subscriptionEndDate: isNewcomerProfile ? null : rawUser.subscriptionEndDate,
-          displayName: typeof displayName === 'string' && displayName.trim() ? displayName : (userName || 'Owner'),
+          displayName: healedDisplayName,
+          username: rawUser.username || healedDisplayName,
         };
+
+        // Jika ada data kosong yang berhasil dilengkapi dari input eksplisit, simpan perbaikannya ke Firestore
+        const needsHeal =
+          healedPhone !== existingPhone ||
+          healedBranchName !== existingBranchName ||
+          healedDisplayName !== resolvedDisplayName;
+        if (needsHeal) {
+          await setDoc(userDocRef, user, { merge: true }).catch(console.warn);
+          if (explicitLaundryName || explicitPhone) {
+            await setDoc(
+              doc(db, 'laundries', existingLaundryId),
+              {
+                id: existingLaundryId,
+                ownerId: firebaseUser.uid,
+                namaLaundry: healedBranchName,
+                nomorTelepon: healedPhone,
+              },
+              { merge: true }
+            ).catch(console.warn);
+            await setDoc(
+              doc(db, 'laundries', existingLaundryId, 'settings', 'main'),
+              {
+                headerStruk: healedBranchName,
+                appTitle: healedBranchName,
+                phoneNumber: healedPhone,
+              },
+              { merge: true }
+            ).catch(console.warn);
+          }
+        }
+
         StorageService.set('active_user', user);
         return user;
       }
 
-      await setDoc(userDocRef, newUser);
-      StorageService.set('active_user', newUser);
-
-      // Create initial branch dengan nama laundry dan nomor HP yang dimasukkan user
-      const branchRef = doc(db, 'laundries', defaultLaundryId);
+      // Pendaftaran akun baru (atau pemulihan paksa saat isSignUp = true):
+      // Bersihkan sisa state lokal akun sebelumnya agar tidak mencemari akun baru
       const initialBranch: Laundry = {
         id: defaultLaundryId,
         ownerId: firebaseUser.uid,
         namaLaundry: branchName,
-        alamat: 'Bandung',
+        alamat: '',
         nomorTelepon: phone,
       };
-      await setDoc(branchRef, initialBranch);
 
-      // Inisialisasi pengaturan struk dengan nama laundry dan no telepon yang didaftarkan
-      const settingsRef = doc(db, 'laundries', defaultLaundryId, 'settings', 'main');
       const customSettings: SettingsData = {
         ...defaultSettings,
         headerStruk: branchName,
         appTitle: branchName,
-        phoneNumber: phone || defaultSettings.phoneNumber,
+        address: '',
+        phoneNumber: phone,
+        useLogo: false,
+        logoPath: null,
+        logoSize: 'sedang',
       };
-      await setDoc(settingsRef, customSettings);
-      StorageService.set('settings', customSettings);
 
-      // Create initial services
-      for (const lay of defaultLayananList) {
+      const seededLayanan: Layanan[] = defaultLayananList.map((lay) => ({
+        ...lay,
+        laundryId: defaultLaundryId,
+      }));
+
+      StorageService.set('transaksi', []);
+      StorageService.set('pelanggan', []);
+      StorageService.set('pengeluaran', []);
+      StorageService.set('manual_cash_logs', []);
+      StorageService.set('staff', []);
+      StorageService.set('has_customized_settings', false);
+      StorageService.set('active_user', newUser);
+      StorageService.set('laundries', [initialBranch]);
+      StorageService.set('current_laundry_id', defaultLaundryId);
+      StorageService.set('settings', customSettings);
+      StorageService.set('layanan', seededLayanan);
+
+      // 1. Simpan dokumen profil user & cabang utama terlebih dahulu (memenuhi syarat kepemilikan rules subkoleksi)
+      await setDoc(userDocRef, newUser, { merge: true });
+      const branchRef = doc(db, 'laundries', defaultLaundryId);
+      await setDoc(branchRef, initialBranch, { merge: true });
+
+      // 2. Simpan pengaturan struk & 10 layanan awal secara atomik dalam 1 batch
+      const batch = writeBatch(db);
+      const settingsRef = doc(db, 'laundries', defaultLaundryId, 'settings', 'main');
+      batch.set(settingsRef, customSettings, { merge: true });
+      for (const lay of seededLayanan) {
         const layDoc = doc(db, 'laundries', defaultLaundryId, 'layanan', lay.id);
-        await setDoc(layDoc, { ...lay, laundryId: defaultLaundryId });
+        batch.set(layDoc, lay);
       }
+      await batch.commit();
 
       return newUser;
     } catch (e) {
@@ -116,7 +275,6 @@ export class FirebaseSyncService {
   // 1.1 Update user profile (sinkronisasi saldo dompet & status langganan ke Firestore)
   static async updateUserProfile(user: User): Promise<void> {
     if (!user || !user.uid || !auth.currentUser) return;
-    const path = `users/${user.uid}`;
     try {
       const userDocRef = doc(db, 'users', user.uid);
       await setDoc(userDocRef, user, { merge: true });
@@ -125,12 +283,14 @@ export class FirebaseSyncService {
     }
   }
 
-  // 2. Fetch Laundries for User (Strict ownerId validation)
+  // 2. Fetch Laundries for User (Strict ownerId validation + direct doc fallback)
   static async fetchLaundries(ownerId: string, cached: Laundry[] = [], forceSync = false): Promise<Laundry[]> {
     if (!auth.currentUser) {
       return cached.filter((l) => l.ownerId === ownerId);
     }
-    const validCached = cached.filter((l) => l.ownerId === ownerId && l.id !== 'lnd-1' && l.id !== 'demo-lnd-1');
+    const validCached = cached.filter(
+      (l) => l.ownerId === ownerId && l.id !== 'lnd-1' && l.id !== 'demo-lnd-1' && l.namaLaundry !== '-'
+    );
     if (!forceSync && validCached.length > 0) {
       return validCached;
     }
@@ -146,14 +306,37 @@ export class FirebaseSyncService {
           while (typeof nama === 'object' && nama !== null) {
             nama = nama.namaLaundry || nama.name || "Kafela's Laundry";
           }
+          const cleanName = cleanPlaceholder(typeof nama === 'string' ? nama : '');
           list.push({
             ...data,
-            namaLaundry: typeof nama === 'string' && nama.trim() ? nama : "Kafela's Laundry",
-            alamat: typeof data.alamat === 'string' ? data.alamat : '',
-            nomorTelepon: typeof data.nomorTelepon === 'string' ? data.nomorTelepon : '',
+            id: data.id || d.id,
+            ownerId,
+            namaLaundry: cleanName || "Kafela's Laundry",
+            alamat: cleanPlaceholder(data.alamat),
+            nomorTelepon: cleanPlaceholder(data.nomorTelepon),
           });
         }
       });
+
+      // Fallback pembacaan dokumen langsung (strong consistency) jika query index belum mengembalikan cabang utama
+      if (list.length === 0) {
+        const directSnap = await getDoc(doc(db, 'laundries', `lnd-${ownerId}`)).catch(() => null);
+        if (directSnap && directSnap.exists()) {
+          const data = directSnap.data() as any;
+          if (!data.ownerId || data.ownerId === ownerId) {
+            const cleanName = cleanPlaceholder(typeof data.namaLaundry === 'string' ? data.namaLaundry : '');
+            list.push({
+              ...data,
+              id: directSnap.id,
+              ownerId,
+              namaLaundry: cleanName || "Kafela's Laundry",
+              alamat: cleanPlaceholder(data.alamat),
+              nomorTelepon: cleanPlaceholder(data.nomorTelepon),
+            });
+          }
+        }
+      }
+
       return list.length > 0 ? list : validCached;
     } catch (e) {
       console.warn('Gagal fetch laundries dari server, gunakan cache:', e);
@@ -413,15 +596,24 @@ export class FirebaseSyncService {
   // 3.2 PASTIKAN DOKUMEN CABANG TERDAFTAR DI FIRESTORE (Mencegah permission-denied)
   static async saveLaundry(laundry: Laundry): Promise<void> {
     if (!laundry || !laundry.id || !auth.currentUser) return;
+    if (laundry.id === 'lnd-1' || laundry.id === 'demo-lnd-1') return;
     try {
+      const resolvedOwnerId =
+        !laundry.ownerId || laundry.ownerId === 'own-1' || laundry.ownerId === 'demo-owner-1'
+          ? auth.currentUser.uid
+          : laundry.ownerId;
       const branchRef = doc(db, 'laundries', laundry.id);
-      await setDoc(branchRef, {
-        id: laundry.id,
-        ownerId: laundry.ownerId || auth.currentUser.uid,
-        namaLaundry: laundry.namaLaundry || "Kafela's Laundry",
-        alamat: laundry.alamat || '',
-        nomorTelepon: laundry.nomorTelepon || '',
-      }, { merge: true });
+      await setDoc(
+        branchRef,
+        {
+          id: laundry.id,
+          ownerId: resolvedOwnerId,
+          namaLaundry: laundry.namaLaundry || "Kafela's Laundry",
+          alamat: laundry.alamat ?? '',
+          nomorTelepon: laundry.nomorTelepon ?? '',
+        },
+        { merge: true }
+      );
     } catch (e) {
       console.warn('Gagal memastikan dokumen cabang di Firestore:', e);
     }
@@ -880,7 +1072,6 @@ export class FirebaseSyncService {
     if (!auth.currentUser) {
       return cached;
     }
-    const path = `laundries/${laundryId}/settings/main`;
     try {
       const snap = await getDoc(doc(db, 'laundries', laundryId, 'settings', 'main'));
       if (snap.exists()) {
@@ -889,9 +1080,15 @@ export class FirebaseSyncService {
         while (typeof header === 'object' && header !== null) {
           header = header.namaLaundry || header.headerStruk || "Kafela's Laundry";
         }
+        const cleanLogoPath =
+          typeof st?.logoPath === 'string' && st.logoPath.trim() ? st.logoPath.trim() : null;
         return {
+          ...defaultSettings,
           ...st,
           headerStruk: typeof header === 'string' && header.trim() ? header : "Kafela's Laundry",
+          logoPath: cleanLogoPath,
+          useLogo: Boolean(st?.useLogo && cleanLogoPath),
+          logoSize: st?.logoSize === 'kecil' || st?.logoSize === 'besar' ? st.logoSize : 'sedang',
         } as SettingsData;
       }
       return cached;
@@ -903,11 +1100,22 @@ export class FirebaseSyncService {
 
   static async saveSettings(laundryId: string, settings: SettingsData): Promise<void> {
     const path = `laundries/${laundryId}/settings/main`;
-    if (!auth.currentUser) {
+    if (!auth.currentUser || !laundryId || laundryId === 'lnd-1' || laundryId === 'demo-lnd-1') {
       return;
     }
     try {
-      await setDoc(doc(db, 'laundries', laundryId, 'settings', 'main'), settings);
+      const cleanLogoPath =
+        typeof settings.logoPath === 'string' && settings.logoPath.trim()
+          ? settings.logoPath.trim()
+          : null;
+      const cleanPayload = FirebaseSyncService.sanitizeForFirestore({
+        ...settings,
+        logoPath: cleanLogoPath,
+        useLogo: Boolean(settings.useLogo && cleanLogoPath),
+        logoSize: settings.logoSize || 'sedang',
+        updatedAt: Date.now(),
+      });
+      await setDoc(doc(db, 'laundries', laundryId, 'settings', 'main'), cleanPayload, { merge: true });
     } catch (e) {
       handleFirestoreError(e, OperationType.WRITE, path);
     }

@@ -46,7 +46,7 @@ export const LAUNDRY_TIER_CONFIG: Record<LaundryTier | 'Premium', LaundrySubscri
     canExportExcel: false,
     canExportOfficialPdf: false,
     canViewComparisonGrowth: false,
-    canUseCustomLogoOnReceipt: false,
+    canUseCustomLogoOnReceipt: true,
     canUseSignatureOnReceipt: false,
     highlights: [
       'Gratis Selamanya (Rp 0 Tanpa Batas Hari)',

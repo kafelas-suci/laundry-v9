@@ -91,9 +91,12 @@ export function isAndroidPrintAvailable(): boolean {
  * Preload gambar logo ke Base64 agar siap dicetak seketika oleh printer Bluetooth
  */
 export async function preloadLogoBase64(logoPath?: string | null): Promise<string> {
+  if (!logoPath || !logoPath.trim()) {
+    return '';
+  }
   const dummySettings = {
     useLogo: true,
-    logoPath: logoPath || '/logo-kafela.png',
+    logoPath: logoPath.trim(),
   } as SettingsData;
   return getLogoBase64(dummySettings);
 }
@@ -118,7 +121,7 @@ export async function printViaAndroidBluetooth(
   try {
     // Dapatkan Base64 logo toko secara instan (100% siap tanpa delay)
     let logoBase64 = '';
-    if (settings.useLogo) {
+    if (settings.useLogo && settings.logoPath) {
       logoBase64 = preloadedLogoBase64 !== undefined ? preloadedLogoBase64 : await getLogoBase64(settings);
     }
 
@@ -368,7 +371,7 @@ export async function printViaWebBluetooth(
 
   try {
     let logoRasterBytes: Uint8Array | null = null;
-    if (settings.useLogo) {
+    if (settings.useLogo && settings.logoPath) {
       const logoB64 = await getLogoBase64(settings);
       if (logoB64) {
         logoRasterBytes = await convertBase64ToEscPosRaster(logoB64, 240);

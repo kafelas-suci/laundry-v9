@@ -46,7 +46,7 @@ interface SettingsViewProps {
   currentUser: User;
   activeLaundry: Laundry;
   currentTier?: string | null;
-  onUpdateSettings: (newSettings: SettingsData) => void;
+  onUpdateSettings: (newSettings: SettingsData) => Promise<void> | void;
   onUpdateLaundry?: (laundry: Laundry) => void;
   onOpenKelolaPelanggan: () => void;
   onOpenKelolaLayanan: () => void;
@@ -108,25 +108,65 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [editDisplayName, setEditDisplayName] = useState(currentUser.displayName || '');
   const [editNomorTelepon, setEditNomorTelepon] = useState(currentUser.nomorTelepon || '');
 
-  // Edit receipt info state (Tersinkron 1 Pintu dengan Profil Outlet Cabang Aktif)
-  const [headerStruk, setHeaderStruk] = useState(activeLaundry?.namaLaundry || settings.headerStruk || '');
-  const [address, setAddress] = useState(activeLaundry?.alamat || settings.address || '');
-  const [phoneNumber, setPhoneNumber] = useState(activeLaundry?.nomorTelepon || settings.phoneNumber || '');
-  const [footerStruk, setFooterStruk] = useState(settings.footerStruk || '');
-  const [chattyFooter, setChattyFooter] = useState(settings.chattyFooter || '');
-  const [useLogo, setUseLogo] = useState(settings.useLogo);
-  const [logoPath, setLogoPath] = useState<string | null>(settings.logoPath);
+  const cleanPlaceholderVal = (val?: string | null): string => {
+    if (!val) return '';
+    const trimmed = val.trim();
+    if (!trimmed || trimmed === '-' || trimmed === '0812-3456-7890') return '';
+    return trimmed;
+  };
 
-  // Perbarui nilai form bila cabang aktif atau settings berganti
+  // Edit receipt info state (Tersinkron 1 Pintu dengan Profil Outlet Cabang Aktif)
+  const [headerStruk, setHeaderStruk] = useState(
+    cleanPlaceholderVal(activeLaundry?.namaLaundry) || cleanPlaceholderVal(settings.headerStruk) || ''
+  );
+  const [address, setAddress] = useState(
+    cleanPlaceholderVal(activeLaundry?.alamat) || cleanPlaceholderVal(settings.address)
+  );
+  const [phoneNumber, setPhoneNumber] = useState(
+    cleanPlaceholderVal(activeLaundry?.nomorTelepon) || cleanPlaceholderVal(settings.phoneNumber)
+  );
+  const [footerStruk, setFooterStruk] = useState(settings.footerStruk ?? '');
+  const [chattyFooter, setChattyFooter] = useState(settings.chattyFooter ?? '');
+  const [useLogo, setUseLogo] = useState(Boolean(settings.useLogo && settings.logoPath));
+  const [logoPath, setLogoPath] = useState<string | null>(settings.logoPath || null);
+  const [logoSize, setLogoSize] = useState<'kecil' | 'sedang' | 'besar'>(settings.logoSize || 'sedang');
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+  const [isSavingStruk, setIsSavingStruk] = useState(false);
+
+  const syncInfoStrukFromProps = React.useCallback(() => {
+    setHeaderStruk(
+      cleanPlaceholderVal(activeLaundry?.namaLaundry) || cleanPlaceholderVal(settings.headerStruk) || ''
+    );
+    setAddress(
+      cleanPlaceholderVal(activeLaundry?.alamat) || cleanPlaceholderVal(settings.address)
+    );
+    setPhoneNumber(
+      cleanPlaceholderVal(activeLaundry?.nomorTelepon) || cleanPlaceholderVal(settings.phoneNumber)
+    );
+    setFooterStruk(settings.footerStruk ?? '');
+    setChattyFooter(settings.chattyFooter ?? '');
+    setUseLogo(Boolean(settings.useLogo && settings.logoPath));
+    setLogoPath(settings.logoPath || null);
+    setLogoSize(settings.logoSize || 'sedang');
+  }, [
+    activeLaundry?.namaLaundry,
+    activeLaundry?.alamat,
+    activeLaundry?.nomorTelepon,
+    settings.headerStruk,
+    settings.address,
+    settings.phoneNumber,
+    settings.footerStruk,
+    settings.chattyFooter,
+    settings.useLogo,
+    settings.logoPath,
+    settings.logoSize,
+  ]);
+
+  // Perbarui nilai form bila cabang aktif atau settings berganti (hanya saat modal tidak sedang diedit)
   React.useEffect(() => {
-    setHeaderStruk(activeLaundry?.namaLaundry || settings.headerStruk || '');
-    setAddress(activeLaundry?.alamat || settings.address || '');
-    setPhoneNumber(activeLaundry?.nomorTelepon || settings.phoneNumber || '');
-    setFooterStruk(settings.footerStruk || '');
-    setChattyFooter(settings.chattyFooter || '');
-    setUseLogo(settings.useLogo);
-    setLogoPath(settings.logoPath);
-  }, [activeLaundry?.id, activeLaundry?.namaLaundry, activeLaundry?.alamat, activeLaundry?.nomorTelepon, settings]);
+    if (showInfoStrukModal) return;
+    syncInfoStrukFromProps();
+  }, [activeLaundry?.id, syncInfoStrukFromProps, showInfoStrukModal]);
 
   // Printer name & auto-reconnect state
   const [printerName, setPrinterName] = useState(settings.printerName);
@@ -159,33 +199,46 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [tampilkanAmbilNotaLama, setTampilkanAmbilNotaLama] = useState(settings.tampilkanTombolAmbilNotaLama ?? true);
   const [hitungKerjaStaf, setHitungKerjaStaf] = useState(settings.hitungKerjaStaf ?? true);
 
-  const handleSaveInfoStruk = () => {
-    const cleanHeader = headerStruk.trim() || activeLaundry?.namaLaundry || settings.headerStruk || "Kafela's Laundry";
-    const cleanAddress = address.trim();
-    const cleanPhone = phoneNumber.trim();
-
-    onUpdateSettings({
-      ...settings,
-      headerStruk: cleanHeader,
-      address: cleanAddress,
-      phoneNumber: cleanPhone,
-      footerStruk,
-      chattyFooter,
-      useLogo,
-      logoPath,
-    });
-
-    if (onUpdateLaundry && activeLaundry) {
-      onUpdateLaundry({
-        ...activeLaundry,
-        namaLaundry: cleanHeader,
-        alamat: cleanAddress,
-        nomorTelepon: cleanPhone,
-      });
+  const handleSaveInfoStruk = async () => {
+    const cleanHeader = headerStruk.trim();
+    if (!cleanHeader) {
+      toast.warning('Nama laundry / header struk tidak boleh kosong.');
+      return;
+    }
+    if (isUploadingLogo) {
+      toast.warning('Mohon tunggu proses pemrosesan gambar logo selesai.');
+      return;
     }
 
-    setShowInfoStrukModal(false);
-    toast.success('Pengaturan nama laundry & struk berhasil disatukan & disimpan!');
+    const cleanAddress = address.trim();
+    const cleanPhone = phoneNumber.trim();
+    const cleanFooter = footerStruk.trim();
+    const cleanChatty = chattyFooter.trim();
+    const finalLogoPath = logoPath && logoPath.trim() ? logoPath.trim() : null;
+    const finalUseLogo = Boolean(useLogo && finalLogoPath);
+
+    setIsSavingStruk(true);
+    try {
+      await onUpdateSettings({
+        ...settings,
+        headerStruk: cleanHeader,
+        appTitle: cleanHeader,
+        address: cleanAddress,
+        phoneNumber: cleanPhone,
+        footerStruk: cleanFooter,
+        chattyFooter: cleanChatty,
+        useLogo: finalUseLogo,
+        logoPath: finalLogoPath,
+        logoSize,
+      });
+      setShowInfoStrukModal(false);
+      toast.success('Pengaturan identitas & logo struk berhasil disimpan!');
+    } catch (err) {
+      console.error('Gagal menyimpan pengaturan struk:', err);
+      toast.error('Gagal menyimpan pengaturan ke cloud, perubahan tetap tersimpan di perangkat.');
+    } finally {
+      setIsSavingStruk(false);
+    }
   };
 
   const handleSavePrinter = () => {
@@ -218,20 +271,80 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     toast.success('Pengaturan fitur aplikasi berhasil disimpan!');
   };
 
-  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const limits = getLaundryLimits(currentTier);
-    if (!limits.canUseCustomLogoOnReceipt) {
-      toast.warning('Fitur upload logo toko di struk hanya untuk Paket Premium.');
+  const compressLogoFile = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const objectUrl = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const maxDim = 260;
+          let w = img.naturalWidth || img.width || 200;
+          let h = img.naturalHeight || img.height || 200;
+          if (w > maxDim || h > maxDim) {
+            if (w >= h) {
+              h = Math.max(1, Math.round((h * maxDim) / w));
+              w = maxDim;
+            } else {
+              w = Math.max(1, Math.round((w * maxDim) / h));
+              h = maxDim;
+            }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            URL.revokeObjectURL(objectUrl);
+            reject(new Error('Canvas context tidak tersedia'));
+            return;
+          }
+          ctx.clearRect(0, 0, w, h);
+          ctx.drawImage(img, 0, 0, w, h);
+          let dataUrl = canvas.toDataURL('image/png');
+          // Jika PNG masih di atas ~180KB (misal foto kompleks), kompres ke JPEG latar putih agar hemat & aman di Firestore
+          if (dataUrl.length > 240_000) {
+            ctx.globalCompositeOperation = 'destination-over';
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(0, 0, w, h);
+            ctx.globalCompositeOperation = 'source-over';
+            dataUrl = canvas.toDataURL('image/jpeg', 0.84);
+          }
+          URL.revokeObjectURL(objectUrl);
+          resolve(dataUrl);
+        } catch (err) {
+          URL.revokeObjectURL(objectUrl);
+          reject(err);
+        }
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        reject(new Error('Gagal membaca file gambar'));
+      };
+      img.src = objectUrl;
+    });
+  };
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    // Reset input agar memilih file yang sama kembali tetap memicu onChange
+    e.target.value = '';
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast.warning('Pilih file gambar yang valid (PNG, JPG, atau WEBP).');
       return;
     }
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = () => {
-        setLogoPath(reader.result as string);
-        setUseLogo(true);
-      };
-      reader.readAsDataURL(file);
+
+    setIsUploadingLogo(true);
+    try {
+      const compressedDataUrl = await compressLogoFile(file);
+      setLogoPath(compressedDataUrl);
+      setUseLogo(true);
+    } catch (err) {
+      console.error('Logo upload compression error:', err);
+      toast.error('Gagal memproses gambar logo. Silakan coba gambar lain.');
+    } finally {
+      setIsUploadingLogo(false);
     }
   };
 
@@ -463,7 +576,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs divide-y divide-slate-100 overflow-hidden">
             <button
               type="button"
-              onClick={() => setShowInfoStrukModal(true)}
+              onClick={() => {
+                syncInfoStrukFromProps();
+                setShowInfoStrukModal(true);
+              }}
               className="w-full p-3.5 flex items-center justify-between hover:bg-slate-50 active:bg-slate-100 transition text-left"
             >
               <div className="flex items-center gap-3 min-w-0">
@@ -662,46 +778,83 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           <div className="w-full max-w-sm bg-white rounded-2xl shadow-2xl p-5 space-y-3 max-h-[85vh] overflow-y-auto">
             <div className="flex justify-between items-center border-b border-slate-100 pb-2">
               <h3 className="font-bold text-sm text-slate-900">Identitas & Logo Struk</h3>
-              <button onClick={() => setShowInfoStrukModal(false)} className="p-1 rounded-full text-slate-400 hover:bg-slate-100">
+              <button
+                type="button"
+                onClick={() => setShowInfoStrukModal(false)}
+                className="p-1 rounded-full text-slate-400 hover:bg-slate-100"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             {/* Logo Section */}
-            <div className="border border-slate-200 rounded-xl p-3 bg-slate-50 space-y-2 text-center">
-              <label className="flex items-center justify-center gap-2 text-xs font-bold cursor-pointer">
+            <div className="border border-slate-200 rounded-xl p-3 bg-slate-50 space-y-2.5 text-center">
+              <label className="flex items-center justify-center gap-2 text-xs font-bold cursor-pointer select-none">
                 <input
                   type="checkbox"
                   checked={useLogo}
-                  onChange={(e) => {
-                    const limits = getLaundryLimits(currentTier);
-                    if (e.target.checked && !limits.canUseCustomLogoOnReceipt) {
-                      toast.warning('Fitur kustomisasi logo toko di struk hanya untuk Paket Premium.');
-                      return;
-                    }
-                    setUseLogo(e.target.checked);
-                  }}
+                  onChange={(e) => setUseLogo(e.target.checked)}
                   className="w-4 h-4 accent-[#800000]"
                 />
                 <span>Gunakan Logo di Struk</span>
               </label>
 
               {useLogo && (
-                <div className="space-y-2">
+                <div className="space-y-2.5">
                   {logoPath ? (
-                    <div className="relative inline-block border p-1 rounded-lg bg-white">
-                      <img src={logoPath} alt="Logo" className="h-16 w-auto max-w-[140px] object-contain" />
-                      <button
-                        onClick={() => setLogoPath(null)}
-                        className="absolute -top-2 -right-2 p-1 bg-red-600 text-white rounded-full"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </button>
+                    <div className="space-y-2">
+                      <div className="relative inline-block border border-slate-200 p-2 rounded-xl bg-white shadow-2xs">
+                        <img src={logoPath} alt="Logo" className="h-16 w-auto max-w-[140px] object-contain mx-auto" />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setLogoPath(null);
+                            setUseLogo(false);
+                          }}
+                          title="Hapus Logo"
+                          className="absolute -top-2 -right-2 p-1 bg-red-600 hover:bg-red-700 text-white rounded-full shadow-xs cursor-pointer"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+
+                      <div className="flex items-center justify-center gap-2">
+                        <label className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-[11px] font-semibold text-slate-700 cursor-pointer transition">
+                          <Upload className="w-3.5 h-3.5 text-[#800000]" />
+                          <span>{isUploadingLogo ? 'Memproses...' : 'Ganti Logo'}</span>
+                          <input type="file" accept="image/*" onChange={handleLogoUpload} className="hidden" />
+                        </label>
+                      </div>
+
+                      <div className="pt-1">
+                        <div className="text-[10px] font-semibold text-slate-500 mb-1">Ukuran Logo di Struk</div>
+                        <div className="grid grid-cols-3 gap-1.5">
+                          {(['kecil', 'sedang', 'besar'] as const).map((sz) => (
+                            <button
+                              key={sz}
+                              type="button"
+                              onClick={() => setLogoSize(sz)}
+                              className={`py-1 rounded-lg text-[11px] font-bold capitalize border transition cursor-pointer ${
+                                logoSize === sz
+                                  ? 'bg-[#800000] text-white border-[#800000]'
+                                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                              }`}
+                            >
+                              {sz}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
                     </div>
                   ) : (
-                    <label className="border-2 border-dashed border-slate-300 rounded-xl p-3 block cursor-pointer hover:bg-slate-100 transition">
+                    <label className="border-2 border-dashed border-slate-300 rounded-xl p-3 block cursor-pointer hover:bg-slate-100 transition bg-white/70">
                       <Upload className="w-5 h-5 text-slate-400 mx-auto mb-1" />
-                      <span className="text-xs text-slate-500 font-semibold">Pilih Gambar Logo Toko</span>
+                      <span className="text-xs text-slate-600 font-semibold block">
+                        {isUploadingLogo ? 'Memproses gambar logo...' : 'Pilih Gambar Logo Toko'}
+                      </span>
+                      <span className="text-[10px] text-slate-400 block mt-0.5">
+                        Format PNG / JPG (otomatis disesuaikan untuk struk)
+                      </span>
                       <input type="file" accept="image/*" onChange={handleLogoUpload} className="hidden" />
                     </label>
                   )}
@@ -782,16 +935,20 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
             <div className="flex gap-2 pt-2">
               <button
+                type="button"
+                disabled={isSavingStruk}
                 onClick={() => setShowInfoStrukModal(false)}
-                className="flex-1 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                className="flex-1 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50 cursor-pointer"
               >
                 Batal
               </button>
               <button
+                type="button"
+                disabled={isSavingStruk || isUploadingLogo}
                 onClick={handleSaveInfoStruk}
-                className="flex-1 py-2.5 rounded-xl bg-[#800000] hover:bg-[#660000] text-white text-xs font-bold shadow-xs"
+                className="flex-1 py-2.5 rounded-xl bg-[#800000] hover:bg-[#660000] text-white text-xs font-bold shadow-xs disabled:opacity-60 cursor-pointer"
               >
-                Simpan
+                {isSavingStruk ? 'Menyimpan...' : 'Simpan'}
               </button>
             </div>
           </div>
