@@ -91,7 +91,7 @@ export const defaultLaundries: Laundry[] = [
   {
     id: 'lnd-1',
     ownerId: 'own-1',
-    namaLaundry: "Kafela's Laundry Utama",
+    namaLaundry: "-",
     alamat: '-',
     nomorTelepon: '-',
   },
