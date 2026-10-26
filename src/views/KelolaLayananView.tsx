@@ -19,7 +19,7 @@ import {
   SlidersHorizontal,
 } from 'lucide-react';
 import { Layanan, SettingsData } from '../types';
-import { formatRupiah } from '../utils/formatters';
+import { formatRupiah, formatRibuanInput, bersihkanTitik } from '../utils/formatters';
 import { useToast, useConfirm } from '../components/NotificationContext';
 import { isProTier, getLaundryLimits } from '../utils/subscription';
 import { Lock } from 'lucide-react';
@@ -73,7 +73,7 @@ export const KelolaLayananView: React.FC<KelolaLayananViewProps> = ({
 
   // Form states
   const [nama, setNama] = useState('');
-  const [harga, setHarga] = useState<number>(7000);
+  const [hargaStr, setHargaStr] = useState('7.000');
   const [satuanHarga, setSatuanHarga] = useState('Kg');
   const [durasiAngka, setDurasiAngka] = useState('3');
   const [durasiSatuan, setDurasiSatuan] = useState('Hari');
@@ -103,7 +103,7 @@ export const KelolaLayananView: React.FC<KelolaLayananViewProps> = ({
     }
     setEditingLayanan(null);
     setNama('');
-    setHarga(7000);
+    setHargaStr('7.000');
     setSatuanHarga('Kg');
     setDurasiAngka('3');
     setDurasiSatuan('Hari');
@@ -114,7 +114,7 @@ export const KelolaLayananView: React.FC<KelolaLayananViewProps> = ({
   const openEditModal = (lay: Layanan) => {
     setEditingLayanan(lay);
     setNama(lay.nama);
-    setHarga(lay.harga);
+    setHargaStr(formatRibuanInput(lay.harga));
     setSatuanHarga(lay.satuanHarga);
 
     const parts = lay.durasi.split(' ');
@@ -126,7 +126,7 @@ export const KelolaLayananView: React.FC<KelolaLayananViewProps> = ({
 
   const applyPreset = (preset: typeof PRESET_STANDAR_LAUNDRY[0]) => {
     setNama(preset.nama);
-    setHarga(preset.harga);
+    setHargaStr(formatRibuanInput(preset.harga));
     setSatuanHarga(preset.satuanHarga);
     const parts = preset.durasi.split(' ');
     setDurasiAngka(parts[0] || '1');
@@ -135,11 +135,12 @@ export const KelolaLayananView: React.FC<KelolaLayananViewProps> = ({
   };
 
   const handleSave = () => {
+    const numericHarga = bersihkanTitik(hargaStr);
     if (!nama.trim()) {
       toast.warning('Nama layanan wajib diisi.');
       return;
     }
-    if (harga <= 0) {
+    if (numericHarga <= 0) {
       toast.warning('Harga harus lebih dari Rp 0.');
       return;
     }
@@ -153,7 +154,7 @@ export const KelolaLayananView: React.FC<KelolaLayananViewProps> = ({
       id: editingLayanan ? editingLayanan.id : `lay-${Date.now()}`,
       laundryId: activeLaundryId,
       nama: nama.trim(),
-      harga,
+      harga: numericHarga,
       satuanHarga,
       durasi: `${durasiAngka} ${durasiSatuan}`,
       satuanDurasi: durasiSatuan,
@@ -213,7 +214,13 @@ export const KelolaLayananView: React.FC<KelolaLayananViewProps> = ({
 
   // Quick nominal adjustment buttons
   const addNominal = (amt: number) => {
-    setHarga((prev) => Math.max(0, prev + amt));
+    const currentVal = bersihkanTitik(hargaStr);
+    const nextVal = Math.max(0, currentVal + amt);
+    setHargaStr(formatRibuanInput(nextVal));
+  };
+
+  const setNominal = (amt: number) => {
+    setHargaStr(formatRibuanInput(amt));
   };
 
   return (
@@ -552,12 +559,11 @@ export const KelolaLayananView: React.FC<KelolaLayananViewProps> = ({
                       Rp
                     </span>
                     <input
-                      type="number"
-                      min="0"
-                      step="500"
-                      value={harga || ''}
-                      onChange={(e) => setHarga(Math.max(0, parseInt(e.target.value, 10) || 0))}
-                      placeholder="7000"
+                      type="text"
+                      inputMode="numeric"
+                      value={hargaStr}
+                      onChange={(e) => setHargaStr(formatRibuanInput(e.target.value))}
+                      placeholder="7.000"
                       className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-300 text-xs font-black text-[#800000] focus:ring-2 focus:ring-[#800000] focus:outline-none transition shadow-2xs"
                     />
                   </div>
@@ -566,28 +572,28 @@ export const KelolaLayananView: React.FC<KelolaLayananViewProps> = ({
                     <button
                       type="button"
                       onClick={() => addNominal(1000)}
-                      className="flex-1 py-1 rounded-md bg-slate-100 hover:bg-slate-200 text-[10px] font-bold text-slate-600"
+                      className="flex-1 py-1 rounded-md bg-slate-100 hover:bg-slate-200 text-[10px] font-bold text-slate-600 transition active:scale-95 cursor-pointer"
                     >
                       +1.000
                     </button>
                     <button
                       type="button"
                       onClick={() => addNominal(5000)}
-                      className="flex-1 py-1 rounded-md bg-slate-100 hover:bg-slate-200 text-[10px] font-bold text-slate-600"
+                      className="flex-1 py-1 rounded-md bg-slate-100 hover:bg-slate-200 text-[10px] font-bold text-slate-600 transition active:scale-95 cursor-pointer"
                     >
                       +5.000
                     </button>
                     <button
                       type="button"
-                      onClick={() => setHarga(7000)}
-                      className="px-2 py-1 rounded-md bg-rose-50 hover:bg-rose-100 text-[10px] font-bold text-[#800000]"
+                      onClick={() => setNominal(7000)}
+                      className="px-2 py-1 rounded-md bg-rose-50 hover:bg-rose-100 text-[10px] font-bold text-[#800000] transition active:scale-95 cursor-pointer"
                     >
                       7rb
                     </button>
                     <button
                       type="button"
-                      onClick={() => setHarga(10000)}
-                      className="px-2 py-1 rounded-md bg-rose-50 hover:bg-rose-100 text-[10px] font-bold text-[#800000]"
+                      onClick={() => setNominal(10000)}
+                      className="px-2 py-1 rounded-md bg-rose-50 hover:bg-rose-100 text-[10px] font-bold text-[#800000] transition active:scale-95 cursor-pointer"
                     >
                       10rb
                     </button>

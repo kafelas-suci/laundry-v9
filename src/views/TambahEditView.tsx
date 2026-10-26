@@ -146,7 +146,9 @@ export const TambahEditView: React.FC<TambahEditViewProps> = ({
   const handleCustomerNameChange = (val: string) => {
     setNamaPelanggan(val);
     if (val.trim().length >= 1) {
-      const filtered = pelangganList.filter((p) => p.nama.toLowerCase().includes(val.toLowerCase()));
+      const filtered = pelangganList
+        .filter((p) => p.nama.toLowerCase().includes(val.toLowerCase()))
+        .sort((a, b) => (a.nama || '').localeCompare(b.nama || '', 'id', { sensitivity: 'base' }));
       setCustomerSuggestions(filtered);
     } else {
       setCustomerSuggestions([]);

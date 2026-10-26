@@ -47,26 +47,21 @@ export const defaultLayananList: Layanan[] = [
   { id: 'lay-4', laundryId: 'lnd-1', nama: 'Cuci Express (1 Hari)', harga: 10000, satuanHarga: 'Kg', durasi: '1 Hari', hitungBebanKerja: true, urutan: 3 },
   { id: 'lay-5', laundryId: 'lnd-1', nama: 'Cuci Karpet', harga: 15000, satuanHarga: 'Meter', durasi: '3 Hari', hitungBebanKerja: true, urutan: 4 },
   { id: 'lay-6', laundryId: 'lnd-1', nama: 'Cuci Bedcover', harga: 20000, satuanHarga: 'pcs', durasi: '3 Hari', hitungBebanKerja: true, urutan: 5 },
-  { id: 'lay-7', laundryId: 'lnd-1', nama: 'Cuci Selimut', harga: 10000, satuanHarga: 'pcs', durasi: '2 Hari', hitungBebanKerja: true, urutan: 6 },
-  { id: 'lay-8', laundryId: 'lnd-1', nama: 'Cuci Boneka', harga: 15000, satuanHarga: 'pcs', durasi: '3 Hari', hitungBebanKerja: true, urutan: 7 },
-  { id: 'lay-9', laundryId: 'lnd-1', nama: 'Cuci Jas / Blazer', harga: 25000, satuanHarga: 'pcs', durasi: '2 Hari', hitungBebanKerja: false, urutan: 8 },
-  { id: 'lay-10', laundryId: 'lnd-1', nama: 'Stroller Bayi', harga: 75000, satuanHarga: 'pcs', durasi: '3 Hari', hitungBebanKerja: false, urutan: 9 },
 ];
 
 // Master Jenis Pengeluaran
 export const defaultJenisPengeluaran: JenisPengeluaran[] = [
-  { id: 'jp-1', nama: 'Deterjen & Parfum Laundry', harga: 85000, laundryId: 'lnd-1' },
-  { id: 'jp-2', nama: 'Plastik Packing & Kresek', harga: 35000, laundryId: 'lnd-1' },
-  { id: 'jp-3', nama: 'Gas LPG 3kg Operasional', harga: 22000, laundryId: 'lnd-1' },
-  { id: 'jp-4', nama: 'Listrik & Token PLN', harga: 100000, laundryId: 'lnd-1' },
+  { id: 'jp-1', nama: 'Deterjen & Parfum', harga: 85000, laundryId: 'lnd-1' },
+  { id: 'jp-2', nama: 'Plastik', harga: 35000, laundryId: 'lnd-1' },
+  { id: 'jp-3', nama: 'Gas 3kg', harga: 22000, laundryId: 'lnd-1' },
+  { id: 'jp-4', nama: 'Listrik Token', harga: 100000, laundryId: 'lnd-1' },
   { id: 'jp-5', nama: 'Air Bersih / PDAM', harga: 75000, laundryId: 'lnd-1' },
   { id: 'jp-6', nama: 'Uang Makan Karyawan', harga: 25000, laundryId: 'lnd-1' },
 ];
 
 // Master Jenis Pemasukan Manual
 export const defaultJenisPemasukan: JenisPemasukan[] = [
-  { id: 'jpm-1', nama: 'Setoran Tambah Modal Kas', harga: 200000, laundryId: 'lnd-1' },
-  { id: 'jpm-2', nama: 'Penjualan Botol Parfum Retail', harga: 30000, laundryId: 'lnd-1' },
+  { id: 'jpm-2', nama: 'Penjualan Botol Parfum', harga: 30000, laundryId: 'lnd-1' },
   { id: 'jpm-3', nama: 'Tip Pelanggan', harga: 10000, laundryId: 'lnd-1' },
   { id: 'jpm-4', nama: 'Pelunasan Bon Kasbon', harga: 50000, laundryId: 'lnd-1' },
 ];

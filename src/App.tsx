@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from './firebase';
 import { FirebaseSyncService } from './utils/firebaseSync';
@@ -118,20 +118,23 @@ export default function App() {
     }));
   });
 
-  // Initialize sample data if first load and hydrate from IndexedDB (FULL DATASET: aktif + arsip)
+  // 1. Inisialisasi: One-time migration LocalStorage ke IndexedDB (SSOT) & hydrate transaksi lokal
   useEffect(() => {
     StorageService.initData();
-    IndexedDbService.getAllLaundryTransaksi(activeLaundryId).then((idbList) => {
-      if (idbList && idbList.length > 0) {
-        setTransaksiList((prev) => {
-          if (prev.length === 0) return idbList;
-          const map = new Map<string, Transaksi>();
-          idbList.forEach((t) => map.set(t.id, t));
-          prev.forEach((t) => map.set(t.id, t));
-          return Array.from(map.values()).sort((a, b) => b.tanggalMasuk - a.tanggalMasuk);
-        });
-      }
-    }).catch(console.warn);
+    IndexedDbService.migrateLocalStorageToIndexedDb(activeLaundryId)
+      .then(() => IndexedDbService.getAllLaundryTransaksi(activeLaundryId))
+      .then((idbList) => {
+        if (idbList && idbList.length > 0) {
+          setTransaksiList((prev) => {
+            if (prev.length === 0) return idbList;
+            const map = new Map<string, Transaksi>();
+            idbList.forEach((t) => map.set(t.id, t));
+            prev.forEach((t) => map.set(t.id, t));
+            return Array.from(map.values()).sort((a, b) => b.tanggalMasuk - a.tanggalMasuk);
+          });
+        }
+      })
+      .catch(console.warn);
   }, [activeLaundryId]);
 
   // Real-time Live Synchronization untuk Multi-User Kasir & Owner
@@ -150,7 +153,7 @@ export default function App() {
           const merged = Array.from(map.values()).sort(
             (a, b) => b.tanggalMasuk - a.tanggalMasuk
           );
-          StorageService.set('transaksi', merged);
+          // SSOT dikelola oleh IndexedDB di level data layer, tidak menduplikasi ke LocalStorage
           return merged;
         });
       },
@@ -281,14 +284,148 @@ export default function App() {
   const lastBackTimeRef = useRef<number>(0);
   const exitToastTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Navigation History Stack untuk mendukung tombol kembali berjenjang (step-by-step)
+  interface NavHistoryItem {
+    view: ViewType;
+    selectedTransaksiId: string | null;
+    transaksiToEdit: Transaksi | null;
+  }
+
+  const [navHistory, setNavHistory] = useState<NavHistoryItem[]>([]);
+  const navHistoryRef = useRef<NavHistoryItem[]>([]);
+  const isProgrammaticBackRef = useRef(false);
+  const isNavigatingBackRef = useRef(false);
+
+  useEffect(() => {
+    navHistoryRef.current = navHistory;
+  }, [navHistory]);
+
+  const navigateTo = useCallback(
+    (
+      nextView: ViewType,
+      options?: {
+        transaksiId?: string | null;
+        transaksiToEdit?: Transaksi | null;
+        clearHistory?: boolean;
+        replace?: boolean;
+      }
+    ) => {
+      if (options?.clearHistory || nextView === 'dashboard') {
+        setNavHistory([]);
+        navHistoryRef.current = [];
+      } else if (!options?.replace) {
+        const item: NavHistoryItem = {
+          view: activeView,
+          selectedTransaksiId,
+          transaksiToEdit,
+        };
+        setNavHistory((prev) => [...prev, item]);
+        navHistoryRef.current = [...navHistoryRef.current, item];
+      }
+
+      if (options && 'transaksiId' in options) {
+        setSelectedTransaksiId(options.transaksiId ?? null);
+      }
+      if (options && 'transaksiToEdit' in options) {
+        setTransaksiToEdit(options.transaksiToEdit ?? null);
+      }
+
+      setActiveView(nextView);
+    },
+    [activeView, selectedTransaksiId, transaksiToEdit]
+  );
+
+  const navigateBack = useCallback(() => {
+    // 1. Jika ada popup modal terbuka, tutup modal terlebih dahulu
+    if (receiptModalTrx) {
+      setReceiptModalTrx(null);
+      return;
+    }
+    if (isUpgradeModalOpen) {
+      setIsUpgradeModalOpen(false);
+      return;
+    }
+    if (isAturKasOpen) {
+      setIsAturKasOpen(false);
+      return;
+    }
+    if (isSwitchBranchOpen) {
+      setIsSwitchBranchOpen(false);
+      return;
+    }
+    if (isApkModalOpen) {
+      setIsApkModalOpen(false);
+      return;
+    }
+    if (isLimitModalOpen) {
+      setIsLimitModalOpen(false);
+      return;
+    }
+    if (isExpiredModalOpen) {
+      setIsExpiredModalOpen(false);
+      return;
+    }
+    if (trxForAssignStaff) {
+      setTrxForAssignStaff(null);
+      return;
+    }
+
+    // 2. Ambil halaman sebelumnya dari tumpukan navHistory
+    const history = navHistoryRef.current;
+    if (history.length > 0) {
+      const prevItem = history[history.length - 1];
+      const newHistory = history.slice(0, -1);
+      setNavHistory(newHistory);
+      navHistoryRef.current = newHistory;
+
+      isNavigatingBackRef.current = true;
+      setActiveView(prevItem.view);
+      setSelectedTransaksiId(prevItem.selectedTransaksiId);
+      setTransaksiToEdit(prevItem.transaksiToEdit);
+
+      // Sinkronkan tumpukan browser history
+      if (typeof window !== 'undefined' && window.history.length > 1) {
+        isProgrammaticBackRef.current = true;
+        window.history.back();
+      }
+      return;
+    }
+
+    // 3. Fallback jika tumpukan kosong dan bukan di dashboard
+    if (activeView !== 'dashboard' && activeView !== 'splash' && activeView !== 'auth') {
+      isNavigatingBackRef.current = true;
+      setActiveView('dashboard');
+      setSelectedTransaksiId(null);
+      setTransaksiToEdit(null);
+      if (typeof window !== 'undefined' && window.history.length > 1) {
+        isProgrammaticBackRef.current = true;
+        window.history.back();
+      }
+      return;
+    }
+  }, [
+    receiptModalTrx,
+    isUpgradeModalOpen,
+    isAturKasOpen,
+    isSwitchBranchOpen,
+    isApkModalOpen,
+    isLimitModalOpen,
+    isExpiredModalOpen,
+    trxForAssignStaff,
+    activeView,
+  ]);
+
   // Ref tracking state aktif untuk popstate event listener
   const navStateRef = useRef({
     activeView,
+    selectedTransaksiId,
+    transaksiToEdit,
     isAturKasOpen,
     isSwitchBranchOpen,
     isApkModalOpen,
     isLimitModalOpen,
     isUpgradeModalOpen,
+    isExpiredModalOpen,
     hasTrxForAssignStaff: !!trxForAssignStaff,
     hasReceiptModalTrx: !!receiptModalTrx,
   });
@@ -296,26 +433,32 @@ export default function App() {
   useEffect(() => {
     navStateRef.current = {
       activeView,
+      selectedTransaksiId,
+      transaksiToEdit,
       isAturKasOpen,
       isSwitchBranchOpen,
       isApkModalOpen,
       isLimitModalOpen,
       isUpgradeModalOpen,
+      isExpiredModalOpen,
       hasTrxForAssignStaff: !!trxForAssignStaff,
       hasReceiptModalTrx: !!receiptModalTrx,
     };
   }, [
     activeView,
+    selectedTransaksiId,
+    transaksiToEdit,
     isAturKasOpen,
     isSwitchBranchOpen,
     isApkModalOpen,
     isLimitModalOpen,
     isUpgradeModalOpen,
+    isExpiredModalOpen,
     trxForAssignStaff,
     receiptModalTrx,
   ]);
 
-  // Synchronize history navigation (Sub-menu kembali ke Dashboard, Dashboard minta tekan sekali lagi untuk keluar)
+  // Synchronize history navigation (Popstate listener untuk tombol kembali hardware Android / browser)
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
@@ -324,6 +467,12 @@ export default function App() {
     }
 
     const handlePopState = () => {
+      // Jika dipicu oleh pemanggilan navigateBack() secara programmatic, abaikan agar tidak dobel pop
+      if (isProgrammaticBackRef.current) {
+        isProgrammaticBackRef.current = false;
+        return;
+      }
+
       const state = navStateRef.current;
 
       // 1. Jika ada popup modal terbuka, tutup modal tersebut terlebih dahulu
@@ -357,41 +506,59 @@ export default function App() {
         window.history.pushState({ view: state.activeView }, '');
         return;
       }
+      if (state.isExpiredModalOpen) {
+        setIsExpiredModalOpen(false);
+        window.history.pushState({ view: state.activeView }, '');
+        return;
+      }
       if (state.hasTrxForAssignStaff) {
         setTrxForAssignStaff(null);
         window.history.pushState({ view: state.activeView }, '');
         return;
       }
 
+      // 2. Jika ada riwayat halaman sebelumnya di tumpukan (navHistory), kembali ke halaman tersebut (BUKAN langsung ke Dashboard)
+      const history = navHistoryRef.current;
+      if (history.length > 0) {
+        const prevItem = history[history.length - 1];
+        const newHistory = history.slice(0, -1);
+        setNavHistory(newHistory);
+        navHistoryRef.current = newHistory;
 
+        isNavigatingBackRef.current = true;
+        setActiveView(prevItem.view);
+        setSelectedTransaksiId(prevItem.selectedTransaksiId);
+        setTransaksiToEdit(prevItem.transaksiToEdit);
+        return;
+      }
 
-      // 2. Jika sedang berada di sub menu manapun, kembalikan langsung ke menu utama (dashboard)
+      // 3. Jika riwayat kosong tapi sedang berada di sub menu, kembalikan ke dashboard
       if (
         state.activeView !== 'dashboard' &&
         state.activeView !== 'splash' &&
         state.activeView !== 'auth'
       ) {
+        isNavigatingBackRef.current = true;
         setActiveView('dashboard');
         setSelectedTransaksiId(null);
         setTransaksiToEdit(null);
-        window.history.pushState({ view: 'dashboard' }, '');
         return;
       }
 
-      // 3. Jika sudah berada di menu utama (dashboard), minta tekan sekali lagi untuk keluar
+      // 4. Jika SUDAH berada di menu utama (dashboard) dan riwayat kosong, minta tekan sekali lagi untuk keluar
       if (state.activeView === 'dashboard') {
         const now = Date.now();
         if (now - lastBackTimeRef.current < 2000) {
-          // Tekanan kedua dalam 2 detik -> Izinkan keluar
+          // Tekanan kedua dalam 2 detik di menu utama -> Izinkan keluar aplikasi
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const win = window as any;
-          if (win.MesinPrint?.keluarAplikasi) {
+          const win = typeof window !== 'undefined' ? (window as any) : null;
+          if (win?.MesinPrint && typeof win.MesinPrint.keluarAplikasi === 'function') {
             win.MesinPrint.keluarAplikasi();
             return;
           }
           window.history.back();
         } else {
-          // Tekanan pertama -> Tahan dan tampilkan toast "Tekan sekali lagi untuk keluar"
+          // Tekanan pertama di dashboard -> Tahan dan tampilkan toast "Tekan sekali lagi untuk keluar"
           lastBackTimeRef.current = now;
           window.history.pushState({ view: 'dashboard' }, '');
           setExitToast(true);
@@ -415,9 +582,13 @@ export default function App() {
     };
   }, []);
 
-  // Setiap kali berganti halaman (selain splash & auth), dorong riwayat navigasi
+  // Setiap kali berganti halaman ke depan (selain splash & auth), dorong riwayat navigasi browser
   useEffect(() => {
     if (typeof window !== 'undefined' && activeView !== 'splash' && activeView !== 'auth') {
+      if (isNavigatingBackRef.current) {
+        isNavigatingBackRef.current = false;
+        return;
+      }
       window.history.pushState({ view: activeView }, '');
     }
   }, [activeView]);
@@ -578,7 +749,7 @@ export default function App() {
       items: Array.isArray(t?.items) ? t.items : [],
     }));
     setTransaksiList(safeList);
-    StorageService.set('transaksi', safeList);
+    // SSOT: Simpan hanya ke IndexedDB lokal untuk mencegah race conditions & kuota limit LocalStorage
     if (activeLaundryId) {
       IndexedDbService.saveAllTransaksi(activeLaundryId, safeList).catch(console.warn);
     }
@@ -884,6 +1055,8 @@ export default function App() {
       );
       updateTransaksiList(updatedList);
       FirebaseSyncService.saveTransaksi(updatedTrx).catch(console.error);
+      setNavHistory([]);
+      navHistoryRef.current = [];
       setSelectedTransaksiId(data.id);
       setReceiptModalTrx(updatedTrx);
       setActiveView('dashboard');
@@ -958,6 +1131,8 @@ export default function App() {
         }
       }
 
+      setNavHistory([]);
+      navHistoryRef.current = [];
       setSelectedTransaksiId(newTrx.id);
       setReceiptModalTrx(newTrx);
       setActiveView('dashboard');
@@ -971,7 +1146,7 @@ export default function App() {
     }
     updateTransaksiList(transaksiList.filter((t) => t.id !== transaksiId));
     FirebaseSyncService.deleteTransaksi(activeLaundryId, transaksiId).catch(console.error);
-    setActiveView('dashboard');
+    navigateBack();
   };
 
   const handleAmbilTransaksi = (trx: Transaksi) => {
@@ -1135,8 +1310,7 @@ export default function App() {
     if (activeUncollectedTrx.length >= 300) {
       setIsLimitModalOpen(true);
     } else {
-      setTransaksiToEdit(null);
-      setActiveView('tambah_edit');
+      navigateTo('tambah_edit', { transaksiToEdit: null });
     }
   };
 
@@ -1251,8 +1425,7 @@ export default function App() {
       return;
     }
     setIsLimitModalOpen(false);
-    setTransaksiToEdit(null);
-    setActiveView('tambah_edit');
+    navigateTo('tambah_edit', { transaksiToEdit: null });
   };
 
   const handleSaveCustomer = (cust: Pelanggan) => {
@@ -1617,7 +1790,15 @@ export default function App() {
         {showDesktopSidebar && currentUser && (
           <DesktopSidebar
             activeView={activeView}
-            onSelectView={(v) => setActiveView(v)}
+            onSelectView={(v) => {
+              if (v === 'dashboard') {
+                setNavHistory([]);
+                navHistoryRef.current = [];
+                setActiveView('dashboard');
+              } else {
+                navigateTo(v);
+              }
+            }}
             onOpenNewTransaksi={handleRequestNewTransaksi}
             onOpenAturKas={() => setIsAturKasOpen(true)}
             onOpenSwitchBranch={() => setIsSwitchBranchOpen(true)}
@@ -1682,6 +1863,7 @@ export default function App() {
         {activeView === 'dashboard' && currentUser && (
           <DashboardView
             transaksiList={transaksiList}
+            pelangganList={pelangganList}
             settings={settings}
             currentUser={currentUser}
             activeLaundry={activeLaundry}
@@ -1696,21 +1878,20 @@ export default function App() {
             onOpenTour={handleStartTour}
             onOpenLimitModal={() => setIsLimitModalOpen(true)}
             onOpenDetailTransaksi={(id) => {
-              setSelectedTransaksiId(id);
-              setActiveView('detail_transaksi');
+              navigateTo('detail_transaksi', { transaksiId: id });
             }}
-            onOpenArsip={() => setActiveView('arsip')}
-            onOpenSettings={() => setActiveView('settings')}
-            onOpenStatusPengerjaan={() => setActiveView('status_pengerjaan')}
-            onOpenBukuKas={() => setActiveView('buku_kas')}
-            onOpenLaporan={() => setActiveView('laporan')}
+            onOpenArsip={() => navigateTo('arsip')}
+            onOpenSettings={() => navigateTo('settings')}
+            onOpenStatusPengerjaan={() => navigateTo('status_pengerjaan')}
+            onOpenBukuKas={() => navigateTo('buku_kas')}
+            onOpenLaporan={() => navigateTo('laporan')}
             onOpenAturKas={() => setIsAturKasOpen(true)}
             onOpenSwitchBranch={() => setIsSwitchBranchOpen(true)}
             onSelectBranch={handleSelectBranch}
             onOpenApkModal={() => setIsApkModalOpen(true)}
-            onOpenKelolaPelanggan={() => setActiveView('kelola_pelanggan')}
-            onOpenKelolaLayanan={() => setActiveView('kelola_layanan')}
-            onOpenKelolaOwner={() => setActiveView('kelola_owner')}
+            onOpenKelolaPelanggan={() => navigateTo('kelola_pelanggan')}
+            onOpenKelolaLayanan={() => navigateTo('kelola_layanan')}
+            onOpenKelolaOwner={() => navigateTo('kelola_owner')}
             onSyncCloudData={() => loadFirestoreData(currentUser, true)}
             onSelesaikanTransaksi={(trx) => {
               if (trx.status === 'Diterima') {
@@ -1784,17 +1965,17 @@ export default function App() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setActiveView('dashboard')}
+                    onClick={navigateBack}
                     className="w-full py-2.5 px-4 rounded-xl border border-slate-300 hover:bg-slate-100 text-slate-700 font-bold text-xs transition active:scale-95"
                   >
-                    Kembali ke Dashboard
+                    Kembali ke Halaman Sebelumnya
                   </button>
                 </div>
               </div>
             </div>
           ) : (
             <TambahEditView
-              onBack={() => setActiveView('dashboard')}
+              onBack={navigateBack}
               layananList={layananList}
               pelangganList={pelangganList}
               settings={settings}
@@ -1808,7 +1989,7 @@ export default function App() {
 
         {activeView === 'detail_transaksi' && currentSelectedTransaksi && currentUser && (
           <DetailTransaksiView
-            onBack={() => setActiveView('dashboard')}
+            onBack={navigateBack}
             transaksi={currentSelectedTransaksi}
             settings={settings}
             currentUser={currentUser}
@@ -1821,21 +2002,21 @@ export default function App() {
             laundryPhone={activeLaundry?.nomorTelepon || settings.phoneNumber}
             laundryAddress={activeLaundry?.alamat || settings.address}
             onEdit={(trx) => {
-              setTransaksiToEdit(trx);
-              setActiveView('tambah_edit');
+              navigateTo('tambah_edit', { transaksiToEdit: trx });
             }}
             onDelete={handleDeleteTransaction}
             onAmbil={(trx) => {
               handleAmbilTransaksi(trx);
-              setActiveView('dashboard');
+              navigateBack();
             }}
           />
         )}
 
         {activeView === 'status_pengerjaan' && (
           <StatusPengerjaanView
-            onBack={() => setActiveView('dashboard')}
+            onBack={navigateBack}
             transaksiList={transaksiList}
+            pelangganList={pelangganList}
             semuaLayanan={layananList}
             staffList={staffList}
             operationalStaffList={operationalStaffList}
@@ -1843,8 +2024,7 @@ export default function App() {
             settings={settings}
             activeLaundryId={activeLaundryId}
             onOpenDetail={(id) => {
-              setSelectedTransaksiId(id);
-              setActiveView('detail_transaksi');
+              navigateTo('detail_transaksi', { transaksiId: id });
             }}
             onUpdateTransaksi={(updated) => {
               updateTransaksiList(
@@ -1860,14 +2040,14 @@ export default function App() {
 
         {activeView === 'buku_kas' && (
           <BukuKasView
-            onBack={() => setActiveView('dashboard')}
+            onBack={navigateBack}
             transaksiList={transaksiList}
+            pelangganList={pelangganList}
             pengeluaranList={pengeluaranList}
             manualCashLogs={manualCashLogs}
             activeLaundryId={activeLaundryId}
             onOpenDetailTransaksi={(id) => {
-              setSelectedTransaksiId(id);
-              setActiveView('detail_transaksi');
+              navigateTo('detail_transaksi', { transaksiId: id });
             }}
           />
         )}
@@ -1883,16 +2063,16 @@ export default function App() {
                 <p className="text-xs text-slate-500">Laporan Keuangan & Grafik Analisis Bisnis hanya dapat diakses oleh akun dengan peran Owner.</p>
                 <button
                   type="button"
-                  onClick={() => setActiveView('dashboard')}
+                  onClick={navigateBack}
                   className="w-full py-2.5 rounded-xl bg-[#800000] text-white font-bold text-xs shadow-md transition active:scale-95 cursor-pointer"
                 >
-                  Kembali ke Dashboard
+                  Kembali ke Halaman Sebelumnya
                 </button>
               </div>
             </div>
           ) : (
             <LaporanView
-              onBack={() => setActiveView('dashboard')}
+              onBack={navigateBack}
               transaksiList={transaksiList}
               pengeluaranList={pengeluaranList}
               activeLaundryId={activeLaundryId}
@@ -1908,12 +2088,12 @@ export default function App() {
 
         {activeView === 'arsip' && (
           <ArsipView
-            onBack={() => setActiveView('dashboard')}
+            onBack={navigateBack}
             transaksiList={transaksiList}
+            pelangganList={pelangganList}
             activeLaundryId={activeLaundryId}
             onOpenDetailTransaksi={(id) => {
-              setSelectedTransaksiId(id);
-              setActiveView('detail_transaksi');
+              navigateTo('detail_transaksi', { transaksiId: id });
             }}
             onRestoreTransaksi={(trx) => {
               const restored: Transaksi = {
@@ -1944,16 +2124,16 @@ export default function App() {
                 <p className="text-xs text-slate-500">Master Data Pelanggan hanya dapat dikelola oleh akun dengan peran Owner.</p>
                 <button
                   type="button"
-                  onClick={() => setActiveView('dashboard')}
+                  onClick={navigateBack}
                   className="w-full py-2.5 rounded-xl bg-[#800000] text-white font-bold text-xs shadow-md transition active:scale-95 cursor-pointer"
                 >
-                  Kembali ke Dashboard
+                  Kembali ke Halaman Sebelumnya
                 </button>
               </div>
             </div>
           ) : (
             <KelolaPelangganView
-              onBack={() => setActiveView('dashboard')}
+              onBack={navigateBack}
               pelangganList={pelangganList}
               settings={settings}
               activeLaundryId={activeLaundryId}
@@ -1974,16 +2154,16 @@ export default function App() {
                 <p className="text-xs text-slate-500">Pengaturan Daftar Harga Layanan hanya dapat diakses dan diubah oleh akun dengan peran Owner.</p>
                 <button
                   type="button"
-                  onClick={() => setActiveView('dashboard')}
+                  onClick={navigateBack}
                   className="w-full py-2.5 rounded-xl bg-[#800000] text-white font-bold text-xs shadow-md transition active:scale-95 cursor-pointer"
                 >
-                  Kembali ke Dashboard
+                  Kembali ke Halaman Sebelumnya
                 </button>
               </div>
             </div>
           ) : (
             <KelolaLayananView
-              onBack={() => setActiveView('dashboard')}
+              onBack={navigateBack}
               layananList={layananList}
               activeLaundryId={activeLaundryId}
               settings={settings}
@@ -2004,16 +2184,16 @@ export default function App() {
                 <h3 className="text-base font-black text-slate-900">Akses Dibatasi (Owner Only)</h3>
                 <p className="text-xs text-slate-500">Halaman Kelola Cabang & Owner hanya dapat diakses oleh akun dengan peran Owner.</p>
                 <button
-                  onClick={() => setActiveView('dashboard')}
+                  onClick={navigateBack}
                   className="w-full py-2.5 rounded-xl bg-[#800000] text-white font-bold text-xs shadow-md transition active:scale-95"
                 >
-                  Kembali ke Dashboard
+                  Kembali ke Halaman Sebelumnya
                 </button>
               </div>
             </div>
           ) : (
             <KelolaOwnerView
-              onBack={() => setActiveView('dashboard')}
+              onBack={navigateBack}
               currentUser={currentUser}
               laundries={laundries}
               activeLaundryId={activeLaundryId}
@@ -2041,16 +2221,16 @@ export default function App() {
                 <h3 className="text-base font-black text-slate-900">Akses Dibatasi (Owner Only)</h3>
                 <p className="text-xs text-slate-500">Halaman Kelola Akun Kasir hanya dapat diakses oleh akun dengan peran Owner.</p>
                 <button
-                  onClick={() => setActiveView('dashboard')}
+                  onClick={navigateBack}
                   className="w-full py-2.5 rounded-xl bg-[#800000] text-white font-bold text-xs shadow-md transition active:scale-95"
                 >
-                  Kembali ke Dashboard
+                  Kembali ke Halaman Sebelumnya
                 </button>
               </div>
             </div>
           ) : (
             <KelolaKasirView
-              onBack={() => setActiveView('dashboard')}
+              onBack={navigateBack}
               staffList={staffList}
               laundries={laundries}
               currentTier={activeTier}
@@ -2067,17 +2247,17 @@ export default function App() {
 
         {activeView === 'settings' && currentUser && (
           <SettingsView
-            onBack={() => setActiveView('dashboard')}
+            onBack={navigateBack}
             settings={settings}
             currentUser={currentUser}
             activeLaundry={activeLaundry}
             currentTier={activeTier}
             onUpdateSettings={updateSettings}
             onUpdateLaundry={handleUpdateLaundry}
-            onOpenKelolaPelanggan={() => setActiveView('kelola_pelanggan')}
-            onOpenKelolaLayanan={() => setActiveView('kelola_layanan')}
-            onOpenKelolaOwner={() => setActiveView('kelola_owner')}
-            onOpenKelolaKasir={() => setActiveView('kelola_kasir')}
+            onOpenKelolaPelanggan={() => navigateTo('kelola_pelanggan')}
+            onOpenKelolaLayanan={() => navigateTo('kelola_layanan')}
+            onOpenKelolaOwner={() => navigateTo('kelola_owner')}
+            onOpenKelolaKasir={() => navigateTo('kelola_kasir')}
             onOpenApkModal={() => setIsApkModalOpen(true)}
             onOpenUpgradeModal={handleOpenUpgradeModal}
             onTopUpWallet={handleTopUpWallet}
@@ -2106,7 +2286,10 @@ export default function App() {
           activeLaundryId={activeLaundryId}
           currentTier={activeTier}
           onSelectBranch={handleSelectBranch}
-          onManageBranches={() => setActiveView('kelola_owner')}
+          onManageBranches={() => {
+            setIsSwitchBranchOpen(false);
+            navigateTo('kelola_owner');
+          }}
           onOpenUpgradeModal={handleOpenUpgradeModal}
         />
 
@@ -2149,7 +2332,7 @@ export default function App() {
           onArsipLunas={handleAmbilBanyakTransaksi}
           onOpenStatusPengerjaan={() => {
             setIsLimitModalOpen(false);
-            setActiveView('status_pengerjaan');
+            navigateTo('status_pengerjaan');
           }}
           onProceedCreateNew={handleProceedCreateNewFromLimit}
         />

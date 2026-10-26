@@ -34,8 +34,9 @@ import {
   History,
   X,
   Receipt,
+  MapPin,
 } from 'lucide-react';
-import { Transaksi, SettingsData, User, Laundry, Pengeluaran } from '../types';
+import { Transaksi, SettingsData, User, Laundry, Pengeluaran, Pelanggan } from '../types';
 import { formatRupiah, formatShortDate, formatShortTime, extractTransaksiCashInEntries } from '../utils/formatters';
 import { IndexedDbService } from '../utils/indexedDb';
 import { StorageService } from '../utils/storage';
@@ -48,6 +49,7 @@ export type DashboardFilterStatus = 'semua' | 'selesai' | 'baru_masuk' | 'sedang
 
 interface DashboardViewProps {
   transaksiList: Transaksi[];
+  pelangganList?: Pelanggan[];
   settings: SettingsData;
   currentUser: User;
   activeLaundry: Laundry;
@@ -88,6 +90,7 @@ interface DashboardViewProps {
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
   transaksiList,
+  pelangganList = [],
   currentUser,
   activeLaundry,
   laundries,
@@ -225,6 +228,46 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     return transaksiList.filter((trx) => trx.laundryId === activeLaundry.id && trx.status !== 'Diambil');
   }, [transaksiList, activeLaundry.id]);
 
+  // Lookup map untuk data pelanggan (alamat lengkap / cadangan)
+  const pelangganMap = useMemo(() => {
+    const map: Record<string, Pelanggan> = {};
+    if (pelangganList && pelangganList.length > 0) {
+      for (const p of pelangganList) {
+        if (p.nama) {
+          map[p.nama.trim().toLowerCase()] = p;
+        }
+      }
+    } else {
+      try {
+        const stored = StorageService.get<Pelanggan[]>('pelanggan', []);
+        if (Array.isArray(stored)) {
+          for (const p of stored) {
+            if (p.nama) {
+              map[p.nama.trim().toLowerCase()] = p;
+            }
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+    return map;
+  }, [pelangganList]);
+
+  // Helper untuk mendapatkan alamat transaksi (prioritas: trx.alamat -> data pelanggan -> '-')
+  const getAlamat = (trx: Transaksi | null | undefined): string => {
+    if (!trx) return '-';
+    if (trx.alamat && trx.alamat.trim() !== '') {
+      return trx.alamat.trim();
+    }
+    if (trx.namaPelanggan) {
+      const p = pelangganMap[trx.namaPelanggan.trim().toLowerCase()];
+      if (p?.alamat && p.alamat.trim() !== '') return p.alamat.trim();
+      if (p?.alamatLengkap && p.alamatLengkap.trim() !== '') return p.alamatLengkap.trim();
+    }
+    return '-';
+  };
+
   // Count items per category
   const filterCounts = useMemo(() => {
     let baruMasuk = 0;
@@ -276,12 +319,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         const nameMatch = t.namaPelanggan.toLowerCase().includes(q);
         const invMatch = t.nomorTransaksi?.toLowerCase().includes(q);
         const phoneMatch = t.nomorTelepon?.includes(q);
-        return nameMatch || invMatch || phoneMatch;
+        const addr = getAlamat(t);
+        const addrMatch = addr !== '-' && addr.toLowerCase().includes(q);
+        return nameMatch || invMatch || phoneMatch || addrMatch;
       });
     }
 
     return list;
-  }, [activeBranchTrx, filterStatus, searchQuery]);
+  }, [activeBranchTrx, filterStatus, searchQuery, pelangganMap]);
 
   // Paginasi 10 Transaksi per Halaman (Hemat Memori & Ringan untuk HP)
   const ITEMS_PER_PAGE = 10;
@@ -919,7 +964,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
                     {/* Table Header */}
                     <div className="bg-slate-50 border-b border-slate-200 px-4 py-2.5 grid grid-cols-12 gap-3 text-[11px] font-extrabold uppercase tracking-wider text-slate-500">
-                      <div className="col-span-2">Waktu & Nota</div>
+                      <div className="col-span-2">Alamat & Waktu</div>
                       <div className="col-span-3">Pelanggan</div>
                       <div className="col-span-3">Rincian Layanan</div>
                       <div className="col-span-2 text-right">Tagihan & Status</div>
@@ -983,10 +1028,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                                 isEven ? 'bg-white' : 'bg-slate-50/50'
                               }`}
                             >
-                              {/* Kolom 1: Waktu & Nota */}
+                              {/* Kolom 1: Alamat & Waktu */}
                               <div className="col-span-2 min-w-0">
-                                <div className="font-mono text-xs font-bold text-[#800000] truncate">
-                                  {trx.nomorTransaksi || '-'}
+                                <div className="text-xs font-bold text-slate-800 truncate flex items-center gap-1" title={getAlamat(trx)}>
+                                  <MapPin className="w-3.5 h-3.5 text-rose-600/70 shrink-0" />
+                                  <span className="truncate">{getAlamat(trx)}</span>
                                 </div>
                                 <div className="text-[11px] text-slate-500 mt-0.5">
                                   {formatShortDate(trx.tanggalMasuk)} • {formatShortTime(trx.tanggalMasuk)}
@@ -998,10 +1044,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                                 <div className="font-bold text-sm text-slate-900 truncate">
                                   {trx.namaPelanggan}
                                 </div>
-                                {trx.alamat ? (
-                                  <div className="text-[11px] text-slate-400 truncate">{trx.alamat}</div>
-                                ) : trx.nomorTelepon ? (
+                                {trx.nomorTelepon ? (
                                   <div className="text-[11px] text-slate-400 truncate">{trx.nomorTelepon}</div>
+                                ) : trx.nomorTransaksi ? (
+                                  <div className="text-[11px] text-slate-400 font-mono truncate">{trx.nomorTransaksi}</div>
                                 ) : null}
                               </div>
 
@@ -1275,7 +1321,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       className="flex flex-col items-start px-2 py-1 rounded-xl hover:bg-white/10 active:scale-98 transition max-w-[190px] cursor-pointer"
                     >
                       <div className="flex items-center gap-1">
-                        <span className="font-bold text-sm truncate text-white tracking-wide">
+                        <span className="font-bold text-sl truncate text-white tracking-wide">
                           {typeof activeLaundry.namaLaundry === 'object' ? (activeLaundry.namaLaundry as any)?.namaLaundry || "Kafela's Laundry" : (activeLaundry.namaLaundry || "Kafela's Laundry")}
                         </span>
                         <ChevronDown className={`w-3.5 h-3.5 text-white/90 shrink-0 transition-transform ${isBranchDropdownOpen ? 'rotate-180' : ''}`} />
@@ -1284,7 +1330,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   ) : (
                     <div className="flex flex-col items-start px-2 py-1 max-w-[190px]">
                       <div className="flex items-center gap-1">
-                        <span className="font-bold text-sm truncate text-white tracking-wide">
+                        <span className="font-bold text-sl truncate text-white tracking-wide">
                           {typeof activeLaundry.namaLaundry === 'object' ? (activeLaundry.namaLaundry as any)?.namaLaundry || "Kafela's Laundry" : (activeLaundry.namaLaundry || "Kafela's Laundry")}
                         </span>
                       </div>
@@ -1436,23 +1482,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     >
                       <Receipt className="w-4 h-4" />
                     </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="font-extrabold text-xs">
-                          {isMonthlyQuotaFull
-                            ? 'Kuota Bulanan Newcomer Penuh'
-                            : ' Newcomer'}
-                        </span>
-                        <span className="text-[10px] bg-white/70 px-1.5 py-0.2 rounded font-bold font-mono border border-slate-200">
-                          {currentMonthTrxCount} / {limits.maxMonthlyTransactions} Nota
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-slate-500 truncate mt-0.5">
-                        {isMonthlyQuotaFull
-                          ? 'Batas 50 nota/bulan tercapai. Klik untuk upgrade ke Paket Premium.'
-                          : 'Gratis kuota 50 nota/bulan.'}
-                      </p>
-                    </div>
+                   
                   </div>
                   <button
                     type="button"
@@ -1643,7 +1673,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </div>
 
               {/* 4. DAFTAR TRANSAKSI AKTIF */}
-              <main className="space-y-">
+              <main className="space-y-1">
                 {displayedTrx.length === 0 ? (
                   <div className="bg-white rounded-2xl p-8 text-center border border-slate-200 mt-0 space-y-1">
                     <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mx-auto text-slate-400">
@@ -1711,12 +1741,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
                           {/* Pelanggan, Layanan & Item Jadwal */}
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-1.5 flex-wrap">
+                            <div className="flex items-center gap-1.5 ">
                               <span className="font-bold text-sm text-slate-900 truncate">
                                 {trx.namaPelanggan}
                               </span>
-                              <div className="text-[9px] text-slate-400 font-mono leading-tight mt-0.5">
-                                {trx.nomorTransaksi || '-'}
+                              <div
+                    className="text-[10px] text-slate-800   truncate"
+                                title={getAlamat(trx)}
+                              >
+                                <span className="truncate">{getAlamat(trx)}</span>
                               </div>
 
                               {/* Lunas / Sisa di Ujung Kanan */}
@@ -2070,9 +2103,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   </span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-slate-500">No. Nota / Faktur:</span>
-                  <span className="font-mono font-bold text-slate-700">
-                    {trxToAmbil.nomorTransaksi || '-'}
+                  <span className="text-slate-500">Alamat:</span>
+                  <span className="font-medium text-slate-700 truncate max-w-[190px]">
+                    {getAlamat(trxToAmbil)}
                   </span>
                 </div>
                 <div className="flex justify-between items-start gap-2">

@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { ArrowLeft, ChevronLeft, ChevronRight, Search, Undo2, Archive, RefreshCw, Zap, Cloud } from 'lucide-react';
-import { Transaksi } from '../types';
+import { ArrowLeft, ChevronLeft, ChevronRight, Search, Undo2, Archive, RefreshCw, Zap, Cloud, MapPin } from 'lucide-react';
+import { Transaksi, Pelanggan } from '../types';
 import { formatRupiah, formatShortDate, formatShortTime } from '../utils/formatters';
 import { FirebaseSyncService } from '../utils/firebaseSync';
 import { useToast, useConfirm } from '../components/NotificationContext';
@@ -8,6 +8,7 @@ import { useToast, useConfirm } from '../components/NotificationContext';
 interface ArsipViewProps {
   onBack: () => void;
   transaksiList: Transaksi[];
+  pelangganList?: Pelanggan[];
   activeLaundryId: string;
   onOpenDetailTransaksi: (transaksiId: string) => void;
   onRestoreTransaksi: (transaksi: Transaksi) => void;
@@ -16,12 +17,26 @@ interface ArsipViewProps {
 export const ArsipView: React.FC<ArsipViewProps> = ({
   onBack,
   transaksiList,
+  pelangganList = [],
   activeLaundryId,
   onOpenDetailTransaksi,
   onRestoreTransaksi,
 }) => {
   const toast = useToast();
   const { confirm } = useConfirm();
+
+  const getAlamat = (trx: Transaksi | null | undefined): string => {
+    if (!trx) return '-';
+    if (trx.alamat && trx.alamat.trim() !== '') return trx.alamat.trim();
+    if (pelangganList && trx.namaPelanggan) {
+      const p = pelangganList.find(
+        (c) => c.nama.trim().toLowerCase() === trx.namaPelanggan.trim().toLowerCase()
+      );
+      if (p?.alamat && p.alamat.trim() !== '') return p.alamat.trim();
+      if (p?.alamatLengkap && p.alamatLengkap.trim() !== '') return p.alamatLengkap.trim();
+    }
+    return '-';
+  };
   const [selectedMonthOffset, setSelectedMonthOffset] = useState<number>(0);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [monthArchive, setMonthArchive] = useState<Transaksi[]>([]);
@@ -100,10 +115,12 @@ export const ArsipView: React.FC<ArsipViewProps> = ({
       // Filter pencarian
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
+        const addr = getAlamat(trx);
         return (
           trx.namaPelanggan?.toLowerCase().includes(q) ||
           trx.nomorTransaksi?.toLowerCase().includes(q) ||
-          trx.nomorTelepon?.includes(q)
+          trx.nomorTelepon?.includes(q) ||
+          (addr !== '-' && addr.toLowerCase().includes(q))
         );
       }
 
@@ -239,10 +256,10 @@ export const ArsipView: React.FC<ArsipViewProps> = ({
             <div
               key={trx.id}
               onClick={() => onOpenDetailTransaksi(trx.id)}
-              className="bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs hover:border-[#800000] cursor-pointer transition flex items-center justify-between gap-2.5"
+              className="bg-white px-1 py-2 rounded-2xl border border-slate-200 shadow-2xs hover:border-[#800000] cursor-pointer transition flex items-center justify-between gap-1"
             >
               {/* Tanggal & Jam Masuk / Pengambilan (Diperkecil / Compact) */}
-              <div className="w-10 shrink-0 text-center border-r border-slate-100 pr-1 flex flex-col justify-center">
+              <div className="w-9 shrink-0 text-center border-r border-slate-100 pr-1 flex flex-col justify-center">
                 <div className="text-[10px] font-bold text-slate-700 leading-none">
                   {formatShortTime(trx.tanggalPengambilan || trx.tanggalMasuk)}
                 </div>
@@ -256,9 +273,12 @@ export const ArsipView: React.FC<ArsipViewProps> = ({
                   <span className="font-bold text-xs text-slate-900 truncate">
                     {trx.namaPelanggan}
                   </span>
-                  <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-mono">
-                    {trx.nomorTransaksi}
-                  </span>
+                  <div
+                    className="text-[10px] text-slate-800 flex items-center gap-1 max-w-[160px] truncate"
+                    title={getAlamat(trx)}
+                  >
+                    <span className="truncate">{getAlamat(trx)}</span>
+                  </div>
                 </div>
                 <div className="text-[11px] text-slate-500 truncate mt-0.5">
                   Total: {formatRupiah(trx.totalHarga)} • {trx.items?.length || 0} Layanan

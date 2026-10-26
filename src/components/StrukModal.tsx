@@ -503,10 +503,10 @@ const noStruk = jadwal.idJadwal || 'INV001';
     setShowRawBtFallback(false);
 
     // 1. Cek apakah dibuka di dalam aplikasi Android APK (WebView dengan interface "MesinPrint" atau "WebAppInterface")
-    const win = window as any;
-    const bridge = win.MesinPrint || win.WebAppInterface;
+    const win = typeof window !== 'undefined' ? (window as any) : null;
+    const bridge = win?.MesinPrint || win?.WebAppInterface;
 
-    if (bridge && (typeof bridge.prosesCetakBluetooth === 'function' || typeof bridge.cetakStrukDariWeb === 'function')) {
+    if (bridge) {
       try {
         setBtStatus('Mengirim data & gambar ke printer Bluetooth APK...');
 
@@ -519,6 +519,18 @@ const noStruk = jadwal.idJadwal || 'INV001';
         }
         if (adaTtd && finalTtdUrl) {
           ttdB64 = await ensureSafeDataUrl(finalTtdUrl);
+        }
+
+        // Cek jika metode print(...) langsung tersedia di interface bridge
+        if (typeof bridge.print === 'function') {
+          try {
+            bridge.print(jadwal, logoB64, ttdB64);
+            setBtStatus('✓ Data struk dan gambar berhasil dikirim ke Printer APK!');
+            setTimeout(() => setBtStatus(null), 3500);
+            return;
+          } catch (printErr) {
+            console.warn('bridge.print gagal, mencoba metode lanjutan:', printErr);
+          }
         }
 
         const brandName = owner.namaBrand || "Kafela's Agenda";

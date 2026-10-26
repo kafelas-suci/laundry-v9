@@ -487,4 +487,76 @@ export class IndexedDbService {
       return 0;
     }
   }
+
+  /**
+   * Hapus transaksi dari semua store lokal (aktif, arsip, outbox)
+   */
+  static async deleteTransaksiFromLocal(id: string): Promise<void> {
+    try {
+      const db = await this.getDB();
+      const tx = db.transaction(['transaksi_aktif', 'transaksi_arsip', 'outbox_transaksi'], 'readwrite');
+      tx.objectStore('transaksi_aktif').delete(id);
+      tx.objectStore('transaksi_arsip').delete(id);
+      tx.objectStore('outbox_transaksi').delete(id);
+      await new Promise<void>((resolve, reject) => {
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    } catch (e) {
+      console.warn('Gagal menghapus transaksi dari lokal IndexedDB:', e);
+    }
+  }
+
+  /**
+   * Migrasi satu kali (One-time migration) dari LocalStorage ke IndexedDB
+   * untuk memastikan Single Source of Truth (SSOT) yang konsisten.
+   */
+  static async migrateLocalStorageToIndexedDb(activeLaundryId: string): Promise<{ migrated: number }> {
+    if (typeof window === 'undefined') return { migrated: 0 };
+    const MIGRATION_KEY = 'idb_ssot_migrated_v1';
+    if (localStorage.getItem(MIGRATION_KEY) === 'true') {
+      return { migrated: 0 };
+    }
+
+    try {
+      const raw = localStorage.getItem('transaksi');
+      if (!raw) {
+        localStorage.setItem(MIGRATION_KEY, 'true');
+        return { migrated: 0 };
+      }
+
+      const list: Transaksi[] = JSON.parse(raw);
+      if (!Array.isArray(list) || list.length === 0) {
+        localStorage.setItem(MIGRATION_KEY, 'true');
+        return { migrated: 0 };
+      }
+
+      // Ambil transaksi yang sudah ada di IndexedDB agar tidak menimpa data baru
+      const existing = await this.getAllLaundryTransaksi(activeLaundryId);
+      const existingIds = new Set(existing.map((t) => t.id));
+
+      const toMigrate: Transaksi[] = [];
+      list.forEach((trx) => {
+        if (trx && trx.id && !existingIds.has(trx.id)) {
+          toMigrate.push({
+            ...trx,
+            laundryId: trx.laundryId || activeLaundryId,
+          });
+        }
+      });
+
+      if (toMigrate.length > 0) {
+        await this.saveAllTransaksi(activeLaundryId, toMigrate);
+      }
+
+      // Tandai migrasi selesai
+      localStorage.setItem(MIGRATION_KEY, 'true');
+      console.log(`[SSOT Migration] Berhasil migrasi ${toMigrate.length} transaksi dari LocalStorage ke IndexedDB.`);
+      return { migrated: toMigrate.length };
+    } catch (e) {
+      console.warn('[SSOT Migration] Gagal migrasi transaksi dari LocalStorage ke IndexedDB:', e);
+      return { migrated: 0 };
+    }
+  }
 }
+

@@ -19,14 +19,16 @@ import {
   AlertCircle,
   Coins,
   Clock,
+  MapPin,
 } from 'lucide-react';
-import { Transaksi, Pengeluaran, ArusKas } from '../types';
+import { Transaksi, Pengeluaran, ArusKas, Pelanggan } from '../types';
 import { formatRupiah, formatShortTime, formatDateIndo, formatTanggalIndo, formatLocalDateKey } from '../utils/formatters';
 import { FirebaseSyncService } from '../utils/firebaseSync';
 
 interface BukuKasViewProps {
   onBack: () => void;
   transaksiList: Transaksi[];
+  pelangganList?: Pelanggan[];
   pengeluaranList: Pengeluaran[];
   manualCashLogs: ArusKas[];
   activeLaundryId: string;
@@ -40,11 +42,24 @@ export type LogisticFilterType = 'semua' | 'masuk' | 'diambil' | 'belum_lunas';
 export const BukuKasView: React.FC<BukuKasViewProps> = ({
   onBack,
   transaksiList,
+  pelangganList = [],
   pengeluaranList,
   manualCashLogs,
   activeLaundryId,
   onOpenDetailTransaksi,
 }) => {
+  const getAlamat = (trx: Transaksi | null | undefined): string => {
+    if (!trx) return '-';
+    if (trx.alamat && trx.alamat.trim() !== '') return trx.alamat.trim();
+    if (pelangganList && trx.namaPelanggan) {
+      const p = pelangganList.find(
+        (c) => c.nama.trim().toLowerCase() === trx.namaPelanggan.trim().toLowerCase()
+      );
+      if (p?.alamat && p.alamat.trim() !== '') return p.alamat.trim();
+      if (p?.alamatLengkap && p.alamatLengkap.trim() !== '') return p.alamatLengkap.trim();
+    }
+    return '-';
+  };
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [activeTab, setActiveTab] = useState<CashTabType>('uang');
   const [cashFilter, setCashFilter] = useState<CashFilterType>('semua');
@@ -193,9 +208,12 @@ export const BukuKasView: React.FC<BukuKasViewProps> = ({
           }
 
           const isLunasAwal = bayarAwal >= total;
+          const alamatTrx = getAlamat(trx);
           cashList.push({
             timestamp: trx.tanggalMasuk,
-            keterangan: `${trx.namaPelanggan} (${trx.nomorTransaksi || '-'})`,
+            keterangan: trx.namaPelanggan,
+            namaPelanggan: trx.namaPelanggan,
+            alamat: alamatTrx,
             jumlahMasuk: bayarAwal,
             jumlahKeluar: 0,
             metodePembayaran: trx.metodePembayaran || 'Tunai',
@@ -206,9 +224,12 @@ export const BukuKasView: React.FC<BukuKasViewProps> = ({
         }
 
         // Catat ke Log Logistik Cucian Masuk
+        const alamatTrx = getAlamat(trx);
         logList.push({
           timestamp: trx.tanggalMasuk,
-          keterangan: `${trx.namaPelanggan} (${trx.nomorTransaksi || '-'}) • Masuk`,
+          keterangan: `${trx.namaPelanggan} • Masuk`,
+          namaPelanggan: trx.namaPelanggan,
+          alamat: alamatTrx,
           jumlahMasuk: bayarAwal,
           jumlahKeluar: 0,
           metodePembayaran: trx.metodePembayaran,
@@ -246,9 +267,12 @@ export const BukuKasView: React.FC<BukuKasViewProps> = ({
         }
 
         const isOrderBedaHari = trx.tanggalMasuk < startOfDay;
+        const alamatTrx = getAlamat(trx);
         cashList.push({
           timestamp: waktuPelunasan,
-          keterangan: `${trx.namaPelanggan} (${trx.nomorTransaksi || '-'}) `,
+          keterangan: trx.namaPelanggan,
+          namaPelanggan: trx.namaPelanggan,
+          alamat: alamatTrx,
           jumlahMasuk: sisa,
           jumlahKeluar: 0,
           metodePembayaran: trx.metodePembayaran || 'Tunai',
@@ -266,9 +290,12 @@ export const BukuKasView: React.FC<BukuKasViewProps> = ({
       ) {
         countBajuDiambil++;
         const pelunasanDiambil = trx.statusPembayaran === 'Lunas' ? sisa : 0;
+        const alamatTrx = getAlamat(trx);
         logList.push({
           timestamp: trx.tanggalPengambilan,
-          keterangan: `${trx.namaPelanggan} (${trx.nomorTransaksi || '-'}) • Diambil`,
+          keterangan: `${trx.namaPelanggan} • Diambil`,
+          namaPelanggan: trx.namaPelanggan,
+          alamat: alamatTrx,
           jumlahMasuk: pelunasanDiambil,
           jumlahKeluar: 0,
           metodePembayaran: trx.metodePembayaran,
@@ -349,7 +376,10 @@ export const BukuKasView: React.FC<BukuKasViewProps> = ({
     return cashEntries.filter((row) => {
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
-        const matchKet = row.keterangan.toLowerCase().includes(q);
+        const matchKet =
+          (row.keterangan || '').toLowerCase().includes(q) ||
+          (row.namaPelanggan || '').toLowerCase().includes(q) ||
+          (row.alamat || '').toLowerCase().includes(q);
         const matchNominal = (row.jumlahMasuk || row.jumlahKeluar).toString().includes(q);
         if (!matchKet && !matchNominal) return false;
       }
@@ -367,7 +397,10 @@ export const BukuKasView: React.FC<BukuKasViewProps> = ({
     return logisticEntries.filter((row) => {
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
-        const matchKet = row.keterangan.toLowerCase().includes(q);
+        const matchKet =
+          (row.keterangan || '').toLowerCase().includes(q) ||
+          (row.namaPelanggan || '').toLowerCase().includes(q) ||
+          (row.alamat || '').toLowerCase().includes(q);
         if (!matchKet) return false;
       }
 
@@ -656,8 +689,18 @@ export const BukuKasView: React.FC<BukuKasViewProps> = ({
 
             {/* Keterangan di Kiri */}
             <div className="flex-1 px-2 min-w-0">
-              <div className="font-bold text-slate-900 text-xs truncate">
-                {row.keterangan}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="font-bold text-slate-900 text-xs truncate">
+                  {row.namaPelanggan || row.keterangan}
+                </span>
+                {row.alamat && (
+                  <div
+                    className="text-[10px] text-slate-800 flex items-center gap-1 max-w-[160px] truncate"
+                    title={row.alamat}
+                  >
+                    <span className="truncate">{row.alamat}</span>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -733,8 +776,18 @@ export const BukuKasView: React.FC<BukuKasViewProps> = ({
 
             {/* Detail Cucian (Nama di Kiri, Status Keterangan di Kanan) */}
             <div className="flex-1 px-2 min-w-0 flex items-center justify-between gap-2">
-              <div className="font-bold text-slate-900 text-xs truncate min-w-0 flex-1">
-                {namaUtama}
+              <div className="min-w-0 flex-1 flex items-center gap-1.5 flex-wrap">
+                <span className="font-bold text-slate-900 text-xs truncate">
+                  {row.namaPelanggan || namaUtama}
+                </span>
+                {row.alamat && (
+                  <div
+                    className="text-[10px] text-slate-800 truncate"
+                    title={row.alamat}
+                  >
+                    <span className="truncate">{row.alamat}</span>
+                  </div>
+                )}
               </div>
               
               {statusKanan && (

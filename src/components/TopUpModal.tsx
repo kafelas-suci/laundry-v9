@@ -216,9 +216,9 @@ export const TopUpModal: React.FC<TopUpModalProps> = ({
                     <span className="px-1.5 py-0.5 rounded bg-sky-100 text-sky-800 text-[9px] font-black">
                       DANA
                     </span>
-                    <span className="font-mono">0856 5978 1477</span>
+                    <span className="font-mono">0831  3230 4649 </span>
                   </div>
-                  <div className="text-[10px] text-slate-500">a/n Suci K Kusumah</div>
+                  <div className="text-[10px] text-slate-500">a/n Iqbal S. Nuha</div>
                 </div>
                 <button
                   type="button"

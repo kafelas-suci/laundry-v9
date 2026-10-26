@@ -11,8 +11,9 @@ import {
   Search,
   X,
   User as UserIcon,
+  MapPin,
 } from 'lucide-react';
-import { Transaksi, Layanan, User, SettingsData, OperationalStaff } from '../types';
+import { Transaksi, Layanan, User, SettingsData, OperationalStaff, Pelanggan } from '../types';
 import { formatShortDate, formatShortTime, formatRupiah, formatTanggalIndo } from '../utils/formatters';
 import { AssignStaffModal } from '../components/AssignStaffModal';
 import { useToast, useConfirm } from '../components/NotificationContext';
@@ -21,6 +22,7 @@ import { getLaundryLimits } from '../utils/subscription';
 interface StatusPengerjaanViewProps {
   onBack: () => void;
   transaksiList: Transaksi[];
+  pelangganList?: Pelanggan[];
   semuaLayanan: Layanan[];
   staffList: User[];
   operationalStaffList?: OperationalStaff[];
@@ -38,6 +40,7 @@ interface StatusPengerjaanViewProps {
 export const StatusPengerjaanView: React.FC<StatusPengerjaanViewProps> = ({
   onBack,
   transaksiList,
+  pelangganList = [],
   semuaLayanan,
   staffList,
   operationalStaffList = [],
@@ -52,6 +55,19 @@ export const StatusPengerjaanView: React.FC<StatusPengerjaanViewProps> = ({
   const { confirm } = useConfirm();
   const limits = getLaundryLimits(currentTier);
   const canAssignStaff = limits.canAssignStaff;
+
+  const getAlamat = (trx: Transaksi | null | undefined): string => {
+    if (!trx) return '-';
+    if (trx.alamat && trx.alamat.trim() !== '') return trx.alamat.trim();
+    if (pelangganList && trx.namaPelanggan) {
+      const p = pelangganList.find(
+        (c) => c.nama.trim().toLowerCase() === trx.namaPelanggan.trim().toLowerCase()
+      );
+      if (p?.alamat && p.alamat.trim() !== '') return p.alamat.trim();
+      if (p?.alamatLengkap && p.alamatLengkap.trim() !== '') return p.alamatLengkap.trim();
+    }
+    return '-';
+  };
 
   const [selectedTrxForStaff, setSelectedTrxForStaff] = useState<Transaksi | null>(null);
 
@@ -237,7 +253,9 @@ export const StatusPengerjaanView: React.FC<StatusPengerjaanViewProps> = ({
         const matchName = (t.namaPelanggan || '').toLowerCase().includes(q);
         const matchInvoice = (t.nomorTransaksi || '').toLowerCase().includes(q);
         const matchStaff = (t.dikerjakanOleh || '').toLowerCase().includes(q);
-        if (!matchName && !matchInvoice && !matchStaff) return false;
+        const addr = getAlamat(t);
+        const matchAddress = addr !== '-' && addr.toLowerCase().includes(q);
+        if (!matchName && !matchInvoice && !matchStaff && !matchAddress) return false;
       }
 
       return true;
@@ -523,9 +541,12 @@ export const StatusPengerjaanView: React.FC<StatusPengerjaanViewProps> = ({
                       <span className="font-bold text-xs text-slate-900 truncate">
                         {trx.namaPelanggan}
                       </span>
-                      <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-mono">
-                        {trx.nomorTransaksi}
-                      </span>
+                      <div
+                    className="text-[10px] text-slate-800 flex items-center gap-1 max-w-[160px] truncate"
+                        title={getAlamat(trx)}
+                      >
+                        <span className="truncate">{getAlamat(trx)}</span>
+                      </div>
 
                       {isHitungKerjaStaf && (
                         trx.dikerjakanOleh ? (

@@ -8,6 +8,11 @@ declare global {
   interface Window {
     MesinPrint?: {
       /**
+       * Metode Standar Cetak: print(data, logoBase64?)
+       */
+      print?: (data?: any, logoBase64?: string) => void;
+
+      /**
        * Metode Baru Rekomendasi: Menerima teks nota lengkap yang sudah terformat
        * persis sama dengan preview (32 karakter per baris), beserta logo opsional.
        */
@@ -71,7 +76,10 @@ declare global {
         metodeBayar: string,
         isArsip: boolean
       ) => void;
+
+      keluarAplikasi?: () => void;
     };
+    WebAppInterface?: any;
   }
 }
 
@@ -79,11 +87,15 @@ declare global {
  * Cek apakah aplikasi web sedang dibuka di dalam WebView Android yang memiliki interface MesinPrint
  */
 export function isAndroidPrintAvailable(): boolean {
+  if (typeof window === 'undefined') return false;
+  const bridge = window.MesinPrint;
+  if (!bridge) return false;
+
   return (
-    typeof window !== 'undefined' &&
-    typeof window.MesinPrint !== 'undefined' &&
-    (typeof window.MesinPrint.cetakTeksStruk === 'function' ||
-      typeof window.MesinPrint.prosesCetakBluetooth === 'function')
+    typeof bridge.print === 'function' ||
+    typeof bridge.cetakTeksStruk === 'function' ||
+    typeof bridge.prosesCetakBluetooth === 'function' ||
+    typeof (bridge as any).cetakStrukDariWeb === 'function'
   );
 }
 
@@ -114,114 +126,128 @@ export async function printViaAndroidBluetooth(
   laundryPhone?: string,
   preloadedLogoBase64?: string
 ): Promise<boolean> {
-  if (!isAndroidPrintAvailable()) {
-    return false;
-  }
-
-  try {
-    // Dapatkan Base64 logo toko secara instan (100% siap tanpa delay)
-    let logoBase64 = '';
-    if (settings.useLogo && settings.logoPath) {
-      logoBase64 = preloadedLogoBase64 !== undefined ? preloadedLogoBase64 : await getLogoBase64(settings);
-    }
-
-    // 1. Generate teks lengkap 32 karakter yang susunan posisinya 100% sama dengan preview
-    // Termasuk Header, No/Tanggal, Pelanggan, Status Lunas, Item Cucian, Rincian Bayar,
-    // Catatan, Footer Struk (Syarat & Ketentuan), dan Chatty Footer
-    const fullReceiptText = generateFormattedReceiptText(
-      transaksi,
-      settings,
-      laundryName,
-      laundryAddress,
-      laundryPhone
-    );
-
-    // 2. Jika APK menggunakan prosesCetakBluetooth (metode 22 parameter yang mendukung logoBase64 di param #21),
-    // prioritaskan pemanggilan ini ketika logo aktif agar logo dicetak sempurna di atas struk.
-    if (typeof window.MesinPrint?.prosesCetakBluetooth === 'function') {
-      const isLunas = transaksi.statusPembayaran === 'Lunas';
-      const items = Array.isArray(transaksi.items) ? transaksi.items : [];
-
-      // Susun ringkasan item yang rapi per baris sesuai preview
-      const itemsDesc =
-        items.length > 0
-          ? items
-              .map((it) => `${it.namaLayanan}\n  ${it.berat} ${it.satuan} x ${it.hargaPerKg} = Rp ${it.subtotal}`)
-              .join('\n')
-          : 'Cucian Laundry';
-
-      const firstItem = items[0];
-      const firstItemPrice = firstItem?.subtotal || transaksi.totalHarga;
-      const restItems = items.slice(1);
-      const restDesc = restItems
-        .map((it) => `${it.namaLayanan} (${it.berat} ${it.satuan})`)
-        .join(', ');
-      const restPrice = restItems.reduce((acc, it) => acc + (it.subtotal || 0), 0);
-
-      const brand = laundryName || settings.headerStruk || "Kafela's Laundry";
-      const address = laundryAddress || settings.address || '';
-      const phone = laundryPhone || settings.phoneNumber || '';
-      const lokasi = [address, phone ? `Telp: ${phone}` : ''].filter(Boolean).join(' - ') || 'Outlet Laundry';
-      const tanggalBayarStr = formatReceiptDate(transaksi.tanggalMasuk, true);
-      const waktuEvent = transaksi.tanggalSelesai || transaksi.tanggalMasuk;
-      const nominalDibayar = isLunas ? transaksi.totalHarga : transaksi.jumlahDp || 0;
-      const dpDibayar = transaksi.jumlahDp || 0;
-
-      // Susun Catatan, Footer Struk (Syarat & Ketentuan), dan Chatty Footer
-      const footerLines: string[] = [];
-      if (transaksi.catatan && transaksi.catatan.trim()) {
-        footerLines.push(`Catatan: ${transaksi.catatan.trim()}`);
+  // Pastikan pemanggilan window.MesinPrint dibungkus dalam kondisi yang aman
+  if (typeof window !== 'undefined' && window.MesinPrint) {
+    try {
+      // Dapatkan Base64 logo toko secara instan (100% siap tanpa delay)
+      let logoBase64 = '';
+      if (settings.useLogo && settings.logoPath) {
+        logoBase64 = preloadedLogoBase64 !== undefined ? preloadedLogoBase64 : await getLogoBase64(settings);
       }
-      if (settings.footerStruk && settings.footerStruk.trim()) {
-        footerLines.push(settings.footerStruk.trim());
-      }
-      if (settings.chattyFooter && settings.chattyFooter.trim()) {
-        footerLines.push(settings.chattyFooter.trim());
-      }
-      const combinedCatatanAndFooter = footerLines.join('\n');
 
-      window.MesinPrint.prosesCetakBluetooth(
-        itemsDesc, // 1: namaAcara (rincian item lengkap per baris)
-        transaksi.namaPelanggan || 'Pelanggan', // 2: namaKlien
-        firstItem?.namaLayanan || 'Laundry', // 3: paketDipilih
-        firstItemPrice, // 4: hargaPaketDasar
-        restDesc, // 5: namaTambahan
-        restPrice, // 6: hargaTambahan
-        lokasi, // 7: lokasi toko
-        tanggalBayarStr, // 8: tanggalBayar
-        waktuEvent, // 9: waktuEvent
-        transaksi.totalHarga, // 10: totalTarif
-        nominalDibayar, // 11: nominalDibayar
-        0, // 12: nominalDiskon
-        dpDibayar, // 13: dpDibayar
-        isLunas, // 14: isLunas
-        transaksi.nomorTransaksi || '-', // 15: noStruk
-        combinedCatatanAndFooter, // 16: catatan (berisi Catatan + Footer Struk + Chatty Footer!)
-        transaksi.metodePembayaran || 'Tunai', // 17: metodeBayar
-        transaksi.status === 'Diambil', // 18: isArsip
-        brand, // 19: namaBrand
-        transaksi.dikerjakanOleh || 'Kasir', // 20: namaAdmin
-        logoBase64, // 21: logoBase64 (LOGO TOKO TERCETAK DI SINI!)
-        '' // 22: ttdBase64
+      // 1. Generate teks lengkap 32 karakter yang susunan posisinya 100% sama dengan preview
+      const fullReceiptText = generateFormattedReceiptText(
+        transaksi,
+        settings,
+        laundryName,
+        laundryAddress,
+        laundryPhone
       );
-      return true;
-    }
 
-    // 3. Jika APK hanya menyediakan cetakTeksStruk
-    if (typeof window.MesinPrint?.cetakTeksStruk === 'function') {
-      try {
-        // Panggil dengan parameter teks & logo jika didukung
-        window.MesinPrint.cetakTeksStruk(fullReceiptText, logoBase64);
-      } catch {
-        // Fallback 1 parameter
-        window.MesinPrint.cetakTeksStruk(fullReceiptText);
+      // 2. Jika APK mendukung interface print(...) langsung
+      if (typeof window.MesinPrint.print === 'function') {
+        try {
+          window.MesinPrint.print(fullReceiptText, logoBase64);
+        } catch {
+          window.MesinPrint.print(fullReceiptText);
+        }
+        return true;
       }
-      return true;
-    }
 
-    return false;
-  } catch (error) {
-    console.error('Gagal mencetak lewat MesinPrint Android:', error);
+      // 3. Jika APK menggunakan prosesCetakBluetooth (metode 22 parameter)
+      if (typeof window.MesinPrint.prosesCetakBluetooth === 'function') {
+        const isLunas = transaksi.statusPembayaran === 'Lunas';
+        const items = Array.isArray(transaksi.items) ? transaksi.items : [];
+
+        // Susun ringkasan item yang rapi per baris sesuai preview
+        const itemsDesc =
+          items.length > 0
+            ? items
+                .map((it) => `${it.namaLayanan}\n  ${it.berat} ${it.satuan} x ${it.hargaPerKg} = Rp ${it.subtotal}`)
+                .join('\n')
+            : 'Cucian Laundry';
+
+        const firstItem = items[0];
+        const firstItemPrice = firstItem?.subtotal || transaksi.totalHarga;
+        const restItems = items.slice(1);
+        const restDesc = restItems
+          .map((it) => `${it.namaLayanan} (${it.berat} ${it.satuan})`)
+          .join(', ');
+        const restPrice = restItems.reduce((acc, it) => acc + (it.subtotal || 0), 0);
+
+        const brand = laundryName || settings.headerStruk || "Kafela's Laundry";
+        const address = laundryAddress || settings.address || '';
+        const phone = laundryPhone || settings.phoneNumber || '';
+        const lokasi = [address, phone ? `Telp: ${phone}` : ''].filter(Boolean).join(' - ') || 'Outlet Laundry';
+        const tanggalBayarStr = formatReceiptDate(transaksi.tanggalMasuk, true);
+        const waktuEvent = transaksi.tanggalSelesai || transaksi.tanggalMasuk;
+        const nominalDibayar = isLunas ? transaksi.totalHarga : transaksi.jumlahDp || 0;
+        const dpDibayar = transaksi.jumlahDp || 0;
+
+        // Susun Catatan, Footer Struk (Syarat & Ketentuan), dan Chatty Footer
+        const footerLines: string[] = [];
+        if (transaksi.catatan && transaksi.catatan.trim()) {
+          footerLines.push(`Catatan: ${transaksi.catatan.trim()}`);
+        }
+        if (settings.footerStruk && settings.footerStruk.trim()) {
+          footerLines.push(settings.footerStruk.trim());
+        }
+        if (settings.chattyFooter && settings.chattyFooter.trim()) {
+          footerLines.push(settings.chattyFooter.trim());
+        }
+        const combinedCatatanAndFooter = footerLines.join('\n');
+
+        window.MesinPrint.prosesCetakBluetooth(
+          itemsDesc,
+          transaksi.namaPelanggan || 'Pelanggan',
+          firstItem?.namaLayanan || 'Laundry',
+          firstItemPrice,
+          restDesc,
+          restPrice,
+          lokasi,
+          tanggalBayarStr,
+          waktuEvent,
+          transaksi.totalHarga,
+          nominalDibayar,
+          0,
+          dpDibayar,
+          isLunas,
+          transaksi.nomorTransaksi || '-',
+          combinedCatatanAndFooter,
+          transaksi.metodePembayaran || 'Tunai',
+          transaksi.status === 'Diambil',
+          brand,
+          transaksi.dikerjakanOleh || 'Kasir',
+          logoBase64,
+          ''
+        );
+        return true;
+      }
+
+      // 4. Jika APK menyediakan cetakTeksStruk
+      if (typeof window.MesinPrint.cetakTeksStruk === 'function') {
+        try {
+          window.MesinPrint.cetakTeksStruk(fullReceiptText, logoBase64);
+        } catch {
+          window.MesinPrint.cetakTeksStruk(fullReceiptText);
+        }
+        return true;
+      }
+
+      return false;
+    } catch (error) {
+      console.error('Gagal mencetak lewat MesinPrint Android:', error);
+      // Fallback ke window.print() jika runtime error pada native bridge
+      if (typeof window !== 'undefined') {
+        window.print();
+      }
+      return false;
+    }
+  } else {
+    // Fallback ke window.print() ketika window.MesinPrint tidak tersedia
+    if (typeof window !== 'undefined') {
+      window.print();
+    }
     return false;
   }
 }

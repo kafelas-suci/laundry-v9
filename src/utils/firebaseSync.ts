@@ -400,17 +400,40 @@ export class FirebaseSyncService {
 
         unsub = onSnapshot(
           q,
-          (snapshot) => {
-            const list: Transaksi[] = [];
+          async (snapshot) => {
+            const serverList: Transaksi[] = [];
             snapshot.forEach((d) => {
-              list.push(FirebaseSyncService.parseTransaksiDoc(d.id, laundryId, d.data() as Partial<Transaksi>));
+              serverList.push(FirebaseSyncService.parseTransaksiDoc(d.id, laundryId, d.data() as Partial<Transaksi>));
             });
-            list.sort((a, b) => b.tanggalMasuk - a.tanggalMasuk);
 
-            // Simpan otomatis ke IndexedDB & LocalStorage untuk cadangan offline
-            IndexedDbService.saveAllTransaksi(laundryId, list).catch(console.warn);
+            // Rekonsiliasi Anti-Glitches: Pertahankan transaksi lokal di antrean Outbox
+            // agar nota offline tidak pernah hilang atau berkedip saat snapshot server masuk
+            let pendingOutbox: Transaksi[] = [];
+            try {
+              pendingOutbox = await IndexedDbService.getOutbox();
+            } catch (e) {
+              console.warn('Gagal membaca outbox saat onSnapshot:', e);
+            }
 
-            onUpdate(list);
+            const map = new Map<string, Transaksi>();
+            // 1. Masukkan data dari server
+            serverList.forEach((trx) => map.set(trx.id, trx));
+            // 2. Pertahankan transaksi outbox lokal untuk cabang ini dengan timestamp guard
+            pendingOutbox.forEach((trx) => {
+              if (trx.laundryId === laundryId) {
+                const existing = map.get(trx.id);
+                if (!existing || (trx.terakhirDieditPada || 0) >= (existing.terakhirDieditPada || 0)) {
+                  map.set(trx.id, trx);
+                }
+              }
+            });
+
+            const mergedList = Array.from(map.values()).sort((a, b) => b.tanggalMasuk - a.tanggalMasuk);
+
+            // Simpan otomatis ke IndexedDB (Single Source of Truth)
+            IndexedDbService.saveAllTransaksi(laundryId, mergedList).catch(console.warn);
+
+            onUpdate(mergedList);
           },
           (error) => {
             console.warn('Firestore subscription onSnapshot error:', error);
@@ -934,9 +957,12 @@ export class FirebaseSyncService {
     }
   }
 
-  // 7. DELETE TRANSAKSI
+  // 7. DELETE TRANSAKSI (Hanya diizinkan untuk akun Owner)
   static async deleteTransaksi(laundryId: string, trxId: string): Promise<void> {
     const path = `laundries/${laundryId}/transaksi/${trxId}`;
+    // Hapus seketika dari IndexedDB lokal agar UI dan cache langsung bersih
+    IndexedDbService.deleteTransaksiFromLocal(trxId).catch(console.warn);
+
     if (!auth.currentUser) {
       return;
     }

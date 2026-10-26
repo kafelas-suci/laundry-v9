@@ -1,5 +1,19 @@
-import React, { useState } from 'react';
-import { ArrowLeft, Plus, Search, Phone, MapPin, Edit3, Trash2, Award, UserPlus, X, Lock } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import {
+  ArrowLeft,
+  Plus,
+  Search,
+  Phone,
+  MapPin,
+  Edit3,
+  Trash2,
+  Award,
+  UserPlus,
+  X,
+  Lock,
+  ArrowDownAZ,
+  ArrowUpZA,
+} from 'lucide-react';
 import { Pelanggan, SettingsData } from '../types';
 import { useToast, useConfirm } from '../components/NotificationContext';
 import { isProTier, getLaundryLimits } from '../utils/subscription';
@@ -28,6 +42,7 @@ export const KelolaPelangganView: React.FC<KelolaPelangganViewProps> = ({
   const toast = useToast();
   const { confirm } = useConfirm();
   const [searchQuery, setSearchQuery] = useState('');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [editingPelanggan, setEditingPelanggan] = useState<Pelanggan | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
@@ -92,15 +107,25 @@ export const KelolaPelangganView: React.FC<KelolaPelangganViewProps> = ({
     setIsAddModalOpen(false);
   };
 
-  const filtered = pelangganList.filter((p) => {
-    if (!searchQuery.trim()) return true;
-    const q = searchQuery.toLowerCase();
-    return (
-      p.nama.toLowerCase().includes(q) ||
-      (p.nomorTelepon && p.nomorTelepon.includes(q)) ||
-      (p.alamat && p.alamat.toLowerCase().includes(q))
-    );
-  });
+  // Diurutkan berdasarkan abjad secara default (A-Z) dan dapat dibalik (Z-A)
+  const filtered = useMemo(() => {
+    const list = pelangganList.filter((p) => {
+      if (!searchQuery.trim()) return true;
+      const q = searchQuery.toLowerCase();
+      return (
+        p.nama.toLowerCase().includes(q) ||
+        (p.nomorTelepon && p.nomorTelepon.includes(q)) ||
+        (p.alamat && p.alamat.toLowerCase().includes(q))
+      );
+    });
+
+    return [...list].sort((a, b) => {
+      const nameA = (a.nama || '').trim();
+      const nameB = (b.nama || '').trim();
+      const comp = nameA.localeCompare(nameB, 'id', { sensitivity: 'base', numeric: true });
+      return sortOrder === 'asc' ? comp : -comp;
+    });
+  }, [pelangganList, searchQuery, sortOrder]);
 
   return (
     <div className="flex flex-col min-h-screen bg-slate-100 text-slate-800 pb-16">
@@ -148,9 +173,31 @@ export const KelolaPelangganView: React.FC<KelolaPelangganViewProps> = ({
         </div>
       </div>
 
-      {/* Customer Count Badge */}
-      <div className="px-4 md:px-6 py-1 text-xs font-bold text-slate-500 flex justify-between items-center max-w-xl md:max-w-4xl lg:max-w-5xl mx-auto w-full">
-        <span>Total Terdaftar: {pelangganList.length} Pelanggan</span>
+      {/* Customer Count & Sort Toggle Bar */}
+      <div className="px-3 md:px-6 py-1 text-xs font-bold text-slate-500 flex justify-between items-center max-w-xl md:max-w-4xl lg:max-w-5xl mx-auto w-full gap-2">
+        <span className="text-[11px] md:text-xs">
+          Total Terdaftar: <strong className="text-slate-800">{pelangganList.length}</strong> Pelanggan
+          {searchQuery && ` (Ditemukan: ${filtered.length})`}
+        </span>
+
+        <button
+          type="button"
+          onClick={() => setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'))}
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white border border-slate-200 text-slate-700 hover:text-[#800000] hover:border-[#800000] text-[11px] font-bold shadow-2xs transition active:scale-95 cursor-pointer"
+          title={`Urutan abjad saat ini: ${sortOrder === 'asc' ? 'A ke Z' : 'Z ke A'}. Klik untuk membalikkan.`}
+        >
+          {sortOrder === 'asc' ? (
+            <>
+              <ArrowDownAZ className="w-3.5 h-3.5 text-[#800000]" />
+              <span>Abjad (A - Z)</span>
+            </>
+          ) : (
+            <>
+              <ArrowUpZA className="w-3.5 h-3.5 text-[#800000]" />
+              <span>Abjad (Z - A)</span>
+            </>
+          )}
+        </button>
       </div>
 
  <main className="flex-1 px-2 md:px-1 space-y-1 overflow-y-auto max-w-xl md:max-w-4xl lg:max-w-5xl mx-auto w-full">
@@ -159,11 +206,18 @@ export const KelolaPelangganView: React.FC<KelolaPelangganViewProps> = ({
       Belum ada pelanggan ditemukan.
     </div>
   ) : (
-    filtered.map((p) => (
+    filtered.map((p) => {
+      const initial = (p.nama || '?').trim().charAt(0).toUpperCase();
+      return (
       <div
         key={p.id}
         className="bg-white px-3 py-2 rounded-2xl border border-slate-200 shadow-2xs flex items-center justify-between gap-3 hover:border-slate-300 transition"
       >
+        {/* Inisial Abjad Avatar */}
+        <div className="w-8 h-8 rounded-xl bg-rose-50 text-[#800000] font-black text-xs flex items-center justify-center shrink-0 border border-rose-100">
+          {initial}
+        </div>
+
         {/* KOLOM KIRI: Informasi Pelanggan (Nama, Telepon, Alamat/Catatan) */}
         <div className="flex flex-col gap-1 min-w-0 flex-1">
           {/* Baris Atas: Nama Pelanggan di Kiri, Nomor Telepon di Kanannya */}
@@ -184,9 +238,9 @@ export const KelolaPelangganView: React.FC<KelolaPelangganViewProps> = ({
                 Catatan: {p.catatani}
               </p>
             ) : p.alamat ? (
-              <div className="flex items-center gap-1 text-[11px] text-slate-400 truncate">
-                <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
-                <span className="truncate">{p.alamat}</span>
+              <div 
+                    className="text-[10px] text-slate-800 flex items-center gap-1 max-w-[160px] truncate">
+                                      <span className="truncate">{p.alamat}</span>
               </div>
             ) : (
               <span className="text-[10px] text-slate-300 italic">Tidak ada alamat/catatan</span>
@@ -224,8 +278,9 @@ export const KelolaPelangganView: React.FC<KelolaPelangganViewProps> = ({
           </button>
         </div>
       </div>
-    ))
-  )}
+    );
+  })
+)}
 </main>
 
       {/* Add / Edit Customer Dialog (Matches dialog_add_edit_pelanggan.xml) */}

@@ -76,6 +76,10 @@ export const DetailTransaksiView: React.FC<DetailTransaksiViewProps> = ({
   };
 
   const handleDeleteConfirm = async () => {
+    if (!isOwner) {
+      toast.warning('Akses Dibatasi: Penghapusan nota hanya dapat dilakukan oleh akun Pemilik (Owner).');
+      return;
+    }
     const ok = await confirm({
       title: 'Hapus Transaksi',
       message: `Anda yakin ingin menghapus transaksi '${transaksi.nomorTransaksi}'? Tindakan ini tidak dapat dibatalkan.`,

@@ -3580,10 +3580,10 @@ export const PengaturanStudioView: React.FC<{
                   </div>
 
                   <p className="font-mono text-sm font-bold text-amber-400">
-                    085890261536
+                    0831 3230 4649 
                   </p>
                   <p className="mt-1 text-[11px] text-slate-300">
-                    a.n. Suci S Kusumah
+                    a.n. Iqbal S Nuha
                   </p>
                 </div>
 

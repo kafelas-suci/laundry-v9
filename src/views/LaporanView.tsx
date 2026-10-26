@@ -1165,8 +1165,12 @@ const [showMonthPickerModal, setShowMonthPickerModal] = useState<boolean>(false)
                       {(showAllPelunasanLalu ? summary.pelunasanBulanLaluList : summary.pelunasanBulanLaluList.slice(0, 3)).map(({ trx, pelunasan, waktuPelunasan }, idx) => (
                         <div key={idx} className="py-2 flex justify-between items-center">
                           <div>
-                            <div className="font-bold text-slate-900">
-                              {trx.namaPelanggan} <span className="text-slate-500 font-mono text-[11px]">({trx.nomorTransaksi || '-'})</span>
+                            <div className="font-bold text-slate-900 flex items-center gap-1.5 flex-wrap">
+                              <span>{trx.namaPelanggan}</span>
+                              <div 
+className="text-[10px] text-slate-800 flex items-center gap-1 max-w-[160px] truncate" title={trx.alamat || '-'}>
+                                  <span className="truncate">{trx.alamat || '-'}</span>
+                              </div>
                             </div>
                             <div className="text-[11px] text-slate-500">
                               Masuk: {formatShortDate(trx.tanggalMasuk)} • Lunas/Diambil: {formatReceiptDate(waktuPelunasan, true)}

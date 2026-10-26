@@ -6,10 +6,18 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function isOwnerOfLaundry(laundryId) {
+    function isOwnerRole() {
       return isSignedIn() && 
-        exists(/databases/$(database)/documents/laundries/$(laundryId)) &&
-        get(/databases/$(database)/documents/laundries/$(laundryId)).data.ownerId == request.auth.uid;
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'owner';
+    }
+
+    function isOwnerOfLaundry(laundryId) {
+      return isSignedIn() && (
+        isOwnerRole() ||
+        (exists(/databases/$(database)/documents/laundries/$(laundryId)) &&
+         get(/databases/$(database)/documents/laundries/$(laundryId)).data.ownerId == request.auth.uid)
+      );
     }
 
     // 0. Brand registry for public web profiles
@@ -41,13 +49,44 @@ service cloud.firestore {
 
     // 4. Laundries and their nested resources (transaksi, pelanggan, layanan, pengeluaran, settings)
     match /laundries/{laundryId} {
-      allow read: if isSignedIn() && (resource.data.ownerId == request.auth.uid || request.auth.uid != null);
+      allow read: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
-      allow update: if isSignedIn() && resource.data.ownerId == request.auth.uid && request.resource.data.ownerId == request.auth.uid;
-      allow delete: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow update: if isOwnerOfLaundry(laundryId);
+      allow delete: if isOwnerOfLaundry(laundryId);
 
+      // Transaksi: Kasir & Owner dapat membuat & mengupdate status/pelunasan, HAPUS HANYA UNTUK OWNER
+      match /transaksi/{transaksiId} {
+        allow read, create, update: if isSignedIn();
+        allow delete: if isOwnerOfLaundry(laundryId);
+      }
+
+      // Pelanggan: Kasir & Owner dapat mengelola data pelanggan, HAPUS HANYA UNTUK OWNER
+      match /pelanggan/{pelangganId} {
+        allow read, create, update: if isSignedIn();
+        allow delete: if isOwnerOfLaundry(laundryId);
+      }
+
+      // Pengeluaran / Arus Kas: Kasir & Owner dapat membaca dan mencatat, HAPUS/EDIT HANYA UNTUK OWNER
+      match /pengeluaran/{pengeluaranId} {
+        allow read, create: if isSignedIn();
+        allow update, delete: if isOwnerOfLaundry(laundryId);
+      }
+
+      // Pengaturan Outlet & Layanan: Hanya Owner yang berhak mengubah tarif dan konfigurasi toko
+      match /layanan/{layananId} {
+        allow read: if isSignedIn();
+        allow write: if isOwnerOfLaundry(laundryId);
+      }
+
+      match /settings/{docId} {
+        allow read: if isSignedIn();
+        allow write: if isOwnerOfLaundry(laundryId);
+      }
+
+      // Subkoleksi lain yang belum dideklarasikan: Hanya Owner
       match /{subcollection}/{docId} {
-        allow read, write: if isOwnerOfLaundry(laundryId) || (isSignedIn() && request.auth != null);
+        allow read: if isSignedIn();
+        allow write: if isOwnerOfLaundry(laundryId);
       }
     }
 

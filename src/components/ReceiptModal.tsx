@@ -61,63 +61,90 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
   const statusFinal = isLunas || sisaBayar <= 0 ? 'LUNAS' : 'BELUM LUNAS';
 
   const handlePrint = async (forcePicker = false) => {
-    // 1. Prioritaskan cetak Bluetooth hardware langsung jika berjalan di APK Android
-    if (isAndroidPrintAvailable()) {
+    // 1. Cek apakah ada interface window.MesinPrint APK Android
+    if (typeof window !== 'undefined' && window.MesinPrint) {
       const hasLogo = Boolean(settings.useLogo && settings.logoPath);
       setPrintFeedback(hasLogo ? 'Mengirim struk & logo ke printer Bluetooth...' : 'Mengirim struk ke printer Bluetooth...');
-      const printed = await printViaAndroidBluetooth(
-        transaksi,
-        settings,
-        laundryName,
-        laundryAddress,
-        laundryPhone
-      );
-      if (printed) {
-        setTimeout(() => setPrintFeedback(hasLogo ? 'Struk & logo berhasil dicetak!' : 'Struk berhasil dicetak!'), 800);
-        setTimeout(() => setPrintFeedback(null), 3500);
-        return;
-      }
-    }
 
-    // 2. Coba Web Bluetooth jika dibuka di Google Chrome (dengan Zero-Prompt Auto-Reconnect & Auto-Fallback)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const nav = typeof navigator !== 'undefined' ? (navigator as any) : null;
-    if (nav?.bluetooth && typeof nav.bluetooth.requestDevice === 'function') {
-      if (forcePicker) {
-        setPrintFeedback('Membuka dialog pencarian printer baru...');
-      } else if (savedPrinterName) {
-        setPrintFeedback(`Menghubungkan otomatis ke ${savedPrinterName}...`);
-      } else {
-        setPrintFeedback('Mencari printer Bluetooth thermal...');
-      }
-
-      const res = await printViaWebBluetooth(
-        transaksi,
-        settings,
-        laundryName,
-        laundryAddress,
-        laundryPhone,
-        forcePicker
-      );
-
-      if (res.success) {
-        if (res.printerName) {
-          setSavedPrinterName(res.printerName);
+      if (typeof window.MesinPrint.print === 'function') {
+        try {
+          const logoB64 = hasLogo ? await preloadLogoBase64(settings.logoPath) : '';
+          window.MesinPrint.print(transaksi, logoB64);
+          setTimeout(() => setPrintFeedback(hasLogo ? 'Struk & logo berhasil dicetak!' : 'Struk berhasil dicetak!'), 800);
+          setTimeout(() => setPrintFeedback(null), 3500);
+          return;
+        } catch (err) {
+          console.warn('window.MesinPrint.print error:', err);
         }
-        setPrintFeedback(res.message);
-        setTimeout(() => setPrintFeedback(null), 3500);
+      }
+
+      if (isAndroidPrintAvailable()) {
+        const printed = await printViaAndroidBluetooth(
+          transaksi,
+          settings,
+          laundryName,
+          laundryAddress,
+          laundryPhone
+        );
+        if (printed) {
+          setTimeout(() => setPrintFeedback(hasLogo ? 'Struk & logo berhasil dicetak!' : 'Struk berhasil dicetak!'), 800);
+          setTimeout(() => setPrintFeedback(null), 3500);
+          return;
+        }
+      }
+    } else {
+      // Fallback ke Web Bluetooth browser atau window.print() / share sheet
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const nav = typeof navigator !== 'undefined' ? (navigator as any) : null;
+      if (nav?.bluetooth && typeof nav.bluetooth.requestDevice === 'function') {
+        if (forcePicker) {
+          setPrintFeedback('Membuka dialog pencarian printer baru...');
+        } else if (savedPrinterName) {
+          setPrintFeedback(`Menghubungkan otomatis ke ${savedPrinterName}...`);
+        } else {
+          setPrintFeedback('Mencari printer Bluetooth thermal...');
+        }
+
+        const res = await printViaWebBluetooth(
+          transaksi,
+          settings,
+          laundryName,
+          laundryAddress,
+          laundryPhone,
+          forcePicker
+        );
+
+        if (res.success) {
+          if (res.printerName) {
+            setSavedPrinterName(res.printerName);
+          }
+          setPrintFeedback(res.message);
+          setTimeout(() => setPrintFeedback(null), 3500);
+          return;
+        } else if (!res.message.includes('dibatalkan')) {
+          setPrintFeedback(res.message);
+          setTimeout(() => setPrintFeedback(null), 4000);
+        } else {
+          setPrintFeedback(null);
+        }
         return;
-      } else if (!res.message.includes('dibatalkan')) {
-        setPrintFeedback(res.message);
-        setTimeout(() => setPrintFeedback(null), 4000);
-      } else {
-        setPrintFeedback(null);
+      }
+
+      // Fallback ke window.print() atau share sheet jika cetak browser tidak tersedia
+      try {
+        window.print();
+      } catch {
+        setShowShareModal(true);
       }
       return;
     }
 
-    // 3. Fallback cetak standar browser web
-    window.print();
+    // Fallback jika native bridge gagal mencetak
+    try {
+      window.print();
+    } catch {
+      setShowShareModal(true);
+    }
   };
 
   const handlePrintStandard = () => {

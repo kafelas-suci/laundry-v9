@@ -144,6 +144,8 @@ export interface ArusKas {
   logType?: 'MASUK' | 'DIAMBIL' | 'BIAYA' | 'KAS' | string | null;
   badgeText?: string | null;
   transaksiId?: string | null;
+  namaPelanggan?: string | null;
+  alamat?: string | null;
 }
 
 export interface DailySummary {
