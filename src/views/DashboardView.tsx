@@ -1300,9 +1300,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <>
           {/* 1. TOOLBAR ATAS (Maroon) */}
           <header className="bg-[#800000] text-white shadow-md shrink-0 z-30">
-            <div className="flex items-center justify-between px-3 md:px-6 h-14">
+            <div className="flex items-center justify-between px-2 md:px-1 h-14">
               {/* Tombol Kiri: Arsip Transaksi */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1">
                 <button
                   onClick={onOpenArsip}
                   title="Arsip Transaksi"
@@ -1318,19 +1318,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       type="button"
                       onClick={() => setIsBranchDropdownOpen(!isBranchDropdownOpen)}
                       title="Klik untuk memilih cabang laundry"
-                      className="flex flex-col items-start px-2 py-1 rounded-xl hover:bg-white/10 active:scale-98 transition max-w-[190px] cursor-pointer"
+                      className="flex flex-col items-start px-1 py-1 rounded-xl hover:bg-white/10 active:scale-98 transition max-w-[190px] cursor-pointer"
                     >
                       <div className="flex items-center gap-1">
-                        <span className="font-bold text-sl truncate text-white tracking-wide">
+                        <span className="font-bold text-[18px] truncate text-white tracking-wide">
                           {typeof activeLaundry.namaLaundry === 'object' ? (activeLaundry.namaLaundry as any)?.namaLaundry || "Kafela's Laundry" : (activeLaundry.namaLaundry || "Kafela's Laundry")}
                         </span>
                         <ChevronDown className={`w-3.5 h-3.5 text-white/90 shrink-0 transition-transform ${isBranchDropdownOpen ? 'rotate-180' : ''}`} />
                       </div>
                     </button>
                   ) : (
-                    <div className="flex flex-col items-start px-2 py-1 max-w-[190px]">
+                    <div className="flex flex-col items-start px-1 py-1 max-w-[190px]">
                       <div className="flex items-center gap-1">
-                        <span className="font-bold text-sl truncate text-white tracking-wide">
+                        <span className="font-bold text-[18px] truncate text-white tracking-wide">
                           {typeof activeLaundry.namaLaundry === 'object' ? (activeLaundry.namaLaundry as any)?.namaLaundry || "Kafela's Laundry" : (activeLaundry.namaLaundry || "Kafela's Laundry")}
                         </span>
                       </div>
@@ -1387,7 +1387,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </div>
 
               {/* Tombol Kanan: Pasang PWA, Sinkron Cloud & Settings */}
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-0">
                 <PWAInstallButton variant="header" />
 
                 {onSyncCloudData && (
@@ -1414,7 +1414,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </header>
 
           {/* 2. AREA ATAS YANG BISA DI-SCROLL (Pencarian, Filter, Transaksi, Paginasi) */}
-          <div className="flex-1 overflow-y-auto px-2 sm:px-4 md:px-6 py-1">
+          <div className="flex-1 overflow-y-auto px-1.5 sm:px-4 md:px-6 py-1">
             <div className="max-w-7xl mx-auto w-full space-y-3 pb-2">
               {/* PWA Install Banner */}
               <PWAInstallButton variant="banner" />
@@ -1742,7 +1742,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                           {/* Pelanggan, Layanan & Item Jadwal */}
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-1.5 ">
-                              <span className="font-bold text-sm text-slate-900 truncate">
+                              <span className="font-bold text-[12.5px] text-slate-900 truncate">
                                 {trx.namaPelanggan}
                               </span>
                               <div
@@ -1899,7 +1899,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 {/* Header Ringkasan: Tanggal & User Login */}
                 <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
                   <div className="flex items-center gap-2">
-                    <span className="text-[11px] font-bold text-slate-800 capitalize">
+                    <span className="text-[12px] font-bold text-slate-800 capitalize">
                       {formattedToday}
                     </span>
                   </div>
