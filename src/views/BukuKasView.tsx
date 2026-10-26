@@ -678,17 +678,17 @@ export const BukuKasView: React.FC<BukuKasViewProps> = ({
           <div
             key={idx}
             onClick={() => row.transaksiId && onOpenDetailTransaksi(row.transaksiId)}
-            className={`py-2 px-2.5 flex items-center justify-between text-xs hover:bg-slate-50 transition ${
+            className={`py-2 px-1 flex items-center justify-between text-xs hover:bg-slate-50 transition ${
               row.transaksiId ? 'cursor-pointer' : ''
             }`}
           >
             {/* Jam */}
-            <div className="w-8 font-mono text-xs text-slate-400 shrink-0 font-medium">
-              {formatShortTime(row.timestamp)}
-            </div>
+         <div className="w-9 self-stretch font-mono text-[10px] text-slate-400 shrink-0 border-r border-slate-200 pr-1">
+  {formatShortTime(row.timestamp)}
+</div>
 
             {/* Keterangan di Kiri */}
-            <div className="flex-1 px-2 min-w-0">
+            <div className="flex-1 px-1 min-w-0">
               <div className="flex items-center gap-1.5 flex-wrap">
                 <span className="font-bold text-slate-900 text-xs truncate">
                   {row.namaPelanggan || row.keterangan}
@@ -761,7 +761,7 @@ export const BukuKasView: React.FC<BukuKasViewProps> = ({
           <div
             key={idx}
             onClick={() => row.transaksiId && onOpenDetailTransaksi(row.transaksiId)}
-            className={`py-2 px-2.5 flex items-center justify-between text-xs transition ${
+            className={`py-2 px-1 flex items-center justify-between text-xs transition ${
               row.transaksiId ? 'cursor-pointer' : ''
             } ${
               isMasuk 
@@ -770,12 +770,12 @@ export const BukuKasView: React.FC<BukuKasViewProps> = ({
             }`}
           >
             {/* Jam */}
-            <div className="w-8 font-mono text-xs text-slate-400 shrink-0 font-medium">
-              {formatShortTime(row.timestamp)}
-            </div>
+        <div className="w-9 self-stretch font-mono text-[10px] text-slate-400 shrink-0 border-r border-slate-200 pr-1">
+  {formatShortTime(row.timestamp)}
+</div>
 
             {/* Detail Cucian (Nama di Kiri, Status Keterangan di Kanan) */}
-            <div className="flex-1 px-2 min-w-0 flex items-center justify-between gap-2">
+            <div className="flex-1 px-1 min-w-0 flex items-center justify-between gap-2">
               <div className="min-w-0 flex-1 flex items-center gap-1.5 flex-wrap">
                 <span className="font-bold text-slate-900 text-xs truncate">
                   {row.namaPelanggan || namaUtama}

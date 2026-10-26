@@ -53,15 +53,12 @@ export const defaultLayananList: Layanan[] = [
 export const defaultJenisPengeluaran: JenisPengeluaran[] = [
   { id: 'jp-1', nama: 'Deterjen & Parfum', harga: 85000, laundryId: 'lnd-1' },
   { id: 'jp-2', nama: 'Plastik', harga: 35000, laundryId: 'lnd-1' },
-  { id: 'jp-3', nama: 'Gas 3kg', harga: 22000, laundryId: 'lnd-1' },
-  { id: 'jp-4', nama: 'Listrik Token', harga: 100000, laundryId: 'lnd-1' },
-  { id: 'jp-5', nama: 'Air Bersih / PDAM', harga: 75000, laundryId: 'lnd-1' },
-  { id: 'jp-6', nama: 'Uang Makan Karyawan', harga: 25000, laundryId: 'lnd-1' },
+  { id: 'jp-3', nama: 'Gas', harga: 22000, laundryId: 'lnd-1' },
+  { id: 'jp-4', nama: 'Listrik', harga: 100000, laundryId: 'lnd-1' },
 ];
 
 // Master Jenis Pemasukan Manual
 export const defaultJenisPemasukan: JenisPemasukan[] = [
-  { id: 'jpm-2', nama: 'Penjualan Botol Parfum', harga: 30000, laundryId: 'lnd-1' },
   { id: 'jpm-3', nama: 'Tip Pelanggan', harga: 10000, laundryId: 'lnd-1' },
   { id: 'jpm-4', nama: 'Pelunasan Bon Kasbon', harga: 50000, laundryId: 'lnd-1' },
 ];

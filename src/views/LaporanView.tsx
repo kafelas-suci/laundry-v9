@@ -1120,7 +1120,7 @@ const [showMonthPickerModal, setShowMonthPickerModal] = useState<boolean>(false)
 
             {/* Kartu Khusus: Pelunasan Order Bulan Lalu yang Masuk Kas di Bulan Ini */}
             {summary.pelunasanBulanLaluList.length > 0 && (
-              <div className="bg-emerald-50/80 rounded-2xl border border-emerald-200 p-3.5 sm:p-4 shadow-2xs space-y-2">
+              <div className="bg-white rounded-2xl border border-emerald-200 p-2 sm:p-4 shadow-2xs space-y-1">
                 <button
                   type="button"
                   onClick={() => setExpandPelunasanLalu(!expandPelunasanLalu)}
@@ -1128,13 +1128,11 @@ const [showMonthPickerModal, setShowMonthPickerModal] = useState<boolean>(false)
                   aria-expanded={expandPelunasanLalu}
                 >
                   <div className="flex items-center gap-2.5">
-                    <div className="p-1.5 rounded-xl bg-emerald-100 text-emerald-700 shrink-0">
-                      <CheckCircle2 className="w-4 h-4" />
-                    </div>
+               
                     <div>
                       <div className="flex items-center gap-2">
-                        <h2 className="text-xs font-extrabold text-emerald-950 uppercase tracking-wider">
-                          Pelunasan Order Bulan Lalu Masuk Kas
+                        <h2 className="text-xs font-extrabold text-emerald-950  tracking-wider">
+                          Pelunasan Bulan Lalu
                         </h2>
                         <span className="text-[10px] font-bold bg-emerald-200/80 text-emerald-900 px-2 py-0.5 rounded-full">
                           {summary.pelunasanBulanLaluList.length} Nota

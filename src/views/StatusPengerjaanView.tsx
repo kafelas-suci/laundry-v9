@@ -525,7 +525,7 @@ export const StatusPengerjaanView: React.FC<StatusPengerjaanViewProps> = ({
                 <div
                   key={trx.id}
                   onClick={() => onOpenDetail(trx.id)}
-                  className="bg-white px-2.5 py-1.5 rounded-2xl border border-slate-200 shadow-2xs flex items-center justify-between gap-2.5 hover:border-[#800000] cursor-pointer transition"
+                  className="bg-white px-1 py-1.5 rounded-2xl border border-slate-200 shadow-2xs flex items-center justify-between gap-2.5 hover:border-[#800000] cursor-pointer transition"
                 >
                   <div className="w-9 shrink-0 text-center border-r border-slate-100 flex flex-col justify-center">
                     <div className="text-[11px] font-bold text-slate-800 leading-none">
@@ -662,17 +662,7 @@ export const StatusPengerjaanView: React.FC<StatusPengerjaanViewProps> = ({
       </main>
 
       {/* FOOTER INFORMASI STATUS TANGGAL TERPILIH */}
-      <footer className="fixed bottom-0 left-0 right-0 bg-slate-900 border-t border-slate-800 text-slate-300 py-2 px-4 text-center z-20 shadow-lg backdrop-blur-md bg-slate-900/95">
-        <div className="max-w-xl md:max-w-4xl mx-auto flex items-center justify-between text-[11px]">
-          <div className="flex items-center gap-1.5 text-slate-300">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span>Status Periode: <strong className="text-white">{dateRange.label}</strong></span>
-          </div>
-          <div className="text-slate-400">
-            Total Rekap Staf: <strong className="text-amber-400">{totalKgPeriode.toFixed(1)} kg</strong>
-          </div>
-        </div>
-      </footer>
+  
 
       {/* Staff Selection Modal */}
       <AssignStaffModal

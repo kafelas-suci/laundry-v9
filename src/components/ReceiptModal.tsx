@@ -420,24 +420,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
             </button>
           </div>
 
-          <div className="flex gap-2 w-full sm:w-auto justify-end">
-            <button
-              type="button"
-              onClick={handlePrintStandard}
-              className="flex-1 sm:flex-initial px-3.5 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold text-xs transition"
-              title="Cetak lewat dialog printer standar atau AirPrint"
-            >
-              Cetak Standar
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              data-tour="btn-tutup-nota"
-              className="px-4 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold text-xs transition"
-            >
-              Tutup
-            </button>
-          </div>
+ 
         </div>
       </div>
     </div>

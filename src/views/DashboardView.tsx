@@ -1730,7 +1730,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       >
                         <div className="flex items-center gap-1 sm:gap-1">
                           {/* Tanggal & Jam Masuk (Diperkecil / Compact) */}
-                          <div className="w-9 shrink-0 text-center border-r border-slate-200 pr-1.5 flex flex-col justify-center">
+                          <div className="w-9 shrink-0 text-center border-r border-slate-200 pr-1 flex flex-col justify-center">
                             <div className="text-[10px] text-slate-800 leading-none">
                               {formatShortTime(trx.tanggalMasuk)}
                             </div>
@@ -1764,12 +1764,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                               </div>
                             </div>
 
-                            <div className="text-[10px] text-slate-600 truncate mt-0.5 italic">
+                            <div className="text-[10px] text-slate-600 truncate italic">
                               {serviceText}
                             </div>
                           </div>
 
-                          <div className="shrink-0 flex flex-col items-end justify-start gap-1 self-stretch border-l border-slate-200 pl-2 text-center">
+                          <div className="shrink-0 flex flex-col items-end justify-start gap-1 self-stretch border-l border-slate-200 pl-1 text-center">
                             <div
                               className="flex-1 w-full flex items-stretch justify-stretch"
                               onClick={(e) => e.stopPropagation()}
