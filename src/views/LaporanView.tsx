@@ -794,9 +794,9 @@ const [showMonthPickerModal, setShowMonthPickerModal] = useState<boolean>(false)
   };
 
   return (
-    <div className="flex flex-col max-h-screen bg-slate-100 text-slate-800 pb-16">
+    <div className="flex flex-col max-h-screen bg-slate-100 text-slate-800 pb-1">
       {/* Top Header */}
-<header className="bg-[#800000] text-white shadow-lg sticky top-0 z-30 px-4 py-3 pb-2 h-16 flex items-center justify-between no-print">
+<header className="bg-[#800000] text-white shadow-lg sticky top-0 z-30 px-4 py-3 pb-2 h-1 flex items-center justify-between no-print">
         <div className="flex items-center gap-3 min-w-0">
           <button
             onClick={onBack}
@@ -1033,14 +1033,14 @@ const [showMonthPickerModal, setShowMonthPickerModal] = useState<boolean>(false)
       )}
     </div>
 
-      <main className="flex-1 p-3 md:p-6 space-y-1 md:space-y-1 overflow-y-auto max-w-xl md:max-w-5xl  w-full no-print">
+      <main className="flex-1 p-2 md:p-6 space-y-1 md:space-y-1 overflow-y-auto max-w-xl md:max-w-5xl  w-full no-print">
         {/* ======================================================== */}
         {/* TAB 1: RINGKASAN KEUANGAN                                */}
         {/* ======================================================== */}
         {activeTab === 'ringkasan' && (
           <>
             {/* Data Keuangan Card */}
-            <div className="bg-white rounded-2xl border border-slate-200 p-3 shadow-2xs space-y-2">
+            <div className="bg-white rounded-2xl border border-slate-200 p-3 shadow-2xs space-y-1">
               <div className="flex justify-between items-start">
                 <div>
                   <h2 className="text-xs font-extrabold text-[#800000] uppercase tracking-wider">
@@ -1057,51 +1057,51 @@ const [showMonthPickerModal, setShowMonthPickerModal] = useState<boolean>(false)
                 <div className="flex justify-between items-center pt-1">
                   <span className="text-slate-600">Total Pendapatan (Omzet)</span>
                   <span className="font-extrabold text-slate-900 tabular-nums">
-                    {formatRupiah(summary.totalOmzet)}
+                    {formatRupiah(summary.totalOmzet).replace('Rp ', '').replace('Rp', '')}
                   </span>
                 </div>
 
                 <div className="flex justify-between items-center pt-2">
                   <span className="text-slate-700 font-bold">Total Uang Masuk Kasir</span>
                   <span className="font-black text-emerald-700 tabular-nums">
-                    {formatRupiah(summary.totalUangMasuk)}
+                    {formatRupiah(summary.totalUangMasuk).replace('Rp ', '').replace('Rp', '')}
                   </span>
                 </div>
 
                 <div className="flex justify-between items-center pt-1.5 pl-3 text-slate-500 text-[11px]">
                   <span>• Dari Order Masuk Periode Ini</span>
-                  <span className="tabular-nums font-medium">{formatRupiah(summary.uangMasukOrderBulanIni)}</span>
+                  <span className="tabular-nums font-medium">{formatRupiah(summary.uangMasukOrderBulanIni).replace('Rp ', '').replace('Rp', '')}</span>
                 </div>
 
                 {summary.uangPelunasanBulanLalu > 0 && (
                   <button
                     type="button"
                     onClick={() => setExpandPelunasanLalu(!expandPelunasanLalu)}
-                    className="w-full flex justify-between items-center pt-1.5 pl-3 pr-2.5 text-emerald-800 text-[11px] font-semibold bg-emerald-50/70 hover:bg-emerald-100/70 p-1.5 rounded-lg border border-emerald-200/80 transition cursor-pointer text-left group"
+                    className="w-full flex justify-between items-center pt-1.5 pl-3 text-emerald-800 text-[11px] font-semibold bg-emerald-50/70 hover:bg-emerald-100/70 p-1.5 rounded-lg border border-emerald-200/80 transition cursor-pointer text-left group"
                     title={expandPelunasanLalu ? "Tutup rincian pelunasan bulan lalu" : "Buka rincian pelunasan bulan lalu"}
                   >
                     <span className="flex items-center gap-1.5">
                       <span>+ Pelunasan Order Bulan Lalu ({summary.pelunasanBulanLaluList.length} Nota)</span>
                       <span className="text-[10px] bg-emerald-100 group-hover:bg-emerald-200 text-emerald-800 px-1.5 py-0.5 rounded border border-emerald-200/80 font-bold transition flex items-center gap-0.5">
-                        {expandPelunasanLalu ? 'Tutup' : 'Buka'}
+                        {expandPelunasanLalu ? '' : ''}
                         {expandPelunasanLalu ? <ChevronUp className="w-3 h-3 inline" /> : <ChevronDown className="w-3 h-3 inline" />}
                       </span>
                     </span>
-                    <span className="tabular-nums font-bold text-emerald-700">+{formatRupiah(summary.uangPelunasanBulanLalu)}</span>
+                    <span className="tabular-nums font-bold text-emerald-700">+{formatRupiah(summary.uangPelunasanBulanLalu).replace('Rp ', '').replace('Rp', '')}</span>
                   </button>
                 )}
 
                 {summary.totalPiutang > 0 && (
                   <div className="flex justify-between items-center pt-1.5 pl-3 text-amber-700 text-[11px]">
                     <span>• Piutang Berjalan (Belum Lunas)</span>
-                    <span className="tabular-nums font-medium">{formatRupiah(summary.totalPiutang)}</span>
+                    <span className="tabular-nums font-medium">{formatRupiah(summary.totalPiutang).replace('Rp ', '').replace('Rp', '')}</span>
                   </div>
                 )}
 
                 <div className="flex justify-between items-center pt-2">
                   <span className="text-slate-700 font-bold">Total Pengeluaran Operasional</span>
                   <span className="font-black text-red-600 tabular-nums">
-                    {formatRupiah(summary.totalPengeluaran)}
+                    {formatRupiah(summary.totalPengeluaran).replace('Rp ', '').replace('Rp', '')}
                   </span>
                 </div>
 
@@ -1130,12 +1130,12 @@ const [showMonthPickerModal, setShowMonthPickerModal] = useState<boolean>(false)
                   <div className="flex items-center gap-2.5">
                
                     <div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1">
                         <h2 className="text-xs font-extrabold text-emerald-950  tracking-wider">
                           Pelunasan Bulan Lalu
                         </h2>
-                        <span className="text-[10px] font-bold bg-emerald-200/80 text-emerald-900 px-2 py-0.5 rounded-full">
-                          {summary.pelunasanBulanLaluList.length} Nota
+                        <span className="text-[10px] font-bold bg-emerald-200/80 text-emerald-900 px-1  rounded-full">
+                          {summary.pelunasanBulanLaluList.length} 
                         </span>
                       </div>
                       <p className="text-[11px] text-emerald-700 font-medium">
