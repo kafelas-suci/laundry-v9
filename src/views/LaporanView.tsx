@@ -796,7 +796,7 @@ const [showMonthPickerModal, setShowMonthPickerModal] = useState<boolean>(false)
   return (
     <div className="flex flex-col max-h-screen bg-slate-100 text-slate-800 pb-1">
       {/* Top Header */}
-<header className="bg-[#800000] text-white shadow-lg sticky top-0 z-30 px-4 py-3 pb-2 h-1 flex items-center justify-between no-print">
+<header className="bg-[#800000] text-white shadow-lg sticky top-0 z-30 px-4 py-3 pb-2 h-16 flex items-center justify-between no-print">
         <div className="flex items-center gap-3 min-w-0">
           <button
             onClick={onBack}
@@ -1068,7 +1068,7 @@ const [showMonthPickerModal, setShowMonthPickerModal] = useState<boolean>(false)
                   </span>
                 </div>
 
-                <div className="flex justify-between items-center pt-1.5 pl-3 text-slate-500 text-[11px]">
+                <div className="flex justify-between items-center  pl-3 text-slate-500 text-[11px]">
                   <span>• Dari Order Masuk Periode Ini</span>
                   <span className="tabular-nums font-medium">{formatRupiah(summary.uangMasukOrderBulanIni).replace('Rp ', '').replace('Rp', '')}</span>
                 </div>
@@ -1077,11 +1077,11 @@ const [showMonthPickerModal, setShowMonthPickerModal] = useState<boolean>(false)
                   <button
                     type="button"
                     onClick={() => setExpandPelunasanLalu(!expandPelunasanLalu)}
-                    className="w-full flex justify-between items-center pt-1.5 pl-3 text-emerald-800 text-[11px] font-semibold bg-emerald-50/70 hover:bg-emerald-100/70 p-1.5 rounded-lg border border-emerald-200/80 transition cursor-pointer text-left group"
+                    className="w-full flex justify-between items-center  pl-3 text-emerald-800 text-[11px]  transition cursor-pointer text-left group"
                     title={expandPelunasanLalu ? "Tutup rincian pelunasan bulan lalu" : "Buka rincian pelunasan bulan lalu"}
                   >
                     <span className="flex items-center gap-1.5">
-                      <span>+ Pelunasan Order Bulan Lalu ({summary.pelunasanBulanLaluList.length} Nota)</span>
+                      <span>• Pelunasan Order Bulan Lalu ({summary.pelunasanBulanLaluList.length} Nota)</span>
                       <span className="text-[10px] bg-emerald-100 group-hover:bg-emerald-200 text-emerald-800 px-1.5 py-0.5 rounded border border-emerald-200/80 font-bold transition flex items-center gap-0.5">
                         {expandPelunasanLalu ? '' : ''}
                         {expandPelunasanLalu ? <ChevronUp className="w-3 h-3 inline" /> : <ChevronDown className="w-3 h-3 inline" />}
@@ -1092,7 +1092,7 @@ const [showMonthPickerModal, setShowMonthPickerModal] = useState<boolean>(false)
                 )}
 
                 {summary.totalPiutang > 0 && (
-                  <div className="flex justify-between items-center pt-1.5 pl-3 text-amber-700 text-[11px]">
+                  <div className="flex justify-between items-center pl-3 text-amber-700 text-[11px]">
                     <span>• Piutang Berjalan (Belum Lunas)</span>
                     <span className="tabular-nums font-medium">{formatRupiah(summary.totalPiutang).replace('Rp ', '').replace('Rp', '')}</span>
                   </div>
@@ -1226,6 +1226,69 @@ className="text-[10px] text-slate-800 flex items-center gap-1 max-w-[160px] trun
 
             {/* Grid Rekapitulasi (1 kolom di HP, 2 di tablet, 4 di PC) */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 items-start">
+
+                   {/* 4. Pelanggan Terbanyak */}
+              <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-2xs space-y-2">
+                <div
+                  onClick={() => setExpandPelanggan(!expandPelanggan)}
+                  className="flex justify-between items-center cursor-pointer select-none"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <Award className="w-3.5 h-3.5 text-amber-500" />
+                    <h2 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">
+                      Pelanggan Teratas ({summary.customerList.length})
+                    </h2>
+                  </div>
+                  {expandPelanggan ? (
+                    <ChevronUp className="w-4 h-4 text-slate-400" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4 text-slate-400" />
+                  )}
+                </div>
+
+                {expandPelanggan && (
+                  <div className="pt-1">
+                    {summary.customerList.length === 0 ? (
+                      <p className="text-slate-400 italic text-center py-2 text-xs">Belum ada transaksi</p>
+                    ) : (
+                      <>
+                        <div className="divide-y divide-slate-100 text-xs">
+                          {(showAllPelanggan ? summary.customerList : summary.customerList.slice(0, 3)).map(([name, count], idx) => (
+                            <div key={idx} className="py-2 flex justify-between items-center">
+                              <span className="text-slate-700 truncate pr-2 font-medium">
+                                <span className="text-slate-400 font-bold mr-1">{idx + 1}.</span> {name}
+                              </span>
+                              <span className="font-bold text-[#800000] tabular-nums shrink-0">
+                                {count} <span className="text-[10px] text-slate-500 font-normal">Order</span>
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+
+                        {summary.customerList.length > 3 && (
+                          <button
+                            type="button"
+                            onClick={() => setShowAllPelanggan(!showAllPelanggan)}
+                            className="w-full mt-2.5 py-1.5 px-2 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition cursor-pointer border border-slate-200"
+                          >
+                            {showAllPelanggan ? (
+                              <>
+                                <span>Tutup (Hanya 3 Teratas)</span>
+                                <ChevronUp className="w-3.5 h-3.5 text-slate-500" />
+                              </>
+                            ) : (
+                              <>
+                                <span>Lihat Semua (+{summary.customerList.length - 3} pelanggan lainnya)</span>
+                                <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
+                              </>
+                            )}
+                          </button>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
               {/* 1. Rekapitulasi Layanan */}
               <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-2xs space-y-2">
                 <div
@@ -1429,68 +1492,7 @@ className="text-[10px] text-slate-800 flex items-center gap-1 max-w-[160px] trun
                 )}
               </div>
 
-              {/* 4. Pelanggan Terbanyak */}
-              <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-2xs space-y-2">
-                <div
-                  onClick={() => setExpandPelanggan(!expandPelanggan)}
-                  className="flex justify-between items-center cursor-pointer select-none"
-                >
-                  <div className="flex items-center gap-1.5">
-                    <Award className="w-3.5 h-3.5 text-amber-500" />
-                    <h2 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">
-                      Pelanggan Teratas ({summary.customerList.length})
-                    </h2>
-                  </div>
-                  {expandPelanggan ? (
-                    <ChevronUp className="w-4 h-4 text-slate-400" />
-                  ) : (
-                    <ChevronDown className="w-4 h-4 text-slate-400" />
-                  )}
-                </div>
-
-                {expandPelanggan && (
-                  <div className="pt-1">
-                    {summary.customerList.length === 0 ? (
-                      <p className="text-slate-400 italic text-center py-2 text-xs">Belum ada transaksi</p>
-                    ) : (
-                      <>
-                        <div className="divide-y divide-slate-100 text-xs">
-                          {(showAllPelanggan ? summary.customerList : summary.customerList.slice(0, 3)).map(([name, count], idx) => (
-                            <div key={idx} className="py-2 flex justify-between items-center">
-                              <span className="text-slate-700 truncate pr-2 font-medium">
-                                <span className="text-slate-400 font-bold mr-1">{idx + 1}.</span> {name}
-                              </span>
-                              <span className="font-bold text-[#800000] tabular-nums shrink-0">
-                                {count} <span className="text-[10px] text-slate-500 font-normal">Order</span>
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-
-                        {summary.customerList.length > 3 && (
-                          <button
-                            type="button"
-                            onClick={() => setShowAllPelanggan(!showAllPelanggan)}
-                            className="w-full mt-2.5 py-1.5 px-2 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition cursor-pointer border border-slate-200"
-                          >
-                            {showAllPelanggan ? (
-                              <>
-                                <span>Tutup (Hanya 3 Teratas)</span>
-                                <ChevronUp className="w-3.5 h-3.5 text-slate-500" />
-                              </>
-                            ) : (
-                              <>
-                                <span>Lihat Semua (+{summary.customerList.length - 3} pelanggan lainnya)</span>
-                                <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
-                              </>
-                            )}
-                          </button>
-                        )}
-                      </>
-                    )}
-                  </div>
-                )}
-              </div>
+         
             </div>
 
             {/* Tombol Tampilkan Rincian Harian */}
