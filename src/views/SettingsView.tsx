@@ -25,6 +25,8 @@ import {
   ExternalLink,
   HelpCircle,
   Cloud,
+  RefreshCw,
+  CheckCircle2,
 } from 'lucide-react';
 import { SettingsData, User, Laundry } from '../types';
 import { PWAInstallButton } from '../components/PWAInstallButton';
@@ -39,6 +41,11 @@ import {
 } from '../utils/nativeBridge';
 import { TopUpModal } from '../components/TopUpModal';
 import { CloudBackupModal } from '../components/CloudBackupModal';
+import {
+  checkAppUpdateManually,
+  applyAppUpdate,
+  subscribePwaUpdate,
+} from '../utils/pwaUpdater';
 
 interface SettingsViewProps {
   onBack: () => void;
@@ -107,6 +114,58 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [showBackupModal, setShowBackupModal] = useState(false);
   const [editDisplayName, setEditDisplayName] = useState(currentUser.displayName || '');
   const [editNomorTelepon, setEditNomorTelepon] = useState(currentUser.nomorTelepon || '');
+
+  // State pemeriksaan & penerapan pembaruan aplikasi
+  const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
+  const [isApplyingUpdate, setIsApplyingUpdate] = useState(false);
+  const [hasUpdateAvailable, setHasUpdateAvailable] = useState(false);
+  const [lastUpdateCheckInfo, setLastUpdateCheckInfo] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    return subscribePwaUpdate((needRefresh) => {
+      setHasUpdateAvailable(needRefresh);
+    });
+  }, []);
+
+  const handleCheckAndApplyUpdate = async () => {
+    if (isCheckingUpdate || isApplyingUpdate) return;
+
+    // Jika sebelumnya sudah terdeteksi ada pembaruan menunggu, langsung perbarui
+    if (hasUpdateAvailable) {
+      setIsApplyingUpdate(true);
+      toast.info('Memperbarui aplikasi ke versi terbaru...');
+      await applyAppUpdate();
+      return;
+    }
+
+    setIsCheckingUpdate(true);
+    try {
+      const result = await checkAppUpdateManually();
+      const jamSekarang = new Date().toLocaleTimeString('id-ID', {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+
+      if (result.hasUpdate) {
+        setHasUpdateAvailable(true);
+        setIsCheckingUpdate(false);
+        setIsApplyingUpdate(true);
+        toast.success(result.message);
+        await applyAppUpdate();
+        return;
+      }
+
+      if (result.status === 'offline' || result.status === 'error') {
+        toast.warning(result.message);
+        setLastUpdateCheckInfo(`Gagal cek (${jamSekarang}) • Periksa koneksi internet`);
+      } else {
+        toast.success(result.message);
+        setLastUpdateCheckInfo(`Terakhir dicek pukul ${jamSekarang} • Sudah versi terbaru`);
+      }
+    } finally {
+      setIsCheckingUpdate(false);
+    }
+  };
 
   const cleanPlaceholderVal = (val?: string | null): string => {
     if (!val) return '';
@@ -748,6 +807,88 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 ml-2" />
               </button>
             )}
+          </div>
+        </div>
+
+        {/* SECTION: SISTEM & PEMBARUAN APLIKASI */}
+        <div className="space-y-1.5">
+          <div className="text-[11px] font-black text-slate-500 uppercase tracking-wider px-1">
+            Sistem & Pembaruan Aplikasi
+          </div>
+          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
+            <button
+              type="button"
+              disabled={isCheckingUpdate || isApplyingUpdate}
+              onClick={handleCheckAndApplyUpdate}
+              className="w-full p-3.5 flex items-center justify-between gap-3 hover:bg-slate-50 active:bg-slate-100 transition text-left cursor-pointer disabled:opacity-75"
+            >
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <div
+                  className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                    hasUpdateAvailable
+                      ? 'bg-amber-100 text-amber-700'
+                      : 'bg-sky-50 text-sky-700'
+                  }`}
+                >
+                  <RefreshCw
+                    className={`w-4 h-4 ${
+                      isCheckingUpdate || isApplyingUpdate ? 'animate-spin' : ''
+                    }`}
+                  />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5 flex-wrap">
+                    <span>
+                      {isApplyingUpdate
+                        ? 'Memperbarui Aplikasi...'
+                        : isCheckingUpdate
+                        ? 'Memeriksa Pembaruan...'
+                        : hasUpdateAvailable
+                        ? 'Perbarui Aplikasi Sekarang'
+                        : 'Periksa Pembaruan Aplikasi'}
+                    </span>
+                    {hasUpdateAvailable ? (
+                      <span className="text-[9px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 rounded">
+                        Tersedia
+                      </span>
+                    ) : lastUpdateCheckInfo && !lastUpdateCheckInfo.startsWith('Gagal') ? (
+                      <span className="text-[9px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded inline-flex items-center gap-0.5">
+                        <CheckCircle2 className="w-2.5 h-2.5" />
+                        <span>Terbaru</span>
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="text-[11px] text-slate-500 truncate mt-0.5">
+                    {isApplyingUpdate
+                      ? 'Memasang versi terbaru & memuat ulang otomatis...'
+                      : isCheckingUpdate
+                      ? 'Menghubungi server untuk mengecek versi terbaru...'
+                      : hasUpdateAvailable
+                      ? 'Versi baru tersedia! Ketuk untuk langsung memperbarui'
+                      : lastUpdateCheckInfo ||
+                        'Cek versi terbaru & perbarui otomatis jika tersedia'}
+                  </div>
+                </div>
+              </div>
+
+              <span
+                className={`px-2.5 py-1.5 rounded-xl text-[11px] font-extrabold shrink-0 transition ${
+                  isApplyingUpdate || hasUpdateAvailable
+                    ? 'bg-[#800000] text-white shadow-xs'
+                    : isCheckingUpdate
+                    ? 'bg-slate-100 text-slate-500'
+                    : 'bg-sky-50 text-sky-700 border border-sky-200/80'
+                }`}
+              >
+                {isApplyingUpdate
+                  ? 'Memasang...'
+                  : isCheckingUpdate
+                  ? 'Mengecek...'
+                  : hasUpdateAvailable
+                  ? 'Perbarui'
+                  : 'Cek Update'}
+              </span>
+            </button>
           </div>
         </div>
 
