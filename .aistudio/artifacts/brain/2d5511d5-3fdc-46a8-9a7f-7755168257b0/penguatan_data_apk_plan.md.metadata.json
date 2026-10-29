@@ -1,0 +1,6 @@
+{
+  "summary":  "Rencana Penguatan Offline-First & Keamanan Data (PWA + APK TWA):\n1. Penguatan Layer Data Offline: \n   - Memastikan IndexedDB sebagai *Single Source of Truth* (SSOT) yang sepenuhnya independen dari browser cache.\n   - Implementasi skema *Auto-Queue* (Outbox Pattern) untuk transaksi saat offline yang lebih ketat dengan validasi integritas sebelum sinkronisasi.\n2. Integrasi PWA ke APK (Trusted Web Activity):\n   - Memberikan panduan penggunaan TWA agar aplikasi berjalan sebagai APK \"murni\" di Android, meminimalisir masalah browser, dan tetap sinkron dengan update PWA.\n3. Keamanan & Keutuhan Data:\n   - Audit Firestore Security Rules untuk menjamin *multi-tenancy* dan kepemilikan data yang tidak bisa ditembus.\n   - Mekanisme *automatic backup* periodik ke penyimpanan lokal untuk pencegahan kehilangan data ekstrem.",
+  "updatedAt":  "2026-10-28T10:04:50.753356609Z",
+  "requestFeedback":  true,
+  "userFacing":  true
+}

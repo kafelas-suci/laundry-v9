@@ -275,11 +275,11 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
 
         {/* 2. PRIMARY QUICK ACTIONS (+ Transaksi Baru & Catat Kas) */}
         <div className="p-3 border-b border-slate-100 space-y-2">
-          {activeQueueCount >= 400 ? (
+          {isNewcomer && activeQueueCount >= 400 ? (
             <button
               type="button"
               onClick={onOpenNewTransaksi}
-              title="Transaksi Baru Terkunci (Capai 400+ Pesanan). Klik untuk kelola arsip."
+              title="Transaksi Baru Terkunci. Klik untuk kelola arsip."
               className={`w-full rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition active:scale-98 shadow-xs bg-red-600 hover:bg-red-700 text-white ${
                 collapsed ? 'h-10 px-0' : 'py-2.5 px-3'
               }`}

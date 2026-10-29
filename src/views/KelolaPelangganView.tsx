@@ -140,9 +140,7 @@ export const KelolaPelangganView: React.FC<KelolaPelangganViewProps> = ({
             <div className="text-[10px] text-rose-200">
               {limits.tier === 'newcomer'
                 ? `${pelangganList.length}/${limits.maxCustomers} Pelanggan (Newcomer)`
-                : limits.tier === 'premium'
-                ? `${pelangganList.length}/${limits.maxCustomers} Pelanggan (Premium)`
-                : `${pelangganList.length} Pelanggan (Pro)`}
+                : `${pelangganList.length} Pelanggan (Unlimited)`}
             </div>
           </div>
         </div>

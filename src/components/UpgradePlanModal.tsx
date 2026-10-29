@@ -1,35 +1,50 @@
 import React from 'react';
-import { X, Crown, Check, Lock, MessageCircle, ShieldCheck } from 'lucide-react';
-import { LaundryTier, LAUNDRY_TIER_CONFIG, normalizeTier } from '../utils/subscription';
+import {
+  X,
+  Crown,
+  Check,
+  Lock,
+  MessageCircle,
+  ShieldCheck,
+  Zap,
+  Building2,
+  Wallet,
+} from 'lucide-react';
+import { User } from '../types';
+import { LAUNDRY_TIER_CONFIG, normalizeTier, HARGA_PREMIUM_BULANAN } from '../utils/subscription';
 import { formatRupiah } from '../utils/formatters';
+import { buildWhatsAppAdminUrl } from '../services/midtransService';
 
 interface UpgradePlanModalProps {
   isOpen: boolean;
   onClose: () => void;
+  currentUser?: User | null;
   currentTier?: string | null;
   triggerReason?: string;
-  onSwitchTier?: (newTier: LaundryTier) => void;
+  onChoosePayment?: (method: 'midtrans' | 'manual') => void;
+  onExtendWithWallet?: () => void;
 }
 
 export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
   isOpen,
   onClose,
+  currentUser,
   currentTier,
   triggerReason,
-  onSwitchTier,
+  onChoosePayment,
+  onExtendWithWallet,
 }) => {
   if (!isOpen) return null;
 
   const activeTier = normalizeTier(currentTier);
   const newcomerConfig = LAUNDRY_TIER_CONFIG.newcomer;
-  const PremiumConfig = LAUNDRY_TIER_CONFIG.premium;
+  const premiumConfig = LAUNDRY_TIER_CONFIG.premium;
+  const walletBalance = currentUser?.walletBalance || 0;
+  const canPayWithWallet = walletBalance >= HARGA_PREMIUM_BULANAN;
 
-  const handleContactWhatsApp = (targetTier: string = 'Paket Premium') => {
-    const text = encodeURIComponent(
-      `Halo Tim Kafelas Laundry, saya tertarik untuk aktivasi *${targetTier}* seharga Rp 27.000/bulan untuk laundry saya. Mohon informasi aktivasi lisensi resminya. Terima kasih!`
-    );
-    window.open(`https://api.whatsapp.com/send?phone=6285659781477&text=${text}`, '_blank');
-  };
+  const waUrl = buildWhatsAppAdminUrl(
+    'Halo Tim Kafelas Laundry, saya tertarik untuk aktivasi Paket Premium seharga Rp 27.000/bulan untuk laundry saya. Mohon informasi aktivasi lisensi resminya.'
+  );
 
   return (
     <div
@@ -37,10 +52,9 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-2xl mt-4 bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] text-slate-800"
+        className="relative w-full max-w-2xl bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] text-slate-800"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header Putih Bersih dengan Aksen Branding Maroon */}
         <div className="bg-white border-b border-slate-100 p-4 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl bg-rose-50 border border-rose-100 flex items-center justify-center text-[#800000]">
@@ -60,30 +74,29 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
           </button>
         </div>
 
-        {/* Notifikasi Fitur Terkunci (Light Amber) */}
         {triggerReason && (
           <div className="bg-amber-50 border-b border-amber-200/60 px-4 py-2 text-xs text-amber-900 flex items-center gap-2 shrink-0">
             <Lock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-            <span><strong>Fitur Terkunci:</strong> {triggerReason}</span>
+            <span>
+              <strong>Fitur Terkunci:</strong> {triggerReason}
+            </span>
           </div>
         )}
 
-        {/* Konten Utama (Background Putih / Slate Terang) */}
-        <div className="flex-1 overflow-y-auto px-4 py-1 space-y-1 bg-slate-50/50">
-          
-          {/* Grid 2 Kartu Paket */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50/50">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-
-              <div className={`p-4 rounded-xl border flex flex-col justify-between bg-white transition ${
-              activeTier === 'premium'
-                ? 'border-[#800000] shadow-md ring-1 ring-[#800000]/20'
-                : 'border-[#800000]/60 shadow-md'
-            }`}>
+            <div
+              className={`p-4 rounded-xl border flex flex-col justify-between bg-white transition ${
+                activeTier === 'premium'
+                  ? 'border-[#800000] shadow-md ring-1 ring-[#800000]/20'
+                  : 'border-[#800000]/60 shadow-md'
+              }`}
+            >
               <div>
                 <div className="flex items-center justify-between">
                   <span className="font-bold text-xs text-[#800000] flex items-center gap-1">
                     <Crown className="w-3.5 h-3.5 text-amber-500" />
-                    {PremiumConfig.label}
+                    {premiumConfig.label}
                   </span>
                   {activeTier === 'premium' ? (
                     <span className="text-[9px] font-bold text-sky-700 bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded">
@@ -95,26 +108,26 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                     </span>
                   )}
                 </div>
-                <div className="mt-1 text-lg font-black text-slate-900">
-                  {formatRupiah(PremiumConfig.priceMonthly)}
-                  <span className="text-[11px] font-normal text-slate-500"> / bulan</span>
+                <div className="mt-1 text-lg font-black text-slate-900 tabular-nums">
+                  {formatRupiah(premiumConfig.priceMonthly)}
+                  <span className="text-[11px] font-normal text-slate-500"> / 30 hari</span>
                 </div>
                 <p className="text-[11px] text-slate-600 mt-0.5">
-                  Akses penuh seluruh fitur tanpa batasan
+                  Tanpa batas kuota transaksi bulanan & operasional penuh
                 </p>
 
-                <div className="mt-1 pt-2 border-t border-slate-100 space-y-1.5">
-                              <div className="text-[11px] text-slate-700 flex items-center gap-1.5">
+                <div className="mt-2 pt-2.5 border-t border-slate-100 space-y-1.5">
+                  <div className="text-[11px] text-slate-800 flex items-center gap-1.5 font-medium">
                     <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                    <span>Tanpa Batasan 50 Pelanggan</span>
+                    <span>Tanpa Batas Kuota Nota / Bulan</span>
                   </div>
                   <div className="text-[11px] text-slate-700 flex items-center gap-1.5">
                     <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                    <span>Tanpa Batasan 5 Layanan</span>
+                    <span>Tanpa Batas Pelanggan & Layanan</span>
                   </div>
                   <div className="text-[11px] text-slate-800 flex items-center gap-1.5">
                     <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                    <span>Login Kasir & Penugasan Staf</span>
+                    <span>Login Kasir Beda HP & Penugasan Staf</span>
                   </div>
                   <div className="text-[11px] text-slate-800 flex items-center gap-1.5">
                     <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
@@ -124,33 +137,62 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                     <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                     <span>Grafik Komparasi Laba Rugi</span>
                   </div>
-             
                 </div>
               </div>
 
-              <div className="mt-2 pt-2">
-                {activeTier === 'newcomer' ? (
+              <div className="mt-3 pt-2.5 border-t border-slate-100 space-y-2">
+                {canPayWithWallet && onExtendWithWallet && (
                   <button
                     type="button"
-                    onClick={() => onSwitchTier?.('premium')}
-                    className="w-full py-2 px-3 rounded-xl bg-[#800000] hover:bg-[#660000] text-white font-bold text-xs transition active:scale-95 cursor-pointer shadow-xs"
+                    onClick={() => {
+                      onClose();
+                      onExtendWithWallet();
+                    }}
+                    className="w-full py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition active:scale-98 cursor-pointer flex items-center justify-center gap-1.5 shadow-xs tabular-nums"
                   >
-                    Upgrade Sekarang
+                    <Wallet className="w-3.5 h-3.5" />
+                    <span>
+                      {activeTier === 'premium' ? 'Perpanjang' : 'Aktifkan'} via Saldo (
+                      {formatRupiah(HARGA_PREMIUM_BULANAN)})
+                    </span>
                   </button>
-                ) : (
-                  <div className="w-full py-1.5 px-2 rounded-lg bg-sky-50 border border-sky-200 text-sky-800 text-xs text-center font-semibold">
-                    ✓ Paket Sedang Digunakan
-                  </div>
                 )}
+
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      onChoosePayment?.('midtrans');
+                    }}
+                    className="py-2 px-2.5 rounded-xl bg-[#800000] hover:bg-[#660000] text-white font-bold text-[11px] transition active:scale-98 cursor-pointer flex items-center justify-center gap-1 shadow-xs"
+                  >
+                    <Zap className="w-3.5 h-3.5 text-amber-300 shrink-0" />
+                    <span>Lewat Midtrans</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      onChoosePayment?.('manual');
+                    }}
+                    className="py-2 px-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-800 font-bold text-[11px] transition active:scale-98 cursor-pointer flex items-center justify-center gap-1"
+                  >
+                    <Building2 className="w-3.5 h-3.5 text-slate-600 shrink-0" />
+                    <span>Transfer Biasa</span>
+                  </button>
+                </div>
               </div>
             </div>
-            
-            {/* Kartu 1: Newcomer */}
-            <div className={`p-4 rounded-xl border flex flex-col justify-between bg-white transition ${
-              activeTier === 'newcomer'
-                ? 'border-emerald-500 shadow-xs ring-1 ring-emerald-500/30'
-                : 'border-slate-200 opacity-70'
-            }`}>
+
+            <div
+              className={`p-4 rounded-xl border flex flex-col justify-between bg-white transition ${
+                activeTier === 'newcomer'
+                  ? 'border-emerald-500 shadow-xs ring-1 ring-emerald-500/30'
+                  : 'border-slate-200 opacity-75'
+              }`}
+            >
               <div>
                 <div className="flex items-center justify-between">
                   <span className="font-bold text-xs text-slate-900">{newcomerConfig.label}</span>
@@ -160,12 +202,14 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                     </span>
                   )}
                 </div>
-            
-                <p className="text-[11px] text-slate-500 mt-0.5">
-                  Maksimal 50 nota / bulan
-                </p>
 
-                <div className="mt-3 pt-3 border-t border-slate-100 space-y-1.5">
+                <div className="mt-1 text-lg font-black text-slate-900 tabular-nums">
+                  Rp 0
+                  <span className="text-[11px] font-normal text-slate-500"> / selamanya</span>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-0.5">Maksimal 50 nota / bulan</p>
+
+                <div className="mt-2 pt-2.5 border-t border-slate-100 space-y-1.5">
                   <div className="text-[11px] text-slate-700 flex items-center gap-1.5">
                     <Lock className="w-3 h-3 text-slate-400 shrink-0" />
                     <span>1 Owner Mandiri</span>
@@ -185,26 +229,19 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                 </div>
               </div>
 
-              <div className="mt-1 pt-2 border-t border-slate-100">
+              <div className="mt-3 pt-2.5 border-t border-slate-100">
                 <div className="text-[10px] text-slate-400 text-center font-medium">
-                  {activeTier === 'newcomer' ? 'Starter Otomatis' : 'Paket Awal Selesai'}
+                  {activeTier === 'newcomer' ? 'Paket Starter Otomatis' : 'Paket Awal Selesai'}
                 </div>
               </div>
             </div>
-
-            {/* Kartu 2: Premium (Sorotan Utama) */}
-          
-
           </div>
 
-          {/* Catatan / Bantuan */}
-          <div className="p-2 bg-white rounded-xl text-center text-[11px] text-slate-500 shadow-2xs">
+          <div className="p-2.5 bg-white border border-slate-200/80 rounded-xl text-center text-[11px] text-slate-500">
             Perlu bantuan aktivasi atau penambahan cabang outlet? Silakan hubungi tim CS Kafelas Laundry.
           </div>
-
         </div>
 
-        {/* Footer Putih Terang */}
         <div className="bg-white p-3 border-t border-slate-200 flex items-center justify-between gap-2 shrink-0">
           <div className="text-[11px] text-slate-500 flex items-center gap-1">
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
@@ -219,17 +256,17 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
             >
               Tutup
             </button>
-            <button
-              type="button"
-              onClick={() => handleContactWhatsApp('Paket Premium')}
+            <a
+              href={waUrl}
+              target="_blank"
+              rel="noopener noreferrer"
               className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition cursor-pointer flex items-center gap-1.5 shadow-xs"
             >
               <MessageCircle className="w-3.5 h-3.5" />
-              <span>Aktivasi via WhatsApp</span>
-            </button>
+              <span>Tanya CS WhatsApp</span>
+            </a>
           </div>
         </div>
-
       </div>
     </div>
   );

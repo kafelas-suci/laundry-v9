@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { ArrowLeft, Plus, Trash2, X, Lock, Building2, User as UserIcon, ShieldCheck, Users } from 'lucide-react';
 import { User, Laundry, OperationalStaff } from '../types';
 import { useToast, useConfirm } from '../components/NotificationContext';
-import { getLaundryLimits, isProTier } from '../utils/subscription';
+import { getLaundryLimits } from '../utils/subscription';
 
 interface KelolaKasirViewProps {
   onBack: () => void;
@@ -11,8 +11,8 @@ interface KelolaKasirViewProps {
   currentTier?: string | null;
   operationalStaffList: OperationalStaff[];
   activeLaundryId: string;
-  onAddKasir: (nama: string, email: string, pass: string, laundryId: string) => void;
-  onDeleteKasir: (uid: string) => void;
+  onAddKasir: (nama: string, email: string, pass: string, laundryId: string) => Promise<boolean> | boolean | void;
+  onDeleteKasir: (uid: string) => Promise<void> | void;
   onAddOperationalStaff: (nama: string, laundryId: string) => void;
   onDeleteOperationalStaff: (id: string) => void;
   onOpenUpgradeModal?: (reason?: string) => void;
@@ -38,8 +38,8 @@ export const KelolaKasirView: React.FC<KelolaKasirViewProps> = ({
   const [nama, setNama] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [isSubmittingKasir, setIsSubmittingKasir] = useState(false);
 
-  // Operational staff state
   const [selectedBranchForOp, setSelectedBranchForOp] = useState(activeLaundryId || laundries[0]?.id || '');
   const [opStaffName, setOpStaffName] = useState('');
 
@@ -47,8 +47,9 @@ export const KelolaKasirView: React.FC<KelolaKasirViewProps> = ({
   const availableBranch = laundries.find((l) => !cashiers.some((c) => c.laundryId === l.id));
   const [selectedBranchId, setSelectedBranchId] = useState(availableBranch?.id || laundries[0]?.id || '');
 
-  const handleSaveKasir = (e: React.FormEvent) => {
+  const handleSaveKasir = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmittingKasir) return;
     if (!nama.trim() || !email.trim() || !password.trim()) {
       toast.warning('Semua data kasir wajib diisi.');
       return;
@@ -61,6 +62,7 @@ export const KelolaKasirView: React.FC<KelolaKasirViewProps> = ({
     const limits = getLaundryLimits(currentTier);
     if (limits.tier === 'newcomer' || limits.maxCashiers <= 0) {
       toast.warning('Fitur pembuatan akun kasir tambahan hanya untuk Paket Premium.');
+      onOpenUpgradeModal?.('Pembuatan akun login kasir beda HP khusus Paket Premium');
       return;
     }
 
@@ -85,11 +87,17 @@ export const KelolaKasirView: React.FC<KelolaKasirViewProps> = ({
       return;
     }
 
-    onAddKasir(nama.trim(), email.trim(), password.trim(), selectedBranchId);
-    setNama('');
-    setEmail('');
-    setPassword('');
-    toast.success(`Akun kasir '${nama}' berhasil dibuat!`);
+    setIsSubmittingKasir(true);
+    try {
+      const ok = await onAddKasir(nama.trim(), email.trim(), password.trim(), selectedBranchId);
+      if (ok !== false) {
+        setNama('');
+        setEmail('');
+        setPassword('');
+      }
+    } finally {
+      setIsSubmittingKasir(false);
+    }
   };
 
   const limits = getLaundryLimits(currentTier);
@@ -172,10 +180,10 @@ export const KelolaKasirView: React.FC<KelolaKasirViewProps> = ({
                   </p>
                   <button
                     type="button"
-                    onClick={() => toast.warning('Fitur pembuatan akun kasir tambahan hanya untuk Paket Premium.')}
-                    className="w-full py-1.5 px-3 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                    onClick={() => onOpenUpgradeModal?.('Pembuatan akun login kasir beda HP khusus Paket Premium')}
+                    className="w-full py-1.5 px-3 bg-[#800000] hover:bg-[#660000] text-white rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
                   >
-                    <span>Fitur Hanya untuk Paket Premium</span>
+                    <span>Aktifkan Paket Premium</span>
                   </button>
                 </div>
               ) : isAtLimit ? (
@@ -225,10 +233,11 @@ export const KelolaKasirView: React.FC<KelolaKasirViewProps> = ({
                       </select>
                       <button
                         type="submit"
-                        className="px-3 py-1.5 bg-[#800000] hover:bg-[#660000] text-white rounded-lg text-xs font-bold shrink-0 cursor-pointer flex items-center gap-1 shadow-xs"
+                        disabled={isSubmittingKasir}
+                        className="px-3 py-1.5 bg-[#800000] hover:bg-[#660000] disabled:opacity-60 text-white rounded-lg text-xs font-bold shrink-0 cursor-pointer flex items-center gap-1 shadow-xs"
                       >
                         <Plus className="w-3.5 h-3.5" />
-                        <span>Simpan</span>
+                        <span>{isSubmittingKasir ? 'Menyimpan...' : 'Simpan'}</span>
                       </button>
                     </div>
                   </div>
@@ -265,8 +274,7 @@ export const KelolaKasirView: React.FC<KelolaKasirViewProps> = ({
                               isDestructive: true,
                             });
                             if (ok) {
-                              onDeleteKasir(admin.uid);
-                              toast.success('Kasir dihapus.');
+                              await onDeleteKasir(admin.uid);
                             }
                           }}
                           className="p-1 text-slate-400 hover:text-red-600 rounded cursor-pointer shrink-0"
@@ -282,7 +290,6 @@ export const KelolaKasirView: React.FC<KelolaKasirViewProps> = ({
             </div>
           </div>
 
-          {/* KOLOM 2: STAF OPERASIONAL TANPA LOGIN */}
           <div className="bg-white rounded-2xl border border-slate-200 p-3.5 shadow-2xs space-y-3 flex flex-col justify-between">
             <div className="space-y-2.5">
               <div className="flex items-center justify-between border-b border-slate-100 pb-2">
@@ -290,10 +297,10 @@ export const KelolaKasirView: React.FC<KelolaKasirViewProps> = ({
                   <Users className="w-4 h-4 text-indigo-600" />
                   <span className="text-xs font-bold text-slate-700 uppercase tracking-wide">Staf Tanpa Login</span>
                 </div>
-                {!isProTier(currentTier) ? (
-                  <span className="bg-amber-100 text-amber-800 text-[9px] font-bold px-1.5 py-0.5 rounded">PRO ONLY</span>
+                {!limits.canAssignStaff ? (
+                  <span className="bg-amber-100 text-amber-800 text-[9px] font-bold px-1.5 py-0.5 rounded">KHUSUS PREMIUM</span>
                 ) : (
-                  <span className="text-[10px] text-slate-500 font-medium">Maks 5/outlet</span>
+                  <span className="text-[10px] text-slate-500 font-medium">Maks 10/outlet</span>
                 )}
               </div>
 
@@ -302,10 +309,10 @@ export const KelolaKasirView: React.FC<KelolaKasirViewProps> = ({
                   <p className="text-[11px] text-amber-900">Fitur penugasan staf operasional hanya untuk Paket Premium.</p>
                   <button
                     type="button"
-                    onClick={() => toast.warning('Fitur penugasan staf operasional hanya untuk Paket Premium.')}
+                    onClick={() => onOpenUpgradeModal?.('Penugasan staf operasional cucian khusus Paket Premium')}
                     className="px-2.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-[10px] font-bold shrink-0 cursor-pointer"
                   >
-                    Info
+                    Upgrade
                   </button>
                 </div>
               ) : (

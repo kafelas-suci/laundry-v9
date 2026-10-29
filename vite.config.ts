@@ -14,8 +14,8 @@ export default defineConfig(() => {
         includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'icon.svg'],
         manifest: {
           id: '/',
-          name: 'Laundry Suci POS',
-          short_name: 'LaundrySuci',
+          name: 'Kafelas Laundry',
+          short_name: 'Kafelas',
           description: 'Aplikasi Manajemen Operasional, Kasir, dan Keuangan Laundry',
           theme_color: '#800000',
           background_color: '#800000',
@@ -45,8 +45,23 @@ export default defineConfig(() => {
         },
         workbox: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
+          globIgnores: ['**/*.zip', '**/*.af', '**/Paste_*'],
           maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
           cleanupOutdatedCaches: true,
+          navigateFallback: 'index.html',
+          navigateFallbackDenylist: [
+            /^\/api\//,
+            /^\/assets\//,
+            /^\/\.well-known\//,
+            /^\/landing(?:\.html)?$/i,
+            /^\/beranda$/i,
+            /^\/tutorial(?:\.html)?$/i,
+            /^\/panduan$/i,
+            /^\/profil(?:\.html)?$/i,
+            /^\/booking(?:\.html)?$/i,
+            /^\/b\//i,
+            /\.(?:js|mjs|css|json|webmanifest|png|jpg|jpeg|svg|gif|webp|ico|woff2?|zip)$/i,
+          ],
           runtimeCaching: [
             {
               // Aset gambar (logo, ikon PWA, favicon, foto portofolio/struk)
@@ -57,21 +72,6 @@ export default defineConfig(() => {
                 expiration: {
                   maxEntries: 100,
                   maxAgeSeconds: 30 * 24 * 60 * 60, // 30 hari
-                },
-                cacheableResponse: {
-                  statuses: [0, 200],
-                },
-              },
-            },
-            {
-              // Skrip aplikasi & stylesheet pendukung
-              urlPattern: /\.(?:js|css)$/i,
-              handler: 'StaleWhileRevalidate',
-              options: {
-                cacheName: 'kafelas-static-resources',
-                expiration: {
-                  maxEntries: 60,
-                  maxAgeSeconds: 7 * 24 * 60 * 60, // 7 hari
                 },
                 cacheableResponse: {
                   statuses: [0, 200],

@@ -40,6 +40,7 @@ import {
   pairBluetoothPrinterDirectly,
 } from '../utils/nativeBridge';
 import { TopUpModal } from '../components/TopUpModal';
+import { MidtransVerifyResult } from '../services/midtransService';
 import { CloudBackupModal } from '../components/CloudBackupModal';
 import {
   checkAppUpdateManually,
@@ -62,6 +63,7 @@ interface SettingsViewProps {
   onOpenApkModal: () => void;
   onOpenUpgradeModal?: (reason?: string) => void;
   onTopUpWallet?: (nominal: number) => void;
+  onMidtransSettled?: (result: MidtransVerifyResult) => void;
   onUpdateOwnerProfile?: (data: { displayName: string; nomorTelepon?: string | null }) => void;
   onStartTour?: () => void;
   onLogout: () => void;
@@ -81,7 +83,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onOpenKelolaKasir,
   onOpenApkModal,
   onOpenUpgradeModal,
-  onTopUpWallet,
+  onMidtransSettled,
   onUpdateOwnerProfile,
   onStartTour,
   onLogout,
@@ -1393,18 +1395,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </div>
         </div>
       )}
-      {/* MODAL ISI SALDO AKUN OWNER */}
       <TopUpModal
         isOpen={showTopUpModal}
         onClose={() => setShowTopUpModal(false)}
         currentUser={currentUser}
-        onTopUpWallet={(nominal) => {
-          if (onTopUpWallet) {
-            onTopUpWallet(nominal);
-          } else {
-            toast.success(`Saldo ${formatRupiah(nominal)} berhasil ditambahkan!`);
-          }
-        }}
+        onMidtransSettled={onMidtransSettled}
         sisaHari={sisaHari}
       />
 

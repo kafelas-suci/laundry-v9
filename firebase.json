@@ -7,6 +7,7 @@
     "public": "dist",
     "ignore": [
       "firebase.json",
+      "firebase-kfls.json",
       "**/.*",
       "**/node_modules/**"
     ],
@@ -23,17 +24,64 @@
             "value": "*"
           }
         ]
+      },
+      {
+        "source": "/@(index.html|sw.js|registerSW.js|manifest.json|manifest.webmanifest)",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, no-store, must-revalidate"
+          }
+        ]
+      },
+      {
+        "source": "/workbox-*.js",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, no-store, must-revalidate"
+          }
+        ]
+      },
+      {
+        "source": "/assets/**",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=31536000, immutable"
+          }
+        ]
       }
     ],
-    "cleanUrls": true,
+    "cleanUrls": false,
     "rewrites": [
       {
         "source": "/landing",
         "destination": "/landing.html"
       },
       {
+        "source": "/beranda",
+        "destination": "/landing.html"
+      },
+      {
         "source": "/tutorial",
         "destination": "/tutorial.html"
+      },
+      {
+        "source": "/panduan",
+        "destination": "/tutorial.html"
+      },
+      {
+        "source": "/profil",
+        "destination": "/profil.html"
+      },
+      {
+        "source": "/booking",
+        "destination": "/booking.html"
+      },
+      {
+        "source": "/b/**",
+        "destination": "/booking.html"
       },
       {
         "source": "**",

@@ -16,10 +16,127 @@
     <meta name="apple-mobile-web-app-title" content="Kafelas Laundry" />
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    <link rel="manifest" href="/manifest.json" />
+    <script>
+      (function () {
+        window.__KAFELAS_MOUNTED__ = false;
+        console.info('[Kafelas Boot] Memulai pemuatan dokumen utama:', window.location.pathname);
+
+        function purgeSwAndReloadOnce(reason) {
+          try {
+            var key = 'kafelas_sw_autorecover_v2';
+            if (sessionStorage.getItem(key) === '1') {
+              console.warn('[Kafelas Boot] Auto-recovery sudah dijalankan sesi ini (' + reason + ').');
+              return false;
+            }
+            sessionStorage.setItem(key, '1');
+          } catch (e) {
+            return false;
+          }
+
+          console.warn('[Kafelas Boot] Memulihkan cache Service Worker otomatis karena:', reason);
+          var tasks = [];
+          if ('serviceWorker' in navigator && navigator.serviceWorker.getRegistrations) {
+            tasks.push(
+              navigator.serviceWorker.getRegistrations().then(function (regs) {
+                return Promise.all(
+                  regs.map(function (r) {
+                    return r.unregister();
+                  })
+                );
+              })
+            );
+          }
+          if ('caches' in window && caches.keys) {
+            tasks.push(
+              caches.keys().then(function (names) {
+                return Promise.all(
+                  names.map(function (n) {
+                    return caches.delete(n);
+                  })
+                );
+              })
+            );
+          }
+          Promise.all(tasks)
+            .catch(function () {})
+            .then(function () {
+              window.location.reload();
+            });
+          return true;
+        }
+
+        window.addEventListener(
+          'error',
+          function (event) {
+            if (window.__KAFELAS_MOUNTED__) return;
+            var target = event && event.target;
+            var isAssetError =
+              target &&
+              (target.tagName === 'SCRIPT' || target.tagName === 'LINK') &&
+              (target.src || target.href || '').indexOf('/assets/') !== -1;
+            var msg = (event && event.message) || '';
+            var isChunkError =
+              msg.indexOf('Failed to fetch dynamically imported module') !== -1 ||
+              msg.indexOf('Importing a module script failed') !== -1 ||
+              msg.indexOf('MIME type') !== -1;
+
+            if (isAssetError || isChunkError) {
+              purgeSwAndReloadOnce(isAssetError ? 'asset-load-failed' : msg);
+            }
+          },
+          true
+        );
+
+        window.addEventListener('vite:preloadError', function (event) {
+          if (event && event.preventDefault) event.preventDefault();
+          purgeSwAndReloadOnce('vite:preloadError');
+        });
+
+        window.setTimeout(function () {
+          if (window.__KAFELAS_MOUNTED__) return;
+          console.error('[Kafelas Boot] Bundle React belum terpasang setelah batas waktu tunggu.');
+          if (purgeSwAndReloadOnce('boot-timeout')) return;
+
+          var fallbackBox = document.getElementById('kafelas-boot-fallback-actions');
+          var statusText = document.getElementById('kafelas-boot-status');
+          if (statusText) {
+            statusText.textContent =
+              'Koneksi lambat atau cache perangkat perlu disegarkan. Data transaksi lokal Anda tetap aman.';
+          }
+          if (fallbackBox) {
+            fallbackBox.hidden = false;
+          }
+        }, 9000);
+      })();
+    </script>
   </head>
-  <body>
-    <div id="root"></div>
+  <body class="bg-slate-100">
+    <div id="root">
+      <div
+        id="kafelas-initial-loader"
+        class="min-h-screen flex flex-col items-center justify-center bg-[#800000] text-white font-sans p-6 text-center"
+      >
+        <div class="text-2xl font-black tracking-tight mb-2">
+          Kafela's Laundry
+        </div>
+        <p id="kafelas-boot-status" class="text-xs text-white/85 max-w-xs leading-relaxed mb-4">
+          Menyiapkan sistem kasir &amp; operasional...
+        </p>
+        <div
+          id="kafelas-boot-fallback-actions"
+          hidden
+          class="mt-2"
+        >
+          <button
+            type="button"
+            onclick="(async function(){try{if('serviceWorker' in navigator){var r=await navigator.serviceWorker.getRegistrations();for(var i=0;i<r.length;i++)await r[i].unregister();}if('caches' in window){var k=await caches.keys();for(var j=0;j<k.length;j++)await caches.delete(k[j]);}}catch(e){}window.location.href=window.location.pathname+'?_cb='+Date.now();})()"
+            class="bg-white text-[#800000] rounded-xl px-4 py-2.5 text-xs font-extrabold shadow-md cursor-pointer"
+          >
+            Segarkan Cache &amp; Muat Ulang
+          </button>
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

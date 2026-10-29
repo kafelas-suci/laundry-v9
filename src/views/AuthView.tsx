@@ -82,41 +82,45 @@ export const AuthView: React.FC<AuthViewProps> = ({
     FirebaseSyncService.beginAuthFlow();
 
     try {
-      const res = await signInWithEmailAndPassword(auth, email.trim(), password.trim());
+      const rawIdentifier = email.trim();
+      const primaryAuthEmail = FirebaseSyncService.resolveCashierAuthEmail(rawIdentifier);
+      let res;
+
+      try {
+        res = await signInWithEmailAndPassword(auth, primaryAuthEmail, password.trim());
+      } catch (firstErr: any) {
+        const rawDigits = rawIdentifier.replace(/[^0-9]/g, '');
+        const legacyFallbackEmail = !rawIdentifier.includes('@') && rawDigits ? `${rawDigits}@kafelas.app` : '';
+        if (
+          legacyFallbackEmail &&
+          legacyFallbackEmail !== primaryAuthEmail &&
+          (firstErr?.code === 'auth/user-not-found' || firstErr?.code === 'auth/invalid-credential')
+        ) {
+          res = await signInWithEmailAndPassword(auth, legacyFallbackEmail, password.trim());
+        } else {
+          throw firstErr;
+        }
+      }
+
       const userProfile = await FirebaseSyncService.getOrCreateUserProfile({
         uid: res.user.uid,
         email: res.user.email,
         displayName: res.user.displayName,
         phoneNumber: res.user.phoneNumber,
       });
+
+      if (userProfile.role === 'admin' || userProfile.role === 'karyawan') {
+        toast.success(`Berhasil masuk sebagai kasir ${userProfile.displayName}`);
+      }
       await onLoginSuccess(userProfile);
     } catch (err: any) {
-      console.warn('Firebase email login error:', err.code, err.message);
-
-      const inputClean = email.trim().toLowerCase();
-      const phoneDigits = inputClean.replace(/[^0-9]/g, '');
-
-      // Cek apakah login sebagai akun kasir terdaftar di staffList
-      const staffMatch = staffList.find((s) => {
-        const sEmail = s.emailOrPhone?.toLowerCase();
-        const sPhone = (s.nomorTelepon || s.emailOrPhone)?.replace(/[^0-9]/g, '');
-        const matchEmail = sEmail === inputClean;
-        const matchPhone =
-          phoneDigits.length >= 7 &&
-          sPhone &&
-          (sPhone === phoneDigits || sPhone.endsWith(phoneDigits) || phoneDigits.endsWith(sPhone));
-        return matchEmail || matchPhone;
-      });
-
-      if (staffMatch) {
-        if (staffMatch.password && staffMatch.password !== password.trim()) {
-          setAuthError('Kata sandi akun kasir tidak sesuai.');
-          return;
-        }
-        toast.success(`Berhasil masuk sebagai kasir ${staffMatch.displayName}`);
-        await onLoginSuccess(staffMatch);
+      if (err?.code === 'CASHIER_REVOKED') {
+        await auth.signOut().catch(() => undefined);
+        setAuthError(err.message || 'Akses akun kasir ini telah dinonaktifkan oleh Owner.');
         return;
       }
+
+      console.warn('Firebase email login error:', err.code, err.message);
 
       if (err.code === 'auth/operation-not-allowed') {
         setAuthError(
@@ -129,7 +133,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
       ) {
         setAuthError('Email/WhatsApp belum terdaftar atau kata sandi tidak cocok. Silakan periksa kembali.');
       } else if (err.code === 'auth/invalid-email') {
-        setAuthError('Format alamat email tidak valid.');
+        setAuthError('Format alamat email atau nomor WhatsApp tidak valid.');
       } else if (err.code === 'auth/too-many-requests') {
         setAuthError('Akses diblokir sementara karena terlalu banyak percobaan gagal. Coba beberapa saat lagi.');
       } else {

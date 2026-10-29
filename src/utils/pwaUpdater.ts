@@ -21,25 +21,110 @@ export function subscribePwaUpdate(callback: (needRefresh: boolean) => void): ()
 }
 
 /**
- * Inisialisasi Service Worker PWA terpusat
+ * Bersihkan cache statis lama yang berpotensi korup (HTML tersimpan sebagai JS atau response ter-redirect)
+ * tanpa menyentuh IndexedDB maupun localStorage data transaksi.
  */
-export function initPWA() {
+async function sanitizeServiceWorkerCaches(): Promise<void> {
+  if (typeof window === 'undefined' || !('caches' in window)) return;
+
+  try {
+    // Hapus runtime cache lama yang sebelumnya meng-cache file .js/.css secara ganda
+    await caches.delete('kafelas-static-resources');
+
+    const cacheNames = await caches.keys();
+    for (const name of cacheNames) {
+      if (!name.includes('workbox-precache')) continue;
+      const cache = await caches.open(name);
+      const keys = await cache.keys();
+      for (const req of keys) {
+        const res = await cache.match(req);
+        if (!res) continue;
+        const contentType = (res.headers.get('content-type') || '').toLowerCase();
+        const isJsOrCss = /\.(?:js|mjs|css)(?:\?.*)?$/i.test(req.url);
+        const isHtml = /\/index\.html(?:\?.*)?$/i.test(req.url);
+
+        // Jika entry index.html memiliki flag redirected (akibat cleanUrls lama) atau file JS berisi text/html, bersihkan
+        if ((isHtml && res.redirected) || (isJsOrCss && contentType.includes('text/html'))) {
+          console.warn('[Kafelas PWA] Membersihkan entry precache korup:', req.url);
+          await cache.delete(req);
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[Kafelas PWA] Sanitasi cache dilewati:', err);
+  }
+}
+
+/**
+ * Pemulihan penuh Service Worker & Cache Storage (tanpa menghapus data transaksi IndexedDB/localStorage)
+ */
+export async function recoverFromCacheAndReload(): Promise<void> {
   if (typeof window === 'undefined') return;
 
-  updateSWFn = registerSW({
-    immediate: true,
-    onRegisteredSW(_swUrl, registration) {
-      swRegistration = registration;
-      if (registration?.waiting) {
-        needRefreshState = true;
-        notifyListeners();
-      }
-    },
-    onNeedRefresh() {
-      needRefreshState = true;
-      notifyListeners();
-    },
-  });
+  try {
+    if ('serviceWorker' in navigator) {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(registrations.map((reg) => reg.unregister().catch(() => false)));
+    }
+  } catch (err) {
+    console.warn('[Kafelas PWA] Gagal unregister SW saat recovery:', err);
+  }
+
+  try {
+    if ('caches' in window) {
+      const keys = await caches.keys();
+      await Promise.all(keys.map((key) => caches.delete(key).catch(() => false)));
+    }
+  } catch (err) {
+    console.warn('[Kafelas PWA] Gagal menghapus caches saat recovery:', err);
+  }
+
+  const cleanUrl = `${window.location.origin}${window.location.pathname}?_r=${Date.now()}`;
+  window.location.replace(cleanUrl);
+}
+
+/**
+ * Inisialisasi Service Worker PWA terpusat secara non-blocking & tahan gagal
+ */
+export function initPWA() {
+  if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return;
+
+  const startRegistration = () => {
+    sanitizeServiceWorkerCaches().catch(() => {});
+
+    try {
+      updateSWFn = registerSW({
+        immediate: false,
+        onRegisteredSW(_swUrl, registration) {
+          swRegistration = registration;
+          console.info('[Kafelas Boot] Service Worker terdaftar:', _swUrl);
+          if (registration?.waiting) {
+            needRefreshState = true;
+            notifyListeners();
+          }
+        },
+        onNeedRefresh() {
+          needRefreshState = true;
+          notifyListeners();
+        },
+        onRegisterError(error) {
+          console.warn('[Kafelas Boot] Registrasi Service Worker dilewati:', error);
+        },
+      });
+    } catch (err) {
+      console.warn('[Kafelas Boot] Inisialisasi PWA gagal secara aman (render utama tetap berjalan):', err);
+    }
+  };
+
+  // Jadwalkan setelah thread utama selesai me-render UI awal agar tidak pernah memblokir layar utama
+  if ('requestIdleCallback' in window) {
+    (window as Window & { requestIdleCallback: (cb: () => void, opts?: { timeout: number }) => number }).requestIdleCallback(
+      startRegistration,
+      { timeout: 2500 }
+    );
+  } else {
+    globalThis.setTimeout(startRegistration, 300);
+  }
 }
 
 function waitForInstallingWorker(worker: ServiceWorker, timeoutMs = 8000): Promise<boolean> {

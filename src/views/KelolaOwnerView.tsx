@@ -2,26 +2,24 @@ import React, { useState } from 'react';
 import {
   ArrowLeft,
   Plus,
-  CreditCard,
   Building2,
   Clock,
   ChevronDown,
   Edit,
   Trash2,
   X,
-  Copy,
-  Check,
-  ExternalLink,
-  Sparkles,
-  Lock,
   UserCheck,
-  ShieldAlert,
   Crown,
+  Zap,
+  Wallet,
+  Lock,
 } from 'lucide-react';
 import { User, Laundry, SubscriptionHistory } from '../types';
 import { formatRupiah, formatDateIndo } from '../utils/formatters';
 import { useToast, useConfirm } from '../components/NotificationContext';
-import { normalizeTier, getLaundryLimits } from '../utils/subscription';
+import { getLaundryLimits } from '../utils/subscription';
+import { TopUpModal } from '../components/TopUpModal';
+import { MidtransVerifyResult, PaymentPurpose, buildWhatsAppAdminUrl } from '../services/midtransService';
 
 interface KelolaOwnerViewProps {
   onBack: () => void;
@@ -33,8 +31,9 @@ interface KelolaOwnerViewProps {
   onAddLaundry: (nama: string, alamat?: string, telepon?: string, copyFromId?: string) => void;
   onUpdateLaundry: (laundry: Laundry) => void;
   onDeleteLaundry: (laundryId: string) => void;
-  onTopUpWallet: (nominal: number) => void;
+  onTopUpWallet?: (nominal: number) => void;
   onExtendSubscription: (packageName: string, cost: number, days: number) => void;
+  onMidtransSettled?: (result: MidtransVerifyResult) => void;
   onUpdateOwnerProfile?: (data: { displayName: string; nomorTelepon?: string | null }) => void;
   onOpenUpgradeModal?: (reason?: string) => void;
   onOpenExpiredModal?: () => void;
@@ -50,8 +49,8 @@ export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
   onAddLaundry,
   onUpdateLaundry,
   onDeleteLaundry,
-  onTopUpWallet,
   onExtendSubscription,
+  onMidtransSettled,
   onUpdateOwnerProfile,
   onOpenUpgradeModal,
   onOpenExpiredModal,
@@ -60,24 +59,21 @@ export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
   const { confirm } = useConfirm();
   const [showBranches, setShowBranches] = useState(true);
   const [showTopUpModal, setShowTopUpModal] = useState(false);
-  const [customTopUp, setCustomTopUp] = useState('');
-  const [selectedNominal, setSelectedNominal] = useState<number>(30000);
-  const [copiedBank, setCopiedBank] = useState<string | null>(null);
+  const [topUpPurpose, setTopUpPurpose] = useState<PaymentPurpose>('topup_wallet');
+  const [topUpMethod, setTopUpMethod] = useState<'midtrans' | 'manual'>('midtrans');
+  const [selectedNominal, setSelectedNominal] = useState<number>(27000);
   const [showAddBranchModal, setShowAddBranchModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
 
-  // Edit Owner Profile Modal State
   const [showEditOwnerModal, setShowEditOwnerModal] = useState(false);
   const [editDisplayName, setEditDisplayName] = useState(currentUser.displayName || '');
   const [editNomorTelepon, setEditNomorTelepon] = useState(currentUser.nomorTelepon || '');
 
-  // Add branch form
   const [newBranchName, setNewBranchName] = useState('');
   const [newBranchAddress, setNewBranchAddress] = useState('');
   const [newBranchPhone, setNewBranchPhone] = useState('');
   const [copyLayananFrom, setCopyLayananFrom] = useState<string>('');
 
-  // Editing branch
   const [editingLaundry, setEditingLaundry] = useState<Laundry | null>(null);
 
   const currentLimits = getLaundryLimits(currentUser.subscriptionType);
@@ -90,19 +86,30 @@ export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
     Math.ceil(((currentUser.subscriptionEndDate || Date.now()) - Date.now()) / (1000 * 60 * 60 * 24))
   );
 
+  const openPaymentModal = (
+    purpose: PaymentPurpose,
+    method: 'midtrans' | 'manual',
+    nominal: number = HARGA_Premium_BULANAN
+  ) => {
+    setTopUpPurpose(purpose);
+    setTopUpMethod(method);
+    setSelectedNominal(nominal);
+    setShowTopUpModal(true);
+  };
+
   const handlePayBulanan = async () => {
     const cost = HARGA_Premium_BULANAN;
     const label = 'Paket Premium (30 Hari)';
 
     if (currentUser.walletBalance < cost) {
-      toast.warning(`Saldo dompet tidak mencukupi (${formatRupiah(cost)}). Silakan isi saldo terlebih dahulu.`);
-      setShowTopUpModal(true);
+      toast.warning(`Saldo dompet tidak mencukupi (${formatRupiah(cost)}). Pilih Lewat Midtrans atau Transfer Biasa.`);
+      openPaymentModal('extend_premium', 'midtrans', cost);
       return;
     }
     const ok = await confirm({
-      title: `Beli ${label}`,
-      message: `Beli ${label} seharga ${formatRupiah(cost)}? Saldo dompet akan dipotong.`,
-      confirmText: 'Beli Sekarang',
+      title: `Perpanjang ${label}`,
+      message: `Aktifkan ${label} seharga ${formatRupiah(cost)} dari saldo dompet Anda?`,
+      confirmText: 'Potong Saldo & Aktifkan',
     });
     if (ok) {
       onExtendSubscription(`${label}`, cost, 30);
@@ -125,8 +132,7 @@ export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
           `Saldo dompet tidak mencukupi (${formatRupiah(EXTRA_COST)}). Silakan isi saldo terlebih dahulu.`
         );
         setShowAddBranchModal(false);
-        setSelectedNominal(EXTRA_COST);
-        setShowTopUpModal(true);
+        openPaymentModal('topup_wallet', 'midtrans', EXTRA_COST);
         return;
       }
 
@@ -206,90 +212,116 @@ export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
                 </span>
               </div>
 
-              {/* Saldo Akun & Tombol Top Up */}
-              <div className="p-4 px-4 flex items-center justify-between border-b border-slate-100 bg-slate-50/50">
+              <div className="p-4 flex items-center justify-between border-b border-slate-100 bg-slate-50/50">
                 <div>
                   <span className="text-[11px] text-slate-500 block font-medium">Saldo Dompet Akun</span>
-                  <span className="text-xl font-black text-slate-900 tracking-tight">{formatRupiah(currentUser.walletBalance)}</span>
+                  <span className="text-xl font-black text-slate-900 tracking-tight tabular-nums">
+                    {formatRupiah(currentUser.walletBalance)}
+                  </span>
                 </div>
                 <button
                   type="button"
-                  onClick={() => setShowTopUpModal(true)}
+                  onClick={() => openPaymentModal('topup_wallet', 'midtrans', 27000)}
                   className="flex items-center gap-1 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition shadow-xs active:scale-95 cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" />
-                  <span>Top Up</span>
+                  <span>Top Up Saldo</span>
                 </button>
               </div>
 
-              {/* Perpanjangan Options */}
-              <div className="p-3 space-y-2">
-             
-                {/* Paket Bulanan Premium */}
-                <div className="flex items-center justify-between p-3 rounded-xl bg-white border border-slate-200 hover:border-slate-300 transition text-xs shadow-2xs">
-                  <div className="pr-2">
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-bold text-slate-900">Paket Premium (30 Hari)</span>
-                      {isPremium && <span className="text-[9px] bg-sky-50 text-sky-700 border border-sky-200 px-2 py-0.5 rounded-full font-bold">Aktif</span>}
+              <div className="p-3 space-y-2.5">
+                <div className="p-3 rounded-xl bg-white border border-slate-200 transition text-xs shadow-2xs space-y-2.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-bold text-slate-900">Paket Premium (30 Hari)</span>
+                        {isPremium && (
+                          <span className="text-[9px] bg-sky-50 text-sky-700 border border-sky-200 px-2 py-0.5 rounded-full font-bold">
+                            Aktif
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[10px] text-slate-500 mt-0.5 leading-relaxed">
+                        Tanpa batas kuota transaksi bulanan, Kasir beda HP, Penugasan Staf, Laporan Lengkap, Export Excel & PDF resmi.
+                      </div>
                     </div>
-                    <div className="text-[10px] text-slate-500 mt-0.5">{formatRupiah(HARGA_Premium_BULANAN)} · Multi-User (Owner & Admin) Penugasan Staf & Laporan Lengkap, Export Excel & PDF, Dokumen Web Akses.</div>
+                    <span className="font-black text-[#800000] text-sm font-mono tabular-nums shrink-0">
+                      {formatRupiah(HARGA_Premium_BULANAN)}
+                    </span>
                   </div>
-                  <button
-                    onClick={handlePayBulanan}
-                    className="flex items-center gap-1 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition shadow-xs active:scale-95 cursor-pointer shrink-0"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Bayar</span>
-                  </button>
+
+                  {currentUser.walletBalance >= HARGA_Premium_BULANAN && (
+                    <button
+                      type="button"
+                      onClick={handlePayBulanan}
+                      className="w-full py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition shadow-xs active:scale-98 cursor-pointer flex items-center justify-center gap-1.5 tabular-nums"
+                    >
+                      <Wallet className="w-3.5 h-3.5" />
+                      <span>Perpanjang dari Saldo ({formatRupiah(HARGA_Premium_BULANAN)})</span>
+                    </button>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => openPaymentModal('extend_premium', 'midtrans', HARGA_Premium_BULANAN)}
+                      className="py-2.5 px-2.5 rounded-xl bg-[#800000] hover:bg-[#660000] text-white font-bold text-[11px] transition shadow-xs active:scale-98 cursor-pointer flex items-center justify-center gap-1.5"
+                    >
+                      <Zap className="w-3.5 h-3.5 text-amber-300 shrink-0" />
+                      <span>Lewat Midtrans</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => openPaymentModal('extend_premium', 'manual', HARGA_Premium_BULANAN)}
+                      className="py-2.5 px-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-800 font-bold text-[11px] transition active:scale-98 cursor-pointer flex items-center justify-center gap-1.5"
+                    >
+                      <Building2 className="w-3.5 h-3.5 text-slate-600 shrink-0" />
+                      <span>Transfer Biasa</span>
+                    </button>
+                  </div>
                 </div>
 
-                {/* Tombol Khusus Habis Hari Langganan jika sisaHari <= 0 */}
                 {!isNewcomer && sisaHari <= 0 && onOpenExpiredModal && (
                   <button
                     type="button"
                     onClick={onOpenExpiredModal}
-                    className="w-full py-2.5 px-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black text-xs flex items-center justify-center gap-1.5 shadow-sm transition active:scale-98 cursor-pointer animate-pulse"
+                    className="w-full py-2.5 px-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black text-xs flex items-center justify-center gap-1.5 shadow-sm transition active:scale-98 cursor-pointer"
                   >
                     <Clock className="w-3.5 h-3.5" />
-                    <span>Layar Habis Hari Langganan (Lihat Saldo &amp; Perpanjang)</span>
+                    <span>Layar Habis Hari Langganan</span>
                   </button>
                 )}
 
-                {/* Tombol Bandingkan Paket */}
                 <div className="pt-0">
                   <button
                     type="button"
                     onClick={() => onOpenUpgradeModal?.()}
-                    className="w-full py-2.5 px-3 rounded-xl bg-[#800000] hover:bg-[#660000] text-white font-black text-xs flex items-center justify-center  shadow-sm transition active:scale-98 cursor-pointer"
+                    className="w-full py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition active:scale-98 cursor-pointer"
                   >
                     <Crown className="w-3.5 h-3.5 text-amber-300" />
-                    <span>Detail (Paket Premium)</span>
+                    <span>Detail & Perbandingan Paket</span>
                   </button>
                 </div>
               </div>
             </div>
 
-            {/* Riwayat Tombol Bawah */}
-            <div className="px-3 py-1 bg-slate-50 border-t border-slate-100 flex gap-1">
+            <div className="px-3 py-2 bg-slate-50 border-t border-slate-100 flex gap-2">
               <button
+                type="button"
                 onClick={() => setShowHistoryModal(true)}
-                className="flex-1 py-0 rounded-xl bg-white hover:bg-slate-100 text-slate-700 text-[11px] font-bold transition flex items-center justify-center gap-1 border border-slate-200 cursor-pointer shadow-2xs"
-              >
-                📜 Riwayat Transaksi
-              </button>
-              <button
-                onClick={() => {
-                  window.open(
-                    `https://api.whatsapp.com/send?phone=6285659781477&text=${encodeURIComponent(
-                      'Halo CS Kafelas Laundry, saya ingin konsultasi seputar akun owner.'
-                    )}`,
-                    '_blank'
-                  );
-                }}
                 className="flex-1 py-2 rounded-xl bg-white hover:bg-slate-100 text-slate-700 text-[11px] font-bold transition flex items-center justify-center gap-1 border border-slate-200 cursor-pointer shadow-2xs"
               >
-                💬 Bantuan CS
+                <span>Riwayat Transaksi</span>
               </button>
+              <a
+                href={buildWhatsAppAdminUrl('Halo CS Kafelas Laundry, saya ingin konsultasi seputar akun owner.')}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-1 py-2 rounded-xl bg-white hover:bg-slate-100 text-slate-700 text-[11px] font-bold transition flex items-center justify-center gap-1 border border-slate-200 cursor-pointer shadow-2xs"
+              >
+                <span>Bantuan CS</span>
+              </a>
             </div>
           </div>
           {/* KOLOM 2: DAFTAR CABANG LAUNDRY */}
@@ -394,166 +426,16 @@ export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
         </div>
       </main>
 
-      {/* Top Up Wallet Modal */}
-      {showTopUpModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-4 animate-fade-in">
-          <div className="w-full max-w-sm bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] border border-slate-100">
-            <div className="bg-[#800000] text-white p-4 flex justify-between items-center shrink-0">
-              <div>
-                <h3 className="font-bold text-xs flex items-center gap-1.5">
-                  <CreditCard className="w-4 h-4" />
-                  Isi Saldo Akun Owner
-                </h3>
-                <p className="text-[10px] text-white/80">Saldo untuk perpanjang masa aktif server & cabang</p>
-              </div>
-              <button
-                onClick={() => {
-                  setShowTopUpModal(false);
-                  setCustomTopUp('');
-                  setCopiedBank(null);
-                }}
-                className="p-1.5 rounded-full text-white/80 hover:text-white hover:bg-white/10 transition cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="p-4 overflow-y-auto space-y-3.5 text-xs">
-  <div className="overflow-y-auto space-y-3.5 text-xs">
-  <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-between shadow-2xs">
-    <div>
-      <span className="text-[10px] text-slate-500 font-semibold">Saldo Dompet Saat Ini:</span>
-      <div className="text-sm font-black text-slate-900">{formatRupiah(currentUser.walletBalance)}</div>
-    </div>
-    
-    {/* Posisi Sebelah Kanan */}
-    <div className="text-right">
-      <span className="inline-flex items-center px-2 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] font-bold">
-        ✓ Aktif &amp; Aman
-      </span>
-    </div>
-  </div>
-</div>
-              {/* 1. Pilih Nominal */}
-              <div className="space-y-1.5">
-                <label className="font-bold text-slate-800 text-[11px]">1. Pilih Nominal Top Up</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {[25000, 27000, 50000, 100000].map((nom) => {
-                    const isSelected = selectedNominal === nom && !customTopUp;
-                    return (
-                      <button
-                        key={nom}
-                        type="button"
-                        onClick={() => {
-                          setSelectedNominal(nom);
-                          setCustomTopUp('');
-                        }}
-                        className={`p-2.5 rounded-2xl border text-center transition font-bold cursor-pointer ${
-                          isSelected
-                            ? 'border-[#800000] bg-rose-50/80 text-[#800000] ring-1 ring-[#800000] shadow-2xs'
-                            : 'border-slate-200 hover:border-slate-300 text-slate-700 bg-white'
-                        }`}
-                      >
-                        <span className="block text-[9px] text-slate-400 font-normal">
-                          {nom === 25000 ? 'Tambah 1 Cabang' : nom === 27000 ? 'Paket Premium' : nom === 50000 ? 'Top up' : 'Top Up'}
-                        </span>
-                        <span className="text-xs font-black">{formatRupiah(nom)}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <div className="pt-1">
-                  <div className="relative">
-                    <span className="absolute left-3.5 top-2.5 text-xs font-bold text-slate-400">Rp</span>
-                    <input
-                      type="number"
-                      min="1000"
-                      step="1000"
-                      placeholder="Nominal kustom..."
-                      value={customTopUp}
-                      onChange={(e) => {
-                        setCustomTopUp(e.target.value);
-                        const n = parseInt(e.target.value, 10);
-                        if (!isNaN(n) && n > 0) setSelectedNominal(n);
-                      }}
-                      className="w-full pl-9 pr-3.5 py-2 rounded-2xl border border-slate-300 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-[#800000] focus:outline-none"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* 2. Tujuan Pembayaran */}
-              <div className="space-y-2 pt-1 border-t border-slate-100">
-                <label className="font-bold text-slate-800 text-[11px]">2. Transfer ke Rekening Resmi:</label>
-                <div className="p-3 bg-amber-50/80 border border-amber-200 rounded-2xl space-y-2 text-slate-700">
-                  <div className="flex items-center justify-between bg-white p-2.5 rounded-xl border border-amber-200/80 shadow-2xs">
-                    <div>
-                      <div className="font-bold text-slate-900 flex items-center gap-1.5 text-[11px]">
-                        <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 text-[9px] font-black">BRI</span>
-                        <span>4108 0100 8396 530</span>
-                      </div>
-                      <div className="text-[10px] text-slate-500">a/n Iqbal S nuha</div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        navigator.clipboard.writeText('410801008396530');
-                        setCopiedBank('BRI');
-                        setTimeout(() => setCopiedBank(null), 2000);
-                      }}
-                      className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-bold flex items-center gap-1 transition cursor-pointer"
-                    >
-                      {copiedBank === 'BRI' ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3 text-slate-500" />}
-                      <span>Salin</span>
-                    </button>
-                  </div>
-
-                  <div className="flex items-center justify-between bg-white p-2.5 rounded-xl border border-amber-200/80 shadow-2xs">
-                    <div>
-                      <div className="font-bold text-slate-900 flex items-center gap-1.5 text-[11px]">
-                        <span className="px-1.5 py-0.5 rounded bg-sky-100 text-sky-800 text-[9px] font-black">DANA</span>
-                        <span>0831 3230 4649</span>
-                      </div>
-                      <div className="text-[10px] text-slate-500">a/n Iqbal S Nuha</div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        navigator.clipboard.writeText('085659781477');
-                        setCopiedBank('DANA');
-                        setTimeout(() => setCopiedBank(null), 2000);
-                      }}
-                      className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-bold flex items-center gap-1 transition cursor-pointer"
-                    >
-                      {copiedBank === 'DANA' ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3 text-slate-500" />}
-                      <span>Salin</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* 3. Konfirmasi */}
-              <div className="space-y-2 pt-1 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const nominalFinal = customTopUp ? parseInt(customTopUp, 10) || selectedNominal : selectedNominal;
-                    const pesanWA = `Halo Admin Kafelas Laundry,\nSaya ingin konfirmasi top up saldo akun owner:\n• Nama: ${currentUser.displayName}\n• ID: ${currentUser.uid}\n• Nominal: ${formatRupiah(nominalFinal)}`;
-                    window.open(`https://api.whatsapp.com/send?phone=6285659781477&text=${encodeURIComponent(pesanWA)}`, '_blank');
-                  }}
-                  className="w-full py-3 px-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md transition active:scale-95 cursor-pointer"
-                >
-                  <span>💬 Kirim Bukti ke WhatsApp Admin</span>
-                  <ExternalLink className="w-3.5 h-3.5" />
-                </button>
-
-
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <TopUpModal
+        isOpen={showTopUpModal}
+        onClose={() => setShowTopUpModal(false)}
+        currentUser={currentUser}
+        onMidtransSettled={onMidtransSettled}
+        sisaHari={sisaHari}
+        initialPurpose={topUpPurpose}
+        initialMethod={topUpMethod}
+        initialNominal={selectedNominal}
+      />
 
       {/* Add Branch Modal */}
       {showAddBranchModal && (

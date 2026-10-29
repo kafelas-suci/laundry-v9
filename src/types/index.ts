@@ -1,6 +1,8 @@
 export interface User {
   uid: string;
+  ownerId?: string | null;
   emailOrPhone: string;
+  authEmail?: string | null;
   username?: string;
   nomorTelepon?: string | null;
   role: 'owner' | 'admin' | 'karyawan';
@@ -9,10 +11,11 @@ export interface User {
   tanggalGajian?: number | null;
   bayarGajiOtomatis?: boolean;
   laundryId: string;
-  laundries: Record<string, string>; // { [laundryId]: namaLaundry }
+  laundries: Record<string, string>;
   walletBalance: number;
   subscriptionEndDate?: number | null;
   subscriptionType?: string | null;
+  lastSettledOrderId?: string | null;
   createdAt?: number | null;
   isOwnerAdmin?: boolean;
   password?: string;
@@ -24,6 +27,8 @@ export interface Laundry {
   namaLaundry: string;
   alamat?: string | null;
   nomorTelepon?: string | null;
+  subscriptionType?: string | null;
+  subscriptionEndDate?: number | null;
 }
 
 export interface Layanan {

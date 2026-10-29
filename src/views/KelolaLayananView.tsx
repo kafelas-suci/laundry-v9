@@ -240,9 +240,7 @@ export const KelolaLayananView: React.FC<KelolaLayananViewProps> = ({
             <p className="text-[11px] text-white/80 font-medium">
               {limits.tier === 'newcomer'
                 ? `${layananList.length}/${limits.maxServices} Layanan Aktif (Newcomer)`
-                : limits.tier === 'premium'
-                ? `${layananList.length}/${limits.maxServices} Layanan Aktif (Premium)`
-                : `${layananList.length} Layanan Aktif (Pro)`}
+                : `${layananList.length} Layanan Aktif (Unlimited)`}
             </p>
           </div>
         </div>

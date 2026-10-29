@@ -1,3 +1,11 @@
+import { initializeApp, deleteApp } from 'firebase/app';
+import {
+  getAuth,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  updateProfile,
+  signOut as firebaseSignOut,
+} from 'firebase/auth';
 import {
   collection,
   doc,
@@ -13,7 +21,7 @@ import {
   limit,
   onSnapshot,
 } from 'firebase/firestore';
-import { db, auth, handleFirestoreError, OperationType } from '../firebase';
+import { db, auth, firebaseConfig, handleFirestoreError, OperationType } from '../firebase';
 import {
   User,
   Laundry,
@@ -25,6 +33,7 @@ import {
 } from '../types';
 import { defaultLayananList, defaultSettings, StorageService } from './storage';
 import { IndexedDbService } from './indexedDb';
+import { formatNomorWA } from './formatters';
 
 export interface PendingSignUpInfo {
   namaLaundry?: string;
@@ -94,6 +103,15 @@ export class FirebaseSyncService {
     return null;
   }
 
+  static resolveCashierAuthEmail(input: string): string {
+    const clean = (input || '').trim().toLowerCase();
+    if (!clean) return '';
+    if (clean.includes('@')) return clean;
+    const normalizedPhone = formatNomorWA(clean);
+    const digits = normalizedPhone || clean.replace(/[^0-9]/g, '');
+    return digits ? `${digits}@kafelas.app` : clean;
+  }
+
   static async getOrCreateUserProfile(firebaseUser: {
     uid: string;
     email?: string | null;
@@ -137,9 +155,59 @@ export class FirebaseSyncService {
     try {
       const snap = await getDoc(userDocRef);
 
-      // Jika bukan proses signup baru dan dokumen user sudah ada di Firestore
       if (snap.exists() && !firebaseUser.isSignUp) {
         const rawUser = snap.data() as any;
+
+        if (rawUser.role === 'admin' || rawUser.role === 'karyawan') {
+          const assignedLaundryId = rawUser.laundryId;
+          if (!assignedLaundryId) {
+            const err = new Error('Akun kasir belum ditugaskan ke cabang laundry.') as Error & { code?: string };
+            err.code = 'CASHIER_REVOKED';
+            throw err;
+          }
+
+          const staffSnap = await getDoc(doc(db, 'laundries', assignedLaundryId, 'staff', firebaseUser.uid));
+          if (!staffSnap.exists()) {
+            const err = new Error('Akses akun kasir ini telah dinonaktifkan oleh Owner.') as Error & { code?: string };
+            err.code = 'CASHIER_REVOKED';
+            throw err;
+          }
+
+          const branchSnap = await getDoc(doc(db, 'laundries', assignedLaundryId)).catch(() => null);
+          const branchData = branchSnap && branchSnap.exists() ? (branchSnap.data() as any) : null;
+          const resolvedBranchName =
+            cleanPlaceholder(branchData?.namaLaundry) ||
+            cleanPlaceholder(rawUser.laundries?.[assignedLaundryId]) ||
+            "Kafela's Laundry";
+
+          const prevStored = StorageService.get<User | null>('active_user', null);
+          if (prevStored?.uid !== firebaseUser.uid) {
+            StorageService.set('transaksi', []);
+            StorageService.set('pelanggan', []);
+            StorageService.set('pengeluaran', []);
+            StorageService.set('manual_cash_logs', []);
+          }
+
+          const cashierUser: User = {
+            ...rawUser,
+            uid: firebaseUser.uid,
+            ownerId: rawUser.ownerId || branchData?.ownerId || null,
+            role: rawUser.role === 'karyawan' ? 'karyawan' : 'admin',
+            displayName: cleanPlaceholder(rawUser.displayName) || cleanPlaceholder(firebaseUser.displayName) || 'Kasir',
+            username: cleanPlaceholder(rawUser.username) || cleanPlaceholder(rawUser.displayName) || 'Kasir',
+            emailOrPhone: rawUser.emailOrPhone || emailStr || '',
+            laundryId: assignedLaundryId,
+            laundries: { [assignedLaundryId]: resolvedBranchName },
+            walletBalance: 0,
+            subscriptionType: branchData?.subscriptionType || rawUser.subscriptionType || 'premium',
+            subscriptionEndDate: branchData?.subscriptionEndDate ?? rawUser.subscriptionEndDate ?? null,
+          };
+
+          StorageService.set('active_user', cashierUser);
+          StorageService.set('current_laundry_id', assignedLaundryId);
+          return cashierUser;
+        }
+
         let resolvedDisplayName = rawUser.displayName;
         while (typeof resolvedDisplayName === 'object' && resolvedDisplayName !== null) {
           resolvedDisplayName =
@@ -177,7 +245,6 @@ export class FirebaseSyncService {
           username: rawUser.username || healedDisplayName,
         };
 
-        // Jika ada data kosong yang berhasil dilengkapi dari input eksplisit, simpan perbaikannya ke Firestore
         const needsHeal =
           healedPhone !== existingPhone ||
           healedBranchName !== existingBranchName ||
@@ -211,14 +278,14 @@ export class FirebaseSyncService {
         return user;
       }
 
-      // Pendaftaran akun baru (atau pemulihan paksa saat isSignUp = true):
-      // Bersihkan sisa state lokal akun sebelumnya agar tidak mencemari akun baru
       const initialBranch: Laundry = {
         id: defaultLaundryId,
         ownerId: firebaseUser.uid,
         namaLaundry: branchName,
         alamat: '',
         nomorTelepon: phone,
+        subscriptionType: 'newcomer',
+        subscriptionEndDate: null,
       };
 
       const customSettings: SettingsData = {
@@ -249,12 +316,10 @@ export class FirebaseSyncService {
       StorageService.set('settings', customSettings);
       StorageService.set('layanan', seededLayanan);
 
-      // 1. Simpan dokumen profil user & cabang utama terlebih dahulu (memenuhi syarat kepemilikan rules subkoleksi)
       await setDoc(userDocRef, newUser, { merge: true });
       const branchRef = doc(db, 'laundries', defaultLaundryId);
       await setDoc(branchRef, initialBranch, { merge: true });
 
-      // 2. Simpan pengaturan struk & 10 layanan awal secara atomik dalam 1 batch
       const batch = writeBatch(db);
       const settingsRef = doc(db, 'laundries', defaultLaundryId, 'settings', 'main');
       batch.set(settingsRef, customSettings, { merge: true });
@@ -265,8 +330,11 @@ export class FirebaseSyncService {
       await batch.commit();
 
       return newUser;
-    } catch (e) {
-      console.warn('Gagal membaca/menyimpan profil di Firestore (izin terbatas), menggunakan profil lokal:', e);
+    } catch (e: any) {
+      if (e?.code === 'CASHIER_REVOKED') {
+        throw e;
+      }
+      console.warn('Gagal membaca/menyimpan profil di Firestore, menggunakan profil lokal:', e);
       StorageService.set('active_user', newUser);
       return newUser;
     }
@@ -342,6 +410,205 @@ export class FirebaseSyncService {
       console.warn('Gagal fetch laundries dari server, gunakan cache:', e);
       return validCached;
     }
+  }
+
+  static async fetchAssignedLaundry(laundryId: string): Promise<Laundry | null> {
+    if (!auth.currentUser || !laundryId) return null;
+    try {
+      const snap = await getDoc(doc(db, 'laundries', laundryId));
+      if (!snap.exists()) return null;
+      const data = snap.data() as any;
+      let nama = data.namaLaundry;
+      while (typeof nama === 'object' && nama !== null) {
+        nama = nama.namaLaundry || nama.name || "Kafela's Laundry";
+      }
+      return {
+        ...data,
+        id: data.id || snap.id,
+        ownerId: data.ownerId || '',
+        namaLaundry: cleanPlaceholder(typeof nama === 'string' ? nama : '') || "Kafela's Laundry",
+        alamat: cleanPlaceholder(data.alamat),
+        nomorTelepon: cleanPlaceholder(data.nomorTelepon),
+        subscriptionType: data.subscriptionType ?? null,
+        subscriptionEndDate: data.subscriptionEndDate ?? null,
+      };
+    } catch (e) {
+      console.warn('Gagal mengambil data cabang kasir:', e);
+      return null;
+    }
+  }
+
+  static async fetchOwnerStaff(laundryIds: string[]): Promise<User[]> {
+    if (!auth.currentUser || laundryIds.length === 0) return [];
+    const validIds = Array.from(new Set(laundryIds.filter((id) => id && id !== 'lnd-1' && id !== 'demo-lnd-1')));
+    if (validIds.length === 0) return [];
+
+    const staffMap = new Map<string, User>();
+    await Promise.all(
+      validIds.map(async (branchId) => {
+        try {
+          const snap = await getDocs(collection(db, 'laundries', branchId, 'staff'));
+          snap.forEach((d) => {
+            const raw = d.data() as any;
+            const uid = raw.uid || d.id;
+            staffMap.set(uid, {
+              uid,
+              ownerId: raw.ownerId || auth.currentUser?.uid || null,
+              emailOrPhone: raw.emailOrPhone || '',
+              authEmail: raw.authEmail || null,
+              nomorTelepon: raw.nomorTelepon || null,
+              username: raw.displayName || 'Kasir',
+              displayName: raw.displayName || 'Kasir',
+              role: raw.role === 'karyawan' ? 'karyawan' : 'admin',
+              laundryId: raw.laundryId || branchId,
+              laundries: raw.laundries || {},
+              walletBalance: 0,
+              createdAt: raw.createdAt || null,
+            });
+          });
+        } catch (e) {
+          console.warn(`Gagal memuat daftar kasir cabang ${branchId}:`, e);
+        }
+      })
+    );
+    return Array.from(staffMap.values());
+  }
+
+  static async provisionCashierAccount(params: {
+    nama: string;
+    emailOrPhone: string;
+    password: string;
+    laundry: Laundry;
+    owner: User;
+  }): Promise<User> {
+    if (!auth.currentUser) {
+      throw new Error('Sesi Owner tidak aktif. Silakan masuk ulang.');
+    }
+
+    const cleanName = params.nama.trim();
+    const cleanInput = params.emailOrPhone.trim();
+    const isPhone = !cleanInput.includes('@');
+    const authEmail = FirebaseSyncService.resolveCashierAuthEmail(cleanInput);
+    if (!authEmail) {
+      throw new Error('Format Email atau Nomor WhatsApp kasir tidak valid.');
+    }
+
+    await FirebaseSyncService.saveLaundry({
+      ...params.laundry,
+      ownerId: params.owner.uid,
+      subscriptionType: params.owner.subscriptionType || 'premium',
+      subscriptionEndDate: params.owner.subscriptionEndDate ?? null,
+    });
+
+    const appName = `CashierProvision-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const secondaryApp = initializeApp(firebaseConfig, appName);
+    const secondaryAuth = getAuth(secondaryApp);
+
+    let cashierUid = '';
+    try {
+      try {
+        const created = await createUserWithEmailAndPassword(secondaryAuth, authEmail, params.password);
+        cashierUid = created.user.uid;
+        await updateProfile(created.user, { displayName: cleanName }).catch(() => undefined);
+      } catch (authErr: any) {
+        if (authErr?.code === 'auth/email-already-in-use') {
+          try {
+            const signedIn = await signInWithEmailAndPassword(secondaryAuth, authEmail, params.password);
+            cashierUid = signedIn.user.uid;
+            await updateProfile(signedIn.user, { displayName: cleanName }).catch(() => undefined);
+          } catch {
+            throw new Error(
+              'Email atau Nomor WhatsApp tersebut sudah terdaftar di akun lain. Gunakan email atau nomor WhatsApp berbeda.'
+            );
+          }
+        } else if (authErr?.code === 'auth/invalid-email') {
+          throw new Error('Format email atau nomor WhatsApp kasir tidak valid.');
+        } else if (authErr?.code === 'auth/weak-password') {
+          throw new Error('Kata sandi kasir minimal 6 karakter.');
+        } else {
+          throw new Error(authErr?.message || 'Gagal mendaftarkan akun login kasir.');
+        }
+      }
+    } finally {
+      await firebaseSignOut(secondaryAuth).catch(() => undefined);
+      await deleteApp(secondaryApp).catch(() => undefined);
+    }
+
+    const now = Date.now();
+    const branchId = params.laundry.id;
+    const branchName = params.laundry.namaLaundry || "Kafela's Laundry";
+
+    const cashierUser: User = {
+      uid: cashierUid,
+      ownerId: params.owner.uid,
+      emailOrPhone: cleanInput,
+      authEmail,
+      nomorTelepon: isPhone ? cleanInput : null,
+      username: cleanName,
+      displayName: cleanName,
+      role: 'admin',
+      laundryId: branchId,
+      laundries: { [branchId]: branchName },
+      walletBalance: 0,
+      subscriptionType: params.owner.subscriptionType || 'premium',
+      subscriptionEndDate: params.owner.subscriptionEndDate ?? null,
+      createdAt: now,
+    };
+
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'laundries', branchId, 'staff', cashierUid), {
+      uid: cashierUid,
+      ownerId: params.owner.uid,
+      laundryId: branchId,
+      displayName: cleanName,
+      emailOrPhone: cleanInput,
+      authEmail,
+      nomorTelepon: isPhone ? cleanInput : null,
+      role: 'admin',
+      createdAt: now,
+    });
+    batch.set(
+      doc(db, 'users', cashierUid),
+      FirebaseSyncService.sanitizeForFirestore(cashierUser),
+      { merge: true }
+    );
+    await batch.commit();
+
+    return cashierUser;
+  }
+
+  static async deleteCashierAccount(laundryId: string, cashierUid: string): Promise<void> {
+    if (!auth.currentUser || !cashierUid) return;
+    const batch = writeBatch(db);
+    if (laundryId && laundryId !== 'lnd-1' && laundryId !== 'demo-lnd-1') {
+      batch.delete(doc(db, 'laundries', laundryId, 'staff', cashierUid));
+    }
+    batch.delete(doc(db, 'users', cashierUid));
+    await batch.commit();
+  }
+
+  static async syncBranchesSubscription(
+    laundries: Laundry[],
+    subscriptionType: string,
+    subscriptionEndDate: number | null
+  ): Promise<void> {
+    if (!auth.currentUser || laundries.length === 0) return;
+    const valid = laundries.filter((l) => l.id && l.id !== 'lnd-1' && l.id !== 'demo-lnd-1');
+    if (valid.length === 0) return;
+    const batch = writeBatch(db);
+    for (const lnd of valid) {
+      batch.set(
+        doc(db, 'laundries', lnd.id),
+        {
+          id: lnd.id,
+          ownerId: auth.currentUser.uid,
+          subscriptionType,
+          subscriptionEndDate,
+        },
+        { merge: true }
+      );
+    }
+    await batch.commit().catch((e) => console.warn('Gagal sinkron langganan cabang:', e));
   }
 
   // Helper parser dokumen transaksi seragam
@@ -626,17 +893,20 @@ export class FirebaseSyncService {
           ? auth.currentUser.uid
           : laundry.ownerId;
       const branchRef = doc(db, 'laundries', laundry.id);
-      await setDoc(
-        branchRef,
-        {
-          id: laundry.id,
-          ownerId: resolvedOwnerId,
-          namaLaundry: laundry.namaLaundry || "Kafela's Laundry",
-          alamat: laundry.alamat ?? '',
-          nomorTelepon: laundry.nomorTelepon ?? '',
-        },
-        { merge: true }
-      );
+      const payload: Record<string, unknown> = {
+        id: laundry.id,
+        ownerId: resolvedOwnerId,
+        namaLaundry: laundry.namaLaundry || "Kafela's Laundry",
+        alamat: laundry.alamat ?? '',
+        nomorTelepon: laundry.nomorTelepon ?? '',
+      };
+      if (laundry.subscriptionType !== undefined) {
+        payload.subscriptionType = laundry.subscriptionType;
+      }
+      if (laundry.subscriptionEndDate !== undefined) {
+        payload.subscriptionEndDate = laundry.subscriptionEndDate;
+      }
+      await setDoc(branchRef, payload, { merge: true });
     } catch (e) {
       console.warn('Gagal memastikan dokumen cabang di Firestore:', e);
     }

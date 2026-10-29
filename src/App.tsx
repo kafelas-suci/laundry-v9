@@ -42,8 +42,16 @@ import { AssignStaffModal } from './components/AssignStaffModal';
 import { ReceiptModal } from './components/ReceiptModal';
 import { UpgradePlanModal } from './components/UpgradePlanModal';
 import { SubscriptionExpiredModal } from './components/SubscriptionExpiredModal';
+import { TopUpModal } from './components/TopUpModal';
 import { TransitionPickupData } from './components/QuickTransitionPickupModal';
-import { LaundryTier, normalizeTier, getLaundryLimits, EXTRA_BRANCH_PRICE } from './utils/subscription';
+import {
+  LaundryTier,
+  normalizeTier,
+  getLaundryLimits,
+  EXTRA_BRANCH_PRICE,
+  HARGA_PREMIUM_BULANAN,
+} from './utils/subscription';
+import { MidtransVerifyResult, PaymentPurpose } from './services/midtransService';
 import { formatRupiah, formatLocalInvoiceDateKey } from './utils/formatters';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { DesktopSidebar } from './components/DesktopSidebar';
@@ -68,21 +76,45 @@ type ViewType =
   | 'kelola_kasir'
   | 'settings';
 
+function safeGetSessionItem(key: string): string | null {
+  try {
+    return typeof window !== 'undefined' ? window.sessionStorage.getItem(key) : null;
+  } catch {
+    return null;
+  }
+}
+
+function safeSetSessionItem(key: string, value: string): void {
+  try {
+    if (typeof window !== 'undefined') {
+      window.sessionStorage.setItem(key, value);
+    }
+  } catch {
+    // Abaikan jika sessionStorage diblokir oleh pengaturan privasi / WebView
+  }
+}
+
+function getValidStoredUser(): User | null {
+  const raw = StorageService.get<User | null>('active_user', null);
+  if (raw && typeof raw === 'object' && typeof raw.uid === 'string' && raw.uid.trim().length > 0) {
+    return raw;
+  }
+  return null;
+}
+
 export default function App() {
   const toast = useToast();
   // Application State
   const [activeView, setActiveView] = useState<ViewType>(() => {
-    const hasSeenSplash = typeof window !== 'undefined' && sessionStorage.getItem('has_seen_splash');
-    const storedUser = StorageService.get<User | null>('active_user', null);
+    const hasSeenSplash = safeGetSessionItem('has_seen_splash');
+    const storedUser = getValidStoredUser();
     if (hasSeenSplash) {
       return storedUser ? 'dashboard' : 'auth';
     }
     return 'splash';
   });
   const [initialSignUpMode, setInitialSignUpMode] = useState(false);
-  const [currentUser, setCurrentUser] = useState<User | null>(() =>
-    StorageService.get<User | null>('active_user', null)
-  );
+  const [currentUser, setCurrentUser] = useState<User | null>(() => getValidStoredUser());
   const [isTourActive, setIsTourActive] = useState(false);
   const [tourStep, setTourStep] = useState(0);
 
@@ -243,17 +275,27 @@ export default function App() {
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
   const [isExpiredModalOpen, setIsExpiredModalOpen] = useState(false);
   const [upgradeTriggerReason, setUpgradeTriggerReason] = useState<string | undefined>(undefined);
+  const [globalPaymentModal, setGlobalPaymentModal] = useState<{
+    open: boolean;
+    purpose: PaymentPurpose;
+    method: 'midtrans' | 'manual';
+    nominal: number;
+  }>({
+    open: false,
+    purpose: 'extend_premium',
+    method: 'midtrans',
+    nominal: HARGA_PREMIUM_BULANAN,
+  });
 
-  // Otomatis tampilkan layar habis hari langganan jika akun telah kedaluwarsa (1x per sesi)
   useEffect(() => {
     if (!currentUser || activeTier === 'newcomer') return;
     const now = Date.now();
     const subEnd = currentUser.subscriptionEndDate || 0;
     if (subEnd > 0 && subEnd <= now) {
-      const hasPrompted = sessionStorage.getItem('expired_sub_prompted');
+      const hasPrompted = safeGetSessionItem('expired_sub_prompted');
       if (!hasPrompted) {
         setIsExpiredModalOpen(true);
-        sessionStorage.setItem('expired_sub_prompted', '1');
+        safeSetSessionItem('expired_sub_prompted', '1');
       }
     }
   }, [currentUser, activeTier]);
@@ -261,22 +303,6 @@ export default function App() {
   const handleOpenUpgradeModal = (reason?: string) => {
     setUpgradeTriggerReason(reason);
     setIsUpgradeModalOpen(true);
-  };
-
-  const handleSwitchTier = (newTier: LaundryTier) => {
-    if (newTier === 'newcomer') {
-      toast.warning('Paket Newcomer adalah paket awal otomatis untuk akun baru dan tidak dapat dipilih kembali.');
-      return;
-    }
-    setActiveTier('premium');
-    StorageService.set('active_subscription_tier', 'premium');
-    if (currentUser) {
-      const updatedUser = { ...currentUser, subscriptionType: 'premium' };
-      setCurrentUser(updatedUser);
-      StorageService.set('active_user', updatedUser);
-      FirebaseSyncService.updateUserProfile(updatedUser).catch(console.error);
-    }
-    toast.success('Selamat! Akun Anda telah ditingkatkan ke Paket Premium!');
   };
 
   // Toast & Double-Tap to Exit state saat berada di menu utama (Dashboard)
@@ -365,12 +391,15 @@ export default function App() {
       setIsExpiredModalOpen(false);
       return;
     }
+    if (globalPaymentModal.open) {
+      setGlobalPaymentModal((prev) => ({ ...prev, open: false }));
+      return;
+    }
     if (trxForAssignStaff) {
       setTrxForAssignStaff(null);
       return;
     }
 
-    // 2. Ambil halaman sebelumnya dari tumpukan navHistory
     const history = navHistoryRef.current;
     if (history.length > 0) {
       const prevItem = history[history.length - 1];
@@ -383,7 +412,6 @@ export default function App() {
       setSelectedTransaksiId(prevItem.selectedTransaksiId);
       setTransaksiToEdit(prevItem.transaksiToEdit);
 
-      // Sinkronkan tumpukan browser history
       if (typeof window !== 'undefined' && window.history.length > 1) {
         isProgrammaticBackRef.current = true;
         window.history.back();
@@ -391,7 +419,6 @@ export default function App() {
       return;
     }
 
-    // 3. Fallback jika tumpukan kosong dan bukan di dashboard
     if (activeView !== 'dashboard' && activeView !== 'splash' && activeView !== 'auth') {
       isNavigatingBackRef.current = true;
       setActiveView('dashboard');
@@ -411,11 +438,11 @@ export default function App() {
     isApkModalOpen,
     isLimitModalOpen,
     isExpiredModalOpen,
+    globalPaymentModal.open,
     trxForAssignStaff,
     activeView,
   ]);
 
-  // Ref tracking state aktif untuk popstate event listener
   const navStateRef = useRef({
     activeView,
     selectedTransaksiId,
@@ -426,6 +453,7 @@ export default function App() {
     isLimitModalOpen,
     isUpgradeModalOpen,
     isExpiredModalOpen,
+    isGlobalPaymentOpen: globalPaymentModal.open,
     hasTrxForAssignStaff: !!trxForAssignStaff,
     hasReceiptModalTrx: !!receiptModalTrx,
   });
@@ -441,6 +469,7 @@ export default function App() {
       isLimitModalOpen,
       isUpgradeModalOpen,
       isExpiredModalOpen,
+      isGlobalPaymentOpen: globalPaymentModal.open,
       hasTrxForAssignStaff: !!trxForAssignStaff,
       hasReceiptModalTrx: !!receiptModalTrx,
     };
@@ -454,6 +483,7 @@ export default function App() {
     isLimitModalOpen,
     isUpgradeModalOpen,
     isExpiredModalOpen,
+    globalPaymentModal.open,
     trxForAssignStaff,
     receiptModalTrx,
   ]);
@@ -508,6 +538,11 @@ export default function App() {
       }
       if (state.isExpiredModalOpen) {
         setIsExpiredModalOpen(false);
+        window.history.pushState({ view: state.activeView }, '');
+        return;
+      }
+      if (state.isGlobalPaymentOpen) {
+        setGlobalPaymentModal((prev) => ({ ...prev, open: false }));
         window.history.pushState({ view: state.activeView }, '');
         return;
       }
@@ -692,7 +727,10 @@ export default function App() {
       StorageService.set('current_laundry_id', targetBranchId);
     }
 
-    const ownerUid = currentUser?.uid || auth.currentUser?.uid || 'own-1';
+    const ownerUid =
+      currentUser?.role !== 'owner'
+        ? activeLaundry?.ownerId || currentUser?.ownerId || 'own-1'
+        : currentUser?.uid || auth.currentUser?.uid || 'own-1';
     const branchToSave: Laundry = {
       id: targetBranchId,
       ownerId: ownerUid,
@@ -712,7 +750,7 @@ export default function App() {
     });
 
     let userToSave: User | null = null;
-    if (currentUser) {
+    if (currentUser && currentUser.role === 'owner') {
       const isPrimaryBranch =
         !currentUser.laundryId ||
         currentUser.laundryId === 'lnd-1' ||
@@ -733,8 +771,7 @@ export default function App() {
       StorageService.set('active_user', userToSave);
     }
 
-    if (targetBranchId && auth.currentUser) {
-      // Pastikan dokumen cabang induk tersimpan terlebih dahulu agar aturan keamanan subkoleksi settings terpenuhi
+    if (targetBranchId && auth.currentUser && currentUser?.role === 'owner') {
       await FirebaseSyncService.saveLaundry(branchToSave).catch(console.warn);
       await Promise.all([
         FirebaseSyncService.saveSettings(targetBranchId, nextSettings).catch(console.error),
@@ -809,52 +846,80 @@ export default function App() {
       const latestStoredLaundries = StorageService.get<Laundry[]>('laundries', laundries);
       const latestStoredSettings = StorageService.get<SettingsData>('settings', settings);
 
-      // 1. Fetch Laundries
-      const userLaundries = await FirebaseSyncService.fetchLaundries(user.uid, latestStoredLaundries, forceSync);
-      const cleanLaundries = user && user.uid && !user.uid.startsWith('demo')
-        ? userLaundries.filter((l) => l.id !== 'lnd-1' && l.id !== 'demo-lnd-1' && l.namaLaundry !== '-')
-        : userLaundries;
-      const finalLaundries = cleanLaundries.length > 0 ? cleanLaundries : userLaundries;
-      const targetLaundryId = finalLaundries[0]?.id || user.laundryId || `lnd-${user.uid}`;
-
+      let targetLaundryId = user.laundryId || `lnd-${user.uid}`;
       let resolvedPrimaryBranch: Laundry;
-      if (finalLaundries.length > 0) {
-        const first = finalLaundries[0];
-        const profileBranchName = cleanField(user.laundries?.[first.id]);
-        const profilePhone = cleanField(user.nomorTelepon);
-        const enrichedFirst: Laundry = {
-          ...first,
-          namaLaundry:
-            cleanField(first.namaLaundry) && first.namaLaundry !== 'Laundry'
-              ? first.namaLaundry
-              : profileBranchName || first.namaLaundry || "Kafela's Laundry",
-          nomorTelepon: cleanField(first.nomorTelepon) || profilePhone || '',
-          alamat: cleanField(first.alamat),
-        };
-        const updatedBranches = [enrichedFirst, ...finalLaundries.slice(1)];
-        resolvedPrimaryBranch = enrichedFirst;
-        updateLaundries(updatedBranches);
-      } else {
-        const profileBranchName = cleanField(user.laundries?.[targetLaundryId]);
-        const initialName =
-          profileBranchName ||
-          cleanField(latestStoredSettings?.headerStruk) ||
-          cleanField(user.displayName) ||
-          "Kafela's Laundry";
-        const initialPhone =
-          cleanField(user.nomorTelepon) || cleanField(latestStoredSettings?.phoneNumber) || '';
-        const initialAddress = cleanField(latestStoredSettings?.address);
 
-        const defaultBranch: Laundry = {
-          id: targetLaundryId,
-          ownerId: user.uid,
-          namaLaundry: initialName,
-          alamat: initialAddress,
-          nomorTelepon: initialPhone,
-        };
-        resolvedPrimaryBranch = defaultBranch;
-        updateLaundries([defaultBranch]);
-        FirebaseSyncService.saveLaundry(defaultBranch).catch(console.warn);
+      if (user.role !== 'owner') {
+        const assignedBranch = await FirebaseSyncService.fetchAssignedLaundry(user.laundryId);
+        if (assignedBranch) {
+          targetLaundryId = assignedBranch.id;
+          resolvedPrimaryBranch = assignedBranch;
+          updateLaundries([assignedBranch]);
+          if (assignedBranch.subscriptionType) {
+            const branchTier = normalizeTier(assignedBranch.subscriptionType);
+            setActiveTier(branchTier);
+            StorageService.set('active_subscription_tier', branchTier);
+          }
+        } else {
+          resolvedPrimaryBranch = {
+            id: targetLaundryId,
+            ownerId: user.ownerId || '',
+            namaLaundry: cleanField(user.laundries?.[targetLaundryId]) || "Kafela's Laundry",
+            alamat: '',
+            nomorTelepon: cleanField(user.nomorTelepon),
+          };
+          updateLaundries([resolvedPrimaryBranch]);
+        }
+      } else {
+        const userLaundries = await FirebaseSyncService.fetchLaundries(user.uid, latestStoredLaundries, forceSync);
+        const cleanLaundries = user && user.uid && !user.uid.startsWith('demo')
+          ? userLaundries.filter((l) => l.id !== 'lnd-1' && l.id !== 'demo-lnd-1' && l.namaLaundry !== '-')
+          : userLaundries;
+        const finalLaundries = cleanLaundries.length > 0 ? cleanLaundries : userLaundries;
+        targetLaundryId = finalLaundries[0]?.id || user.laundryId || `lnd-${user.uid}`;
+
+        if (finalLaundries.length > 0) {
+          const first = finalLaundries[0];
+          const profileBranchName = cleanField(user.laundries?.[first.id]);
+          const profilePhone = cleanField(user.nomorTelepon);
+          const enrichedFirst: Laundry = {
+            ...first,
+            namaLaundry:
+              cleanField(first.namaLaundry) && first.namaLaundry !== 'Laundry'
+                ? first.namaLaundry
+                : profileBranchName || first.namaLaundry || "Kafela's Laundry",
+            nomorTelepon: cleanField(first.nomorTelepon) || profilePhone || '',
+            alamat: cleanField(first.alamat),
+          };
+          const updatedBranches = [enrichedFirst, ...finalLaundries.slice(1)];
+          resolvedPrimaryBranch = enrichedFirst;
+          updateLaundries(updatedBranches);
+          const cloudStaff = await FirebaseSyncService.fetchOwnerStaff(updatedBranches.map((b) => b.id));
+          updateStaffList(cloudStaff);
+        } else {
+          const profileBranchName = cleanField(user.laundries?.[targetLaundryId]);
+          const initialName =
+            profileBranchName ||
+            cleanField(latestStoredSettings?.headerStruk) ||
+            cleanField(user.displayName) ||
+            "Kafela's Laundry";
+          const initialPhone =
+            cleanField(user.nomorTelepon) || cleanField(latestStoredSettings?.phoneNumber) || '';
+          const initialAddress = cleanField(latestStoredSettings?.address);
+
+          const defaultBranch: Laundry = {
+            id: targetLaundryId,
+            ownerId: user.uid,
+            namaLaundry: initialName,
+            alamat: initialAddress,
+            nomorTelepon: initialPhone,
+            subscriptionType: user.subscriptionType || 'newcomer',
+            subscriptionEndDate: user.subscriptionEndDate ?? null,
+          };
+          resolvedPrimaryBranch = defaultBranch;
+          updateLaundries([defaultBranch]);
+          FirebaseSyncService.saveLaundry(defaultBranch).catch(console.warn);
+        }
       }
       setActiveLaundryId(targetLaundryId);
       StorageService.set('current_laundry_id', targetLaundryId);
@@ -993,18 +1058,35 @@ export default function App() {
           StorageService.set('active_user', profile);
           await loadFirestoreData(profile, true);
           FirebaseSyncService.syncPendingOutbox().catch(console.warn);
-        } catch (err) {
-          console.warn('Gagal memuat data pengguna pada onAuthStateChanged:', err);
+        } catch (err: any) {
+          if (err?.code === 'CASHIER_REVOKED') {
+            await signOut(auth).catch(() => undefined);
+            setCurrentUser(null);
+            StorageService.set('active_user', null);
+            setActiveView('auth');
+            toast.warning(err.message || 'Akses akun kasir ini telah dinonaktifkan oleh Owner.');
+          } else {
+            console.warn('Gagal memuat data pengguna pada onAuthStateChanged:', err);
+          }
         }
       } else {
-        const stored = StorageService.get<User | null>('active_user', null);
+        const stored = getValidStoredUser();
         if (!stored) {
           setCurrentUser(null);
+          setActiveView((prev) => (prev === 'splash' || prev === 'auth' ? prev : 'auth'));
         }
       }
     });
     return () => unsubscribe();
   }, []);
+
+  // Guard anti-layar-kosong: jika berada di halaman internal tanpa sesi user aktif, arahkan ke halaman login
+  useEffect(() => {
+    if (activeView !== 'splash' && activeView !== 'auth' && !currentUser) {
+      console.warn('[Kafelas Boot] Sesi pengguna kosong pada rute internal, mengarahkan ke AuthView.');
+      setActiveView('auth');
+    }
+  }, [activeView, currentUser]);
 
   // Handlers
   const handleSelectBranch = (laundryId: string) => {
@@ -1418,7 +1500,7 @@ export default function App() {
   };
 
   const handleProceedCreateNewFromLimit = () => {
-    if (activeUncollectedTrx.length >= 400) {
+    if (activeTier === 'newcomer' && activeUncollectedTrx.length >= 400) {
       toast.warning(
         'Transaksi aktif telah mencapai batas maksimal (400 pesanan). Harap arsipkan pesanan terlebih dahulu sebelum membuat transaksi baru.'
       );
@@ -1492,8 +1574,8 @@ export default function App() {
       };
       setCurrentUser(updatedUser);
       StorageService.set('active_user', updatedUser);
+      FirebaseSyncService.updateUserProfile(updatedUser).catch(console.error);
 
-      // Record in subscription history
       const newHist: SubscriptionHistory = {
         id: `hist-${Date.now()}`,
         ownerId: currentUser.uid,
@@ -1516,11 +1598,12 @@ export default function App() {
       namaLaundry: nama,
       alamat: alamat || null,
       nomorTelepon: telepon || null,
+      subscriptionType: currentUser?.subscriptionType || activeTier,
+      subscriptionEndDate: currentUser?.subscriptionEndDate ?? null,
     };
     updateLaundries([...laundries, newLnd]);
     FirebaseSyncService.saveLaundry(newLnd).catch(console.warn);
 
-    // Copy services if requested
     if (copyFromId) {
       const sourceLayanan = layananList.filter((l) => l.laundryId === copyFromId);
       const clonedLayanan = sourceLayanan.map((l, i) => ({
@@ -1565,7 +1648,6 @@ export default function App() {
       FirebaseSyncService.updateUserProfile(updatedUser).catch(console.warn);
     }
 
-    // Sinkronisasi 1 Pintu: Gunakan functional state update agar logo & footer struk tidak tertimpa closure lama
     if (lnd.id === activeLaundryId) {
       setSettings((prev) => {
         const updatedSettings: SettingsData = {
@@ -1591,85 +1673,145 @@ export default function App() {
     }
   };
 
-  const handleAddKasir = (nama: string, email: string, pass: string, laundryId: string) => {
+  const handleAddKasir = async (
+    nama: string,
+    email: string,
+    pass: string,
+    laundryId: string
+  ): Promise<boolean> => {
+    if (!currentUser || currentUser.role !== 'owner') {
+      toast.error('Hanya Owner yang dapat mendaftarkan akun kasir.');
+      return false;
+    }
+
     const limits = getLaundryLimits(activeTier);
 
     if (limits.tier === 'newcomer' || limits.maxCashiers <= 0) {
       toast.warning('Fitur pembuatan akun kasir tambahan hanya untuk Paket Premium.');
-      return;
+      return false;
     }
 
-    // Cek batas per outlet: 1 admin per outlet
     const branchAdmins = staffList.filter(
       (s) => s.laundryId === laundryId && (s.role === 'admin' || s.role === 'karyawan')
     );
     if (branchAdmins.length >= limits.maxAdminPerOutlet) {
-      toast.warning('Cabang outlet ini sudah memiliki 1 admin kasir. Sistem membatasi 1 admin & 1 owner per outlet untuk keamanan dan proteksi bot.');
-      return;
+      toast.warning('Cabang outlet ini sudah memiliki 1 admin kasir aktif.');
+      return false;
     }
 
-    // Cek total kasir berdasarkan cabang yang dimiliki (1 admin kasir per cabang)
     const totalCashiers = staffList.filter((s) => s.role === 'admin' || s.role === 'karyawan').length;
     if (totalCashiers >= laundries.length) {
-      toast.warning(
-        'Semua cabang laundry yang Anda kelola sudah memiliki 1 admin kasir. Silakan tambah cabang baru untuk menambah akun kasir.'
-      );
-      return;
+      toast.warning('Semua cabang laundry yang Anda kelola sudah memiliki 1 admin kasir.');
+      return false;
     }
 
-    const isPhone = !email.includes('@');
-    const newKasir: User = {
-      uid: `usr-${Date.now()}`,
-      emailOrPhone: email,
-      nomorTelepon: isPhone ? email : null,
-      username: nama,
-      displayName: nama,
-      role: 'admin',
-      laundryId,
-      laundries: {},
-      walletBalance: 0,
-      password: pass,
-    };
-    updateStaffList([...staffList, newKasir]);
+    const targetBranch = laundries.find((l) => l.id === laundryId) || activeLaundry;
+
+    try {
+      const createdKasir = await FirebaseSyncService.provisionCashierAccount({
+        nama,
+        emailOrPhone: email,
+        password: pass,
+        laundry: targetBranch,
+        owner: currentUser,
+      });
+      updateStaffList([...staffList.filter((s) => s.uid !== createdKasir.uid), createdKasir]);
+      toast.success(`Akun kasir '${nama}' berhasil didaftarkan & siap login dari HP kasir!`);
+      return true;
+    } catch (err: any) {
+      toast.error(err?.message || 'Gagal mendaftarkan akun kasir di server.');
+      return false;
+    }
   };
 
-  const handleDeleteKasir = (uid: string) => {
-    updateStaffList(staffList.filter((u) => u.uid !== uid));
+  const handleDeleteKasir = async (uid: string) => {
+    const target = staffList.find((u) => u.uid === uid);
+    try {
+      await FirebaseSyncService.deleteCashierAccount(target?.laundryId || activeLaundryId, uid);
+      updateStaffList(staffList.filter((u) => u.uid !== uid));
+      toast.success('Akun kasir berhasil dihapus.');
+    } catch (err: any) {
+      toast.error(err?.message || 'Gagal menghapus akun kasir.');
+    }
   };
 
-  const handleTopUpWallet = (nominal: number) => {
-    if (!currentUser) return;
-    const updatedUser = {
+  const handleMidtransSettled = (result: MidtransVerifyResult) => {
+    if (!currentUser || result.status !== 'settled') return;
+
+    const nextWallet =
+      typeof result.walletBalance === 'number' ? result.walletBalance : currentUser.walletBalance;
+    const nextSubType = result.subscriptionType || currentUser.subscriptionType || 'newcomer';
+    const nextSubEnd =
+      result.subscriptionEndDate !== undefined
+        ? result.subscriptionEndDate
+        : currentUser.subscriptionEndDate ?? null;
+
+    const updatedUser: User = {
       ...currentUser,
-      walletBalance: currentUser.walletBalance + nominal,
+      walletBalance: nextWallet,
+      subscriptionType: nextSubType,
+      subscriptionEndDate: nextSubEnd,
+      lastSettledOrderId: result.orderId,
     };
+
     setCurrentUser(updatedUser);
     StorageService.set('active_user', updatedUser);
 
-    const historyItem: SubscriptionHistory = {
-      id: `sub-${Date.now()}`,
-      ownerId: currentUser.uid,
-      purchaseDate: Date.now(),
-      packageName: `Top Up Saldo (${nominal.toLocaleString('id-ID')})`,
-      cost: nominal,
-      durationDays: 0,
-      newExpiryDate: currentUser.subscriptionEndDate || 0,
-      laundries: [activeLaundryId],
-    };
-    const newHist = [historyItem, ...subscriptionHistory];
-    setSubscriptionHistory(newHist);
-    StorageService.set('subscription_history', newHist);
+    const resolvedTier = normalizeTier(nextSubType);
+    setActiveTier(resolvedTier);
+    StorageService.set('active_subscription_tier', resolvedTier);
 
-    // Sinkronisasi saldo dompet ke Firestore
-    FirebaseSyncService.updateUserProfile(updatedUser).catch(console.error);
+    if (result.purpose === 'extend_premium') {
+      const nextBranches = laundries.map((l) => ({
+        ...l,
+        subscriptionType: 'premium',
+        subscriptionEndDate: nextSubEnd,
+      }));
+      updateLaundries(nextBranches);
+      FirebaseSyncService.syncBranchesSubscription(nextBranches, 'premium', nextSubEnd).catch(
+        console.warn
+      );
+    }
+
+    if (!result.alreadyCredited) {
+      const amount = result.amount || HARGA_PREMIUM_BULANAN;
+      const days = result.durationDays || 0;
+      const historyItem: SubscriptionHistory = {
+        id: result.orderId || `sub-${Date.now()}`,
+        ownerId: currentUser.uid,
+        purchaseDate: Date.now(),
+        packageName:
+          result.purpose === 'extend_premium'
+            ? `Paket Premium Midtrans (${days || 30} Hari)`
+            : `Top Up Saldo Midtrans (${formatRupiah(amount)})`,
+        cost: amount,
+        durationDays: days,
+        newExpiryDate: nextSubEnd || 0,
+        laundries: laundries.map((l) => l.id),
+      };
+      const newHist = [historyItem, ...subscriptionHistory];
+      setSubscriptionHistory(newHist);
+      StorageService.set('subscription_history', newHist);
+    }
   };
 
   const handleExtendSubscription = (packageName: string, cost: number, days: number) => {
     if (!currentUser) return;
+    if ((currentUser.walletBalance || 0) < cost) {
+      toast.warning(`Saldo dompet tidak mencukupi (${formatRupiah(cost)}). Pilih Lewat Midtrans atau Transfer Biasa.`);
+      setGlobalPaymentModal({
+        open: true,
+        purpose: 'extend_premium',
+        method: 'midtrans',
+        nominal: cost,
+      });
+      return;
+    }
+
     const currentEnd = Math.max(Date.now(), currentUser.subscriptionEndDate || Date.now());
     const newEnd = currentEnd + days * 24 * 60 * 60 * 1000;
 
-    const updatedUser = {
+    const updatedUser: User = {
       ...currentUser,
       walletBalance: Math.max(0, currentUser.walletBalance - cost),
       subscriptionEndDate: newEnd,
@@ -1679,6 +1821,13 @@ export default function App() {
     StorageService.set('active_user', updatedUser);
     setActiveTier('premium');
     StorageService.set('active_subscription_tier', 'premium');
+
+    const nextBranches = laundries.map((l) => ({
+      ...l,
+      subscriptionType: 'premium',
+      subscriptionEndDate: newEnd,
+    }));
+    updateLaundries(nextBranches);
 
     const historyItem: SubscriptionHistory = {
       id: `sub-${Date.now()}`,
@@ -1694,8 +1843,8 @@ export default function App() {
     setSubscriptionHistory(newHist);
     StorageService.set('subscription_history', newHist);
 
-    // Sinkronisasi perpanjangan & sisa saldo ke Firestore
     FirebaseSyncService.updateUserProfile(updatedUser).catch(console.error);
+    FirebaseSyncService.syncBranchesSubscription(nextBranches, 'premium', newEnd).catch(console.warn);
   };
 
   const handleUpdateOwnerProfile = (data: { displayName: string; nomorTelepon?: string | null }) => {
@@ -1827,9 +1976,7 @@ export default function App() {
           <SplashView
             appName={settings.headerStruk || "Kafela's Laundry"}
             onFinish={() => {
-              if (typeof window !== 'undefined') {
-                sessionStorage.setItem('has_seen_splash', '1');
-              }
+              safeSetSessionItem('has_seen_splash', '1');
               if (currentUser) {
                 setActiveView('dashboard');
               } else {
@@ -1839,7 +1986,7 @@ export default function App() {
           />
         )}
 
-        {activeView === 'auth' && (
+        {(activeView === 'auth' || (activeView !== 'splash' && !currentUser)) && (
           <AuthView
             ownerUser={defaultOwnerUser}
             staffList={staffList}
@@ -1937,7 +2084,7 @@ export default function App() {
         )}
 
         {activeView === 'tambah_edit' && (
-          !transaksiToEdit && activeUncollectedTrx.length >= 400 ? (
+          !transaksiToEdit && activeTier === 'newcomer' && activeUncollectedTrx.length >= 400 ? (
             <div className="flex-1 flex flex-col items-center justify-center p-6 text-center bg-slate-100 min-h-[75vh]">
               <div className="max-w-md w-full bg-white rounded-3xl p-6 sm:p-7 border border-red-200 shadow-xl space-y-4">
                 <div className="w-16 h-16 rounded-3xl bg-red-100 text-red-600 flex items-center justify-center mx-auto shadow-inner">
@@ -1987,29 +2134,47 @@ export default function App() {
           )
         )}
 
-        {activeView === 'detail_transaksi' && currentSelectedTransaksi && currentUser && (
-          <DetailTransaksiView
-            onBack={navigateBack}
-            transaksi={currentSelectedTransaksi}
-            settings={settings}
-            currentUser={currentUser}
-            pelanggan={pelangganList.find(
-              (p) =>
-                p.nama.toLowerCase() ===
-                currentSelectedTransaksi.namaPelanggan.toLowerCase()
-            )}
-            laundryName={activeLaundry?.namaLaundry || settings.headerStruk}
-            laundryPhone={activeLaundry?.nomorTelepon || settings.phoneNumber}
-            laundryAddress={activeLaundry?.alamat || settings.address}
-            onEdit={(trx) => {
-              navigateTo('tambah_edit', { transaksiToEdit: trx });
-            }}
-            onDelete={handleDeleteTransaction}
-            onAmbil={(trx) => {
-              handleAmbilTransaksi(trx);
-              navigateBack();
-            }}
-          />
+        {activeView === 'detail_transaksi' && currentUser && (
+          currentSelectedTransaksi ? (
+            <DetailTransaksiView
+              onBack={navigateBack}
+              transaksi={currentSelectedTransaksi}
+              settings={settings}
+              currentUser={currentUser}
+              pelanggan={pelangganList.find(
+                (p) =>
+                  p.nama.toLowerCase() ===
+                  currentSelectedTransaksi.namaPelanggan.toLowerCase()
+              )}
+              laundryName={activeLaundry?.namaLaundry || settings.headerStruk}
+              laundryPhone={activeLaundry?.nomorTelepon || settings.phoneNumber}
+              laundryAddress={activeLaundry?.alamat || settings.address}
+              onEdit={(trx) => {
+                navigateTo('tambah_edit', { transaksiToEdit: trx });
+              }}
+              onDelete={handleDeleteTransaction}
+              onAmbil={(trx) => {
+                handleAmbilTransaksi(trx);
+                navigateBack();
+              }}
+            />
+          ) : (
+            <div className="flex-1 flex flex-col items-center justify-center p-6 text-center bg-slate-100 min-h-[75vh]">
+              <div className="max-w-md w-full bg-white rounded-3xl p-6 border border-slate-200 shadow-xl space-y-3">
+                <h3 className="text-base font-black text-slate-900">Nota Tidak Ditemukan</h3>
+                <p className="text-xs text-slate-500">
+                  Data transaksi yang dipilih sudah diarsipkan atau tidak tersedia.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => navigateTo('dashboard', { clearHistory: true })}
+                  className="w-full py-2.5 rounded-xl bg-[#800000] text-white font-bold text-xs shadow-md transition active:scale-95 cursor-pointer"
+                >
+                  Kembali ke Dashboard
+                </button>
+              </div>
+            </div>
+          )
         )}
 
         {activeView === 'status_pengerjaan' && (
@@ -2137,8 +2302,10 @@ export default function App() {
               pelangganList={pelangganList}
               settings={settings}
               activeLaundryId={activeLaundryId}
+              currentTier={activeTier}
               onSavePelanggan={handleSaveCustomer}
               onDeletePelanggan={handleDeleteCustomer}
+              onOpenUpgradeModal={handleOpenUpgradeModal}
             />
           )
         )}
@@ -2167,9 +2334,11 @@ export default function App() {
               layananList={layananList}
               activeLaundryId={activeLaundryId}
               settings={settings}
+              currentTier={activeTier}
               onSaveLayanan={handleSaveLayanan}
               onDeleteLayanan={handleDeleteLayanan}
               onReorderLayanan={updateLayananList}
+              onOpenUpgradeModal={handleOpenUpgradeModal}
             />
           )
         )}
@@ -2202,8 +2371,8 @@ export default function App() {
               onAddLaundry={handleAddLaundry}
               onUpdateLaundry={handleUpdateLaundry}
               onDeleteLaundry={handleDeleteLaundry}
-              onTopUpWallet={handleTopUpWallet}
               onExtendSubscription={handleExtendSubscription}
+              onMidtransSettled={handleMidtransSettled}
               onUpdateOwnerProfile={handleUpdateOwnerProfile}
               onOpenUpgradeModal={handleOpenUpgradeModal}
               onOpenExpiredModal={() => setIsExpiredModalOpen(true)}
@@ -2260,7 +2429,7 @@ export default function App() {
             onOpenKelolaKasir={() => navigateTo('kelola_kasir')}
             onOpenApkModal={() => setIsApkModalOpen(true)}
             onOpenUpgradeModal={handleOpenUpgradeModal}
-            onTopUpWallet={handleTopUpWallet}
+            onMidtransSettled={handleMidtransSettled}
             onUpdateOwnerProfile={handleUpdateOwnerProfile}
             onStartTour={handleStartTour}
             onLogout={handleLogoutUser}
@@ -2268,7 +2437,6 @@ export default function App() {
         )}
         </div>
 
-        {/* Global Modals */}
         <AturKasModal
           isOpen={isAturKasOpen}
           onClose={() => setIsAturKasOpen(false)}
@@ -2293,23 +2461,44 @@ export default function App() {
           onOpenUpgradeModal={handleOpenUpgradeModal}
         />
 
-        {/* Modal Komparasi Paket Newcomer & Paket Premium */}
         <UpgradePlanModal
           isOpen={isUpgradeModalOpen}
           onClose={() => setIsUpgradeModalOpen(false)}
+          currentUser={currentUser}
           currentTier={activeTier}
           triggerReason={upgradeTriggerReason}
-          onSwitchTier={handleSwitchTier}
+          onExtendWithWallet={() =>
+            handleExtendSubscription('Paket Premium (30 Hari)', HARGA_PREMIUM_BULANAN, 30)
+          }
+          onChoosePayment={(method) =>
+            setGlobalPaymentModal({
+              open: true,
+              purpose: 'extend_premium',
+              method,
+              nominal: HARGA_PREMIUM_BULANAN,
+            })
+          }
         />
 
-        {/* Modal / Halaman Habis Hari Langganan (Lihat Saldo, Isi Saldo & Perpanjang) */}
+        {currentUser && (
+          <TopUpModal
+            isOpen={globalPaymentModal.open}
+            onClose={() => setGlobalPaymentModal((prev) => ({ ...prev, open: false }))}
+            currentUser={currentUser}
+            onMidtransSettled={handleMidtransSettled}
+            initialPurpose={globalPaymentModal.purpose}
+            initialMethod={globalPaymentModal.method}
+            initialNominal={globalPaymentModal.nominal}
+          />
+        )}
+
         {currentUser && (
           <SubscriptionExpiredModal
             isOpen={isExpiredModalOpen}
             onClose={() => setIsExpiredModalOpen(false)}
             currentUser={currentUser}
-            onTopUpWallet={handleTopUpWallet}
             onExtendSubscription={handleExtendSubscription}
+            onMidtransSettled={handleMidtransSettled}
             sisaHari={Math.max(
               0,
               Math.ceil(((currentUser.subscriptionEndDate || Date.now()) - Date.now()) / (1000 * 60 * 60 * 24))
@@ -2322,11 +2511,11 @@ export default function App() {
           onClose={() => setIsApkModalOpen(false)}
         />
 
-        {/* Modal Batas Transaksi Aktif (Peringatan di 300, Kunci di 400) */}
         <LimitTransaksiModal
           isOpen={isLimitModalOpen}
           onClose={() => setIsLimitModalOpen(false)}
           uncollectedList={activeUncollectedTrx}
+          currentTier={activeTier}
           onArsipSemua={handleAmbilBanyakTransaksi}
           onArsipTigaBulan={handleAmbilBanyakTransaksi}
           onArsipLunas={handleAmbilBanyakTransaksi}

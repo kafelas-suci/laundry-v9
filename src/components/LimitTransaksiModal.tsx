@@ -13,11 +13,13 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { Transaksi } from '../types';
+import { normalizeTier } from '../utils/subscription';
 
 interface LimitTransaksiModalProps {
   isOpen: boolean;
   onClose: () => void;
   uncollectedList: Transaksi[];
+  currentTier?: string | null;
   onArsipSemua: (list: Transaksi[]) => void;
   onArsipTigaBulan: (list: Transaksi[]) => void;
   onArsipLunas: (list: Transaksi[]) => void;
@@ -29,6 +31,7 @@ export const LimitTransaksiModal: React.FC<LimitTransaksiModalProps> = ({
   isOpen,
   onClose,
   uncollectedList,
+  currentTier,
   onArsipSemua,
   onArsipTigaBulan,
   onArsipLunas,
@@ -37,9 +40,9 @@ export const LimitTransaksiModal: React.FC<LimitTransaksiModalProps> = ({
 }) => {
   if (!isOpen) return null;
 
+  const isPremium = normalizeTier(currentTier) === 'premium';
   const totalBelumDiambil = uncollectedList.length;
-  const isLocked = totalBelumDiambil >= 400;
-  const isWarning = totalBelumDiambil >= 300 && totalBelumDiambil < 400;
+  const isLocked = !isPremium && totalBelumDiambil >= 400;
 
   // Filter 3 bulan kebelakang (90 hari lalu)
   const ninetyDaysAgo = Date.now() - 90 * 24 * 60 * 60 * 1000;
@@ -169,9 +172,8 @@ export const LimitTransaksiModal: React.FC<LimitTransaksiModalProps> = ({
               </p>
             ) : (
               <p>
-                <strong>Perhatian:</strong> Transaksi aktif sudah mencapai batas ({totalBelumDiambil} pesanan).
-                Jika mencapai 400 pesanan, pembuatan transaksi baru akan dikunci. Segera rapikan dengan
-                mengambil satu per satu atau memilih opsi arsipkan di bawah ini.
+                <strong>Perhatian:</strong> Terdapat {totalBelumDiambil} pesanan aktif belum diambil di antrean.
+                Disarankan merapikan nota lama yang sudah selesai ke menu Arsip agar antrean kasir tetap ringan dan cepat.
               </p>
             )}
           </div>

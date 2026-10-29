@@ -2,17 +2,44 @@
   "entities": {
     "UserProfile": {
       "title": "UserProfile",
-      "description": "Profil pengguna kasir atau owner laundry",
+      "description": "Profil pengguna owner atau kasir laundry",
       "type": "object",
       "properties": {
         "uid": { "type": "string" },
-        "email": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "emailOrPhone": { "type": "string" },
+        "authEmail": { "type": "string" },
         "displayName": { "type": "string" },
+        "username": { "type": "string" },
+        "nomorTelepon": { "type": "string" },
         "role": { "type": "string", "enum": ["owner", "admin", "karyawan"] },
         "laundryId": { "type": "string" },
+        "walletBalance": { "type": "number" },
+        "subscriptionType": { "type": "string", "enum": ["newcomer", "premium"] },
+        "subscriptionEndDate": { "type": "number" },
+        "lastSettledOrderId": { "type": "string" },
         "createdAt": { "type": "number" }
       },
-      "required": ["uid", "role"]
+      "required": ["uid", "role", "laundryId", "walletBalance"]
+    },
+    "PaymentOrder": {
+      "title": "PaymentOrder",
+      "description": "Catatan pesanan pembayaran Midtrans untuk top-up dan langganan",
+      "type": "object",
+      "properties": {
+        "orderId": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "purpose": { "type": "string", "enum": ["extend_premium", "topup_wallet"] },
+        "amount": { "type": "number" },
+        "durationDays": { "type": "number" },
+        "snapToken": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "settled", "failed", "expired"] },
+        "credited": { "type": "boolean" },
+        "paymentType": { "type": "string" },
+        "createdAt": { "type": "number" },
+        "settledAt": { "type": "number" }
+      },
+      "required": ["orderId", "ownerId", "purpose", "amount", "status", "credited", "createdAt"]
     },
     "LaundryBranch": {
       "title": "LaundryBranch",
@@ -23,9 +50,28 @@
         "ownerId": { "type": "string" },
         "namaLaundry": { "type": "string" },
         "alamat": { "type": "string" },
-        "nomorTelepon": { "type": "string" }
+        "nomorTelepon": { "type": "string" },
+        "subscriptionType": { "type": "string" },
+        "subscriptionEndDate": { "type": "number" }
       },
       "required": ["id", "ownerId", "namaLaundry"]
+    },
+    "LaundryStaff": {
+      "title": "LaundryStaff",
+      "description": "Registri akun kasir resmi yang ditugaskan pada cabang laundry",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "laundryId": { "type": "string" },
+        "displayName": { "type": "string" },
+        "emailOrPhone": { "type": "string" },
+        "authEmail": { "type": "string" },
+        "nomorTelepon": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "karyawan"] },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["uid", "ownerId", "laundryId", "displayName", "role"]
     },
     "LaundryTransaksi": {
       "title": "LaundryTransaksi",
@@ -104,11 +150,19 @@
   "firestore": {
     "/users/{userId}": {
       "schema": "UserProfile",
-      "description": "Dokumen profil setiap user"
+      "description": "Dokumen profil user dengan proteksi saldo dan peran"
+    },
+    "/payment_orders/{orderId}": {
+      "schema": "PaymentOrder",
+      "description": "Catatan pesanan pembayaran Midtrans"
     },
     "/laundries/{laundryId}": {
       "schema": "LaundryBranch",
-      "description": "Dokumen data cabang laundry"
+      "description": "Dokumen data cabang laundry terisolasi per owner"
+    },
+    "/laundries/{laundryId}/staff/{staffUid}": {
+      "schema": "LaundryStaff",
+      "description": "Sub-koleksi registri akun kasir cabang"
     },
     "/laundries/{laundryId}/transaksi/{transaksiId}": {
       "schema": "LaundryTransaksi",

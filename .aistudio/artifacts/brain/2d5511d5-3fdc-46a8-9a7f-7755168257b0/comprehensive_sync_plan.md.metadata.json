@@ -1,0 +1,6 @@
+{
+  "summary":  "Rencana Implementasi Sistem Sinkronisasi & Integritas Data (Combined Approach):\n1. Engine Level (Data Integrity & Robustness):\n   - FirebaseSyncService: Penambahan Exponential Backoff Retry Logic untuk transmisi data saat koneksi fluktuatif.\n   - IndexedDbService: Fungsi validasi startup untuk memeriksa setiap nota di antrean (outbox) dan memastikan tidak ada nota korup atau tersangkut (orphan entries).\n2. UI Level (Sync Manager):\n   - Mengubah floating banner menjadi indikator aktif yang dapat diklik.\n   - Panel Sync Manager: Daftar nota tertunda, status error, dan aksi 'Retry' manual.\n3. Workflow:\n   - Aplikasi startup -> Validasi Data (IndexedDB) -> Sinyal ke Sync Manager -> Sinkronisasi Otomatis (dengan retry) -> Laporan status di UI.",
+  "updatedAt":  "2026-10-28T11:27:54.678179894Z",
+  "requestFeedback":  true,
+  "userFacing":  true
+}
