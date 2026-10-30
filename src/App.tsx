@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import React, { Suspense, lazy, useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from './firebase';
 import { FirebaseSyncService } from './utils/firebaseSync';
@@ -22,28 +22,8 @@ import {
 import { SplashView } from './views/SplashView';
 import { AuthView } from './views/AuthView';
 import { DashboardView } from './views/DashboardView';
-import { TambahEditView } from './views/TambahEditView';
-import { DetailTransaksiView } from './views/DetailTransaksiView';
-import { StatusPengerjaanView } from './views/StatusPengerjaanView';
-import { BukuKasView } from './views/BukuKasView';
-import { LaporanView } from './views/LaporanView';
-import { ArsipView } from './views/ArsipView';
-import { KelolaPelangganView } from './views/KelolaPelangganView';
-import { KelolaLayananView } from './views/KelolaLayananView';
-import { KelolaOwnerView } from './views/KelolaOwnerView';
-import { KelolaKasirView } from './views/KelolaKasirView';
-import { SettingsView } from './views/SettingsView';
-
-import { AturKasModal } from './components/AturKasModal';
-import { SwitchBranchModal } from './components/SwitchBranchModal';
-import { ApkPlaystoreModal } from './components/ApkPlaystoreModal';
-import { LimitTransaksiModal } from './components/LimitTransaksiModal';
-import { AssignStaffModal } from './components/AssignStaffModal';
-import { ReceiptModal } from './components/ReceiptModal';
-import { UpgradePlanModal } from './components/UpgradePlanModal';
-import { SubscriptionExpiredModal } from './components/SubscriptionExpiredModal';
-import { TopUpModal } from './components/TopUpModal';
-import { TransitionPickupData } from './components/QuickTransitionPickupModal';
+import type { TransitionPickupData } from './components/QuickTransitionPickupModal';
+import type { SelfAccountBillingSnapshot } from './components/SuperAdminBillingModal';
 import {
   LaundryTier,
   normalizeTier,
@@ -61,14 +41,94 @@ import {
   activateBranchViaBackend,
   extendSubscriptionViaBackend,
 } from './services/billingService';
-import { SelfAccountBillingSnapshot } from './components/SuperAdminBillingModal';
 import { formatRupiah, formatLocalInvoiceDateKey } from './utils/formatters';
 import { OfflineIndicator } from './components/OfflineIndicator';
-import { DesktopSidebar } from './components/DesktopSidebar';
 import { useDeviceDetect } from './hooks/useDeviceDetect';
 import { Lock } from 'lucide-react';
 import { useToast } from './components/NotificationContext';
-import { InteractiveTourModal, TOUR_STEPS } from './components/InteractiveTourModal';
+import { TOUR_STEPS } from './constants/tourSteps';
+
+// Code-Split Secondary Views & Heavy Reporting/Chart Modules
+const TambahEditView = lazy(() =>
+  import('./views/TambahEditView').then((m) => ({ default: m.TambahEditView }))
+);
+const DetailTransaksiView = lazy(() =>
+  import('./views/DetailTransaksiView').then((m) => ({ default: m.DetailTransaksiView }))
+);
+const StatusPengerjaanView = lazy(() =>
+  import('./views/StatusPengerjaanView').then((m) => ({ default: m.StatusPengerjaanView }))
+);
+const BukuKasView = lazy(() =>
+  import('./views/BukuKasView').then((m) => ({ default: m.BukuKasView }))
+);
+const LaporanView = lazy(() =>
+  import('./views/LaporanView').then((m) => ({ default: m.LaporanView }))
+);
+const ArsipView = lazy(() =>
+  import('./views/ArsipView').then((m) => ({ default: m.ArsipView }))
+);
+const KelolaPelangganView = lazy(() =>
+  import('./views/KelolaPelangganView').then((m) => ({ default: m.KelolaPelangganView }))
+);
+const KelolaLayananView = lazy(() =>
+  import('./views/KelolaLayananView').then((m) => ({ default: m.KelolaLayananView }))
+);
+const KelolaOwnerView = lazy(() =>
+  import('./views/KelolaOwnerView').then((m) => ({ default: m.KelolaOwnerView }))
+);
+const KelolaKasirView = lazy(() =>
+  import('./views/KelolaKasirView').then((m) => ({ default: m.KelolaKasirView }))
+);
+const SettingsView = lazy(() =>
+  import('./views/SettingsView').then((m) => ({ default: m.SettingsView }))
+);
+
+// Code-Split Desktop Sidebar & Global Modals (tidak dimuat saat initial load di HP)
+const DesktopSidebar = lazy(() =>
+  import('./components/DesktopSidebar').then((m) => ({ default: m.DesktopSidebar }))
+);
+const AturKasModal = lazy(() =>
+  import('./components/AturKasModal').then((m) => ({ default: m.AturKasModal }))
+);
+const SwitchBranchModal = lazy(() =>
+  import('./components/SwitchBranchModal').then((m) => ({ default: m.SwitchBranchModal }))
+);
+const ApkPlaystoreModal = lazy(() =>
+  import('./components/ApkPlaystoreModal').then((m) => ({ default: m.ApkPlaystoreModal }))
+);
+const LimitTransaksiModal = lazy(() =>
+  import('./components/LimitTransaksiModal').then((m) => ({ default: m.LimitTransaksiModal }))
+);
+const AssignStaffModal = lazy(() =>
+  import('./components/AssignStaffModal').then((m) => ({ default: m.AssignStaffModal }))
+);
+const ReceiptModal = lazy(() =>
+  import('./components/ReceiptModal').then((m) => ({ default: m.ReceiptModal }))
+);
+const UpgradePlanModal = lazy(() =>
+  import('./components/UpgradePlanModal').then((m) => ({ default: m.UpgradePlanModal }))
+);
+const SubscriptionExpiredModal = lazy(() =>
+  import('./components/SubscriptionExpiredModal').then((m) => ({
+    default: m.SubscriptionExpiredModal,
+  }))
+);
+const TopUpModal = lazy(() =>
+  import('./components/TopUpModal').then((m) => ({ default: m.TopUpModal }))
+);
+const InteractiveTourModal = lazy(() =>
+  import('./components/InteractiveTourModal').then((m) => ({ default: m.InteractiveTourModal }))
+);
+
+const SecondaryViewFallback: React.FC = () => (
+  <div className="flex-1 min-h-[75vh] bg-slate-100 flex flex-col">
+    <div className="h-14 bg-[#800000] shrink-0" />
+    <div className="p-4 max-w-5xl mx-auto w-full space-y-3 animate-pulse">
+      <div className="h-24 bg-white rounded-2xl border border-slate-200" />
+      <div className="h-40 bg-white rounded-2xl border border-slate-200" />
+    </div>
+  </div>
+);
 
 type ViewType =
   | 'splash'
@@ -2337,31 +2397,33 @@ export default function App({ initialBootData }: { initialBootData?: InitialBoot
         }
       >
         {showDesktopSidebar && currentUser && (
-          <DesktopSidebar
-            activeView={activeView}
-            onSelectView={(v) => {
-              if (v === 'dashboard') {
-                setNavHistory([]);
-                navHistoryRef.current = [];
-                setActiveView('dashboard');
-              } else {
-                navigateTo(v);
-              }
-            }}
-            onOpenNewTransaksi={handleRequestNewTransaksi}
-            onOpenAturKas={() => setIsAturKasOpen(true)}
-            onOpenSwitchBranch={() => setIsSwitchBranchOpen(true)}
-            onLogout={handleLogoutUser}
-            currentUser={currentUser}
-            activeLaundry={activeLaundry}
-            laundries={laundries}
-            transaksiList={transaksiList}
-            pelangganCount={pelangganList.filter((p) => p.laundryId === activeLaundryId).length || pelangganList.length}
-            layananCount={layananList.filter((l) => l.laundryId === activeLaundryId).length || layananList.length}
-            currentTier={activeTier}
-            onOpenUpgradeModal={handleOpenUpgradeModal}
-            onOpenExpiredModal={() => setIsExpiredModalOpen(true)}
-          />
+          <Suspense fallback={<div className="w-64 shrink-0 bg-white border-r border-slate-200 h-full" />}>
+            <DesktopSidebar
+              activeView={activeView}
+              onSelectView={(v) => {
+                if (v === 'dashboard') {
+                  setNavHistory([]);
+                  navHistoryRef.current = [];
+                  setActiveView('dashboard');
+                } else {
+                  navigateTo(v);
+                }
+              }}
+              onOpenNewTransaksi={handleRequestNewTransaksi}
+              onOpenAturKas={() => setIsAturKasOpen(true)}
+              onOpenSwitchBranch={() => setIsSwitchBranchOpen(true)}
+              onLogout={handleLogoutUser}
+              currentUser={currentUser}
+              activeLaundry={activeLaundry}
+              laundries={laundries}
+              transaksiList={transaksiList}
+              pelangganCount={pelangganList.filter((p) => p.laundryId === activeLaundryId).length || pelangganList.length}
+              layananCount={layananList.filter((l) => l.laundryId === activeLaundryId).length || layananList.length}
+              currentTier={activeTier}
+              onOpenUpgradeModal={handleOpenUpgradeModal}
+              onOpenExpiredModal={() => setIsExpiredModalOpen(true)}
+            />
+          </Suspense>
         )}
 
         <div
@@ -2484,6 +2546,7 @@ export default function App({ initialBootData }: { initialBootData?: InitialBoot
           />
         )}
 
+        <Suspense fallback={<SecondaryViewFallback />}>
         {activeView === 'tambah_edit' && (
           !transaksiToEdit && activeTier === 'newcomer' && activeUncollectedTrx.length >= 400 ? (
             <div className="flex-1 flex flex-col items-center justify-center p-6 text-center bg-slate-100 min-h-[75vh]">
@@ -2839,159 +2902,175 @@ export default function App({ initialBootData }: { initialBootData?: InitialBoot
             onLogout={handleLogoutUser}
           />
         )}
+        </Suspense>
         </div>
 
-        <AturKasModal
-          isOpen={isAturKasOpen}
-          onClose={() => setIsAturKasOpen(false)}
-          isPemasukanEnabled={settings.pemasukanManualEnabled}
-          daftarJenisPengeluaran={jenisPengeluaranList}
-          daftarJenisPemasukan={jenisPemasukanList}
-          onSavePengeluaran={handleSavePengeluaran}
-          onSavePemasukan={handleSavePemasukan}
-        />
+        <Suspense fallback={null}>
+          {isAturKasOpen && (
+            <AturKasModal
+              isOpen={isAturKasOpen}
+              onClose={() => setIsAturKasOpen(false)}
+              isPemasukanEnabled={settings.pemasukanManualEnabled}
+              daftarJenisPengeluaran={jenisPengeluaranList}
+              daftarJenisPemasukan={jenisPemasukanList}
+              onSavePengeluaran={handleSavePengeluaran}
+              onSavePemasukan={handleSavePemasukan}
+            />
+          )}
 
-        <SwitchBranchModal
-          isOpen={isSwitchBranchOpen}
-          onClose={() => setIsSwitchBranchOpen(false)}
-          laundries={laundries}
-          activeLaundryId={activeLaundryId}
-          currentTier={activeTier}
-          onSelectBranch={handleSelectBranch}
-          onManageBranches={() => {
-            setIsSwitchBranchOpen(false);
-            navigateTo('kelola_owner');
-          }}
-          onOpenUpgradeModal={handleOpenUpgradeModal}
-        />
+          {isSwitchBranchOpen && (
+            <SwitchBranchModal
+              isOpen={isSwitchBranchOpen}
+              onClose={() => setIsSwitchBranchOpen(false)}
+              laundries={laundries}
+              activeLaundryId={activeLaundryId}
+              currentTier={activeTier}
+              onSelectBranch={handleSelectBranch}
+              onManageBranches={() => {
+                setIsSwitchBranchOpen(false);
+                navigateTo('kelola_owner');
+              }}
+              onOpenUpgradeModal={handleOpenUpgradeModal}
+            />
+          )}
 
-        <UpgradePlanModal
-          isOpen={isUpgradeModalOpen}
-          onClose={() => setIsUpgradeModalOpen(false)}
-          currentUser={currentUser}
-          currentTier={activeTier}
-          triggerReason={upgradeTriggerReason}
-          onExtendWithWallet={async () => {
-            const ok = await handleExtendSubscription(
-              'Paket Premium (30 Hari)',
-              HARGA_PREMIUM_BULANAN,
-              30
-            );
-            if (ok) {
-              toast.success('Paket Premium (30 Hari) berhasil diaktifkan!');
-            }
-            return ok;
-          }}
-          onChoosePayment={(method) =>
-            setGlobalPaymentModal({
-              open: true,
-              purpose: 'extend_premium',
-              method,
-              nominal: HARGA_PREMIUM_BULANAN,
-            })
-          }
-        />
+          {isUpgradeModalOpen && (
+            <UpgradePlanModal
+              isOpen={isUpgradeModalOpen}
+              onClose={() => setIsUpgradeModalOpen(false)}
+              currentUser={currentUser}
+              currentTier={activeTier}
+              triggerReason={upgradeTriggerReason}
+              onExtendWithWallet={async () => {
+                const ok = await handleExtendSubscription(
+                  'Paket Premium (30 Hari)',
+                  HARGA_PREMIUM_BULANAN,
+                  30
+                );
+                if (ok) {
+                  toast.success('Paket Premium (30 Hari) berhasil diaktifkan!');
+                }
+                return ok;
+              }}
+              onChoosePayment={(method) =>
+                setGlobalPaymentModal({
+                  open: true,
+                  purpose: 'extend_premium',
+                  method,
+                  nominal: HARGA_PREMIUM_BULANAN,
+                })
+              }
+            />
+          )}
 
-        {currentUser && (
-          <TopUpModal
-            isOpen={globalPaymentModal.open}
-            onClose={() => setGlobalPaymentModal((prev) => ({ ...prev, open: false }))}
-            currentUser={currentUser}
-            onMidtransSettled={handleMidtransSettled}
-            initialPurpose={globalPaymentModal.purpose}
-            initialMethod={globalPaymentModal.method}
-            initialNominal={globalPaymentModal.nominal}
-          />
-        )}
+          {currentUser && globalPaymentModal.open && (
+            <TopUpModal
+              isOpen={globalPaymentModal.open}
+              onClose={() => setGlobalPaymentModal((prev) => ({ ...prev, open: false }))}
+              currentUser={currentUser}
+              onMidtransSettled={handleMidtransSettled}
+              initialPurpose={globalPaymentModal.purpose}
+              initialMethod={globalPaymentModal.method}
+              initialNominal={globalPaymentModal.nominal}
+            />
+          )}
 
-        {currentUser && (
-          <SubscriptionExpiredModal
-            isOpen={isExpiredModalOpen}
-            onClose={() => setIsExpiredModalOpen(false)}
-            currentUser={currentUser}
-            onExtendSubscription={handleExtendSubscription}
-            onMidtransSettled={handleMidtransSettled}
-            sisaHari={Math.max(
-              0,
-              Math.ceil(((currentUser.subscriptionEndDate || Date.now()) - Date.now()) / (1000 * 60 * 60 * 24))
-            )}
-          />
-        )}
-
-        <ApkPlaystoreModal
-          isOpen={isApkModalOpen}
-          onClose={() => setIsApkModalOpen(false)}
-        />
-
-        <LimitTransaksiModal
-          isOpen={isLimitModalOpen}
-          onClose={() => setIsLimitModalOpen(false)}
-          uncollectedList={activeUncollectedTrx}
-          currentTier={activeTier}
-          onArsipSemua={handleAmbilBanyakTransaksi}
-          onArsipTigaBulan={handleAmbilBanyakTransaksi}
-          onArsipLunas={handleAmbilBanyakTransaksi}
-          onOpenStatusPengerjaan={() => {
-            setIsLimitModalOpen(false);
-            navigateTo('status_pengerjaan');
-          }}
-          onProceedCreateNew={handleProceedCreateNewFromLimit}
-        />
-
-        {/* Modal Pilih Petugas Pengerjaan / Tugaskan Staf dari Dashboard */}
-        <AssignStaffModal
-          isOpen={!!trxForAssignStaff}
-          onClose={() => setTrxForAssignStaff(null)}
-          staffList={staffList}
-          operationalStaffList={operationalStaffList}
-          activeLaundryId={activeLaundryId}
-          currentUser={currentUser}
-          transaksi={trxForAssignStaff}
-          onAssign={(staffName) => {
-            if (!trxForAssignStaff) return;
-            const autoFinish = settings.selesaikanSaatDitugaskan;
-            const updated: Transaksi = {
-              ...trxForAssignStaff,
-              dikerjakanOleh: staffName,
-              status: autoFinish ? 'Selesai' : 'Proses',
-              tanggalDitugaskan: Date.now(),
-              tanggalStatusSelesai: autoFinish ? Date.now() : null,
-            };
-            updateTransaksiList(
-              transaksiList.map((t) => (t.id === trxForAssignStaff.id ? updated : t))
-            );
-            setTrxForAssignStaff(null);
-          }}
-        />
-
-        {/* Modal Struk Transaksi / Lihat Nota Langsung setelah membuat transaksi */}
-        <ReceiptModal
-          isOpen={!!receiptModalTrx}
-          onClose={() => setReceiptModalTrx(null)}
-          transaksi={receiptModalTrx}
-          settings={settings}
-          pelanggan={
-            receiptModalTrx
-              ? pelangganList.find(
-                  (p) =>
-                    p.nama.toLowerCase() ===
-                    receiptModalTrx.namaPelanggan.toLowerCase()
+          {currentUser && isExpiredModalOpen && (
+            <SubscriptionExpiredModal
+              isOpen={isExpiredModalOpen}
+              onClose={() => setIsExpiredModalOpen(false)}
+              currentUser={currentUser}
+              onExtendSubscription={handleExtendSubscription}
+              onMidtransSettled={handleMidtransSettled}
+              sisaHari={Math.max(
+                0,
+                Math.ceil(
+                  ((currentUser.subscriptionEndDate || Date.now()) - Date.now()) /
+                    (1000 * 60 * 60 * 24)
                 )
-              : null
-          }
-          laundryName={activeLaundry?.namaLaundry || undefined}
-          laundryPhone={activeLaundry?.nomorTelepon || undefined}
-          laundryAddress={activeLaundry?.alamat || undefined}
-        />
+              )}
+            />
+          )}
 
-        <InteractiveTourModal
-          isOpen={isTourActive}
-          onClose={handleCloseTour}
-          currentStep={tourStep}
-          onStepChange={handleTourStepChange}
-          onRestart={() => handleTourStepChange(0)}
-          onFinish={handleFinishTour}
-        />
+          {isApkModalOpen && (
+            <ApkPlaystoreModal
+              isOpen={isApkModalOpen}
+              onClose={() => setIsApkModalOpen(false)}
+            />
+          )}
+
+          {isLimitModalOpen && (
+            <LimitTransaksiModal
+              isOpen={isLimitModalOpen}
+              onClose={() => setIsLimitModalOpen(false)}
+              uncollectedList={activeUncollectedTrx}
+              currentTier={activeTier}
+              onArsipSemua={handleAmbilBanyakTransaksi}
+              onArsipTigaBulan={handleAmbilBanyakTransaksi}
+              onArsipLunas={handleAmbilBanyakTransaksi}
+              onOpenStatusPengerjaan={() => {
+                setIsLimitModalOpen(false);
+                navigateTo('status_pengerjaan');
+              }}
+              onProceedCreateNew={handleProceedCreateNewFromLimit}
+            />
+          )}
+
+          {trxForAssignStaff && (
+            <AssignStaffModal
+              isOpen={!!trxForAssignStaff}
+              onClose={() => setTrxForAssignStaff(null)}
+              staffList={staffList}
+              operationalStaffList={operationalStaffList}
+              activeLaundryId={activeLaundryId}
+              currentUser={currentUser}
+              transaksi={trxForAssignStaff}
+              onAssign={(staffName) => {
+                if (!trxForAssignStaff) return;
+                const autoFinish = settings.selesaikanSaatDitugaskan;
+                const updated: Transaksi = {
+                  ...trxForAssignStaff,
+                  dikerjakanOleh: staffName,
+                  status: autoFinish ? 'Selesai' : 'Proses',
+                  tanggalDitugaskan: Date.now(),
+                  tanggalStatusSelesai: autoFinish ? Date.now() : null,
+                };
+                updateTransaksiList(
+                  transaksiList.map((t) => (t.id === trxForAssignStaff.id ? updated : t))
+                );
+                setTrxForAssignStaff(null);
+              }}
+            />
+          )}
+
+          {receiptModalTrx && (
+            <ReceiptModal
+              isOpen={!!receiptModalTrx}
+              onClose={() => setReceiptModalTrx(null)}
+              transaksi={receiptModalTrx}
+              settings={settings}
+              pelanggan={
+                pelangganList.find(
+                  (p) => p.nama.toLowerCase() === receiptModalTrx.namaPelanggan.toLowerCase()
+                ) || null
+              }
+              laundryName={activeLaundry?.namaLaundry || undefined}
+              laundryPhone={activeLaundry?.nomorTelepon || undefined}
+              laundryAddress={activeLaundry?.alamat || undefined}
+            />
+          )}
+
+          {isTourActive && (
+            <InteractiveTourModal
+              isOpen={isTourActive}
+              onClose={handleCloseTour}
+              currentStep={tourStep}
+              onStepChange={handleTourStepChange}
+              onRestart={() => handleTourStepChange(0)}
+              onFinish={handleFinishTour}
+            />
+          )}
+        </Suspense>
 
         {/* Floating Toast: Tekan sekali lagi untuk keluar */}
         {exitToast && (

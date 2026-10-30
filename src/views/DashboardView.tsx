@@ -1,49 +1,52 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Archive,
-  Settings as SettingsIcon,
-  Search,
-  Plus,
-  DollarSign,
-  FileText,
-  Clock,
-  Sparkles,
-  CheckCircle,
-  Check,
-  Truck,
+  BarChart3,
   Building2,
+  Check,
+  CheckCircle,
   ChevronDown,
-  Download,
-  AlertCircle,
-  Smartphone,
-  Inbox,
-  Filter,
-  Calendar,
   ChevronLeft,
   ChevronRight,
-  ChevronUp,
-  Lock,
-  ShieldAlert,
-  Crown,
-  RotateCw,
-  Cloud,
-  Shirt,
-  Wallet,
+  Clock,
   Coins,
-  BarChart3,
   History,
-  X,
+  Lock,
+  Plus,
   Receipt,
-  MapPin,
+  RotateCw,
+  Search,
+  Settings as SettingsIcon,
+  ShieldAlert,
+  Shirt,
+  Sparkles,
+  Wallet,
+  X,
 } from 'lucide-react';
-import { Transaksi, SettingsData, User, Laundry, Pengeluaran, Pelanggan } from '../types';
-import { formatRupiah, formatShortDate, formatShortTime, extractTransaksiCashInEntries } from '../utils/formatters';
-import { IndexedDbService } from '../utils/indexedDb';
+import { Laundry, Pelanggan, Pengeluaran, SettingsData, Transaksi, User } from '../types';
+import type { TransitionPickupData } from '../components/QuickTransitionPickupModal';
+import { formatRupiah, formatShortDate, formatShortTime } from '../utils/formatters';
 import { StorageService } from '../utils/storage';
 import { PWAInstallButton } from '../components/PWAInstallButton';
 import { getLaundryLimits } from '../utils/subscription';
-import { QuickTransitionPickupModal, TransitionPickupData } from '../components/QuickTransitionPickupModal';
-import { useToast, useConfirm } from '../components/NotificationContext';
+import { useConfirm, useToast } from '../components/NotificationContext';
+import { useDeferredWidgetMount } from '../components/dashboard/useDeferredWidgetMount';
+
+// Code-Split Heavy Widgets & Modals (Dimuat asinkron agar initial load ringan di perangkat kelas bawah)
+const LazyDailyReportWidget = lazy(
+  () => import('../components/dashboard/DashboardDailyReportWidget')
+);
+const LazyDesktopWorkspace = lazy(
+  () => import('../components/dashboard/DashboardDesktopWorkspace')
+);
+const LazyPickupConfirmModal = lazy(
+  () => import('../components/dashboard/DashboardPickupConfirmModal')
+);
+const LazyQuickTransitionPickupModal = lazy(() =>
+  import('../components/QuickTransitionPickupModal').then((m) => ({
+    default: m.QuickTransitionPickupModal,
+  }))
+);
 
 export type DashboardFilterStatus = 'semua' | 'selesai' | 'baru_masuk' | 'sedang_dikerjakan';
 
@@ -80,7 +83,9 @@ interface DashboardViewProps {
   onOpenKelolaPelanggan: () => void;
   onOpenKelolaLayanan: () => void;
   onOpenKelolaOwner: () => void;
-  onSyncCloudData?: () => Promise<{ transaksiCount?: number; pelangganCount?: number; layananCount?: number } | void> | void;
+  onSyncCloudData?: () =>
+    | Promise<{ transaksiCount?: number; pelangganCount?: number; layananCount?: number } | void>
+    | void;
   onSelesaikanTransaksi: (transaksi: Transaksi) => void;
   onAmbilTransaksi: (transaksi: Transaksi) => void;
   onAmbilBanyakTransaksi?: (transaksiList: Transaksi[]) => void;
@@ -88,6 +93,64 @@ interface DashboardViewProps {
   onUpdateSettings?: (settings: SettingsData) => void;
   onOpenTour?: () => void;
 }
+
+const MobileDailyReportSkeleton: React.FC<{ collapsed: boolean }> = ({ collapsed }) => (
+  <div
+    className="bg-white rounded-xl border border-slate-200 shadow-sm p-3 space-y-2 animate-pulse"
+    aria-hidden="true"
+  >
+    <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
+      <div className="h-3.5 w-28 rounded bg-slate-200/80" />
+      <div className="h-4 w-20 rounded bg-slate-100" />
+    </div>
+    {collapsed ? (
+      <div className="flex items-center justify-between pt-0.5">
+        <div className="h-3.5 w-20 rounded bg-slate-100" />
+        <div className="h-3.5 w-20 rounded bg-slate-100" />
+        <div className="h-4 w-24 rounded bg-emerald-100/70" />
+      </div>
+    ) : (
+      <>
+        <div className="grid grid-cols-2 gap-1.5">
+          <div className="h-7 rounded-lg bg-slate-50 border border-slate-100" />
+          <div className="h-7 rounded-lg bg-slate-50 border border-slate-100" />
+        </div>
+        <div className="h-8 rounded-lg bg-emerald-50/50 border border-emerald-100" />
+        <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 pt-1.5 border-t border-slate-100">
+          <div className="h-3 rounded bg-slate-100" />
+          <div className="h-3 rounded bg-slate-100" />
+          <div className="h-3 rounded bg-slate-100" />
+          <div className="h-3 rounded bg-slate-100" />
+        </div>
+      </>
+    )}
+  </div>
+);
+
+const DesktopWorkspaceFallback: React.FC = () => (
+  <div className="flex flex-col h-full overflow-hidden bg-slate-100">
+    <div className="bg-white border-b border-slate-200/90 px-6 h-16 flex items-center justify-between shrink-0">
+      <div className="space-y-1.5 animate-pulse">
+        <div className="h-4 w-48 rounded bg-slate-200/80" />
+        <div className="h-3 w-36 rounded bg-slate-100" />
+      </div>
+      <div className="flex items-center gap-2.5 animate-pulse">
+        <div className="h-9 w-28 rounded-xl bg-slate-100" />
+        <div className="h-9 w-36 rounded-xl bg-[#800000]/20" />
+      </div>
+    </div>
+    <div className="flex-1 p-5 lg:p-6">
+      <div className="max-w-7xl mx-auto w-full space-y-5 animate-pulse">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="h-[98px] rounded-2xl bg-white border border-slate-200/80" />
+          ))}
+        </div>
+        <div className="h-96 rounded-2xl bg-white border border-slate-200/80" />
+      </div>
+    </div>
+  </div>
+);
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
   transaksiList,
@@ -98,7 +161,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   laundries,
   pengeluaranList = [],
   isMobile = false,
-  deviceInfo,
   onSelectBranch,
   currentTier,
   onOpenUpgradeModal,
@@ -113,21 +175,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onOpenBukuKas,
   onOpenLaporan,
   onOpenAturKas,
-  onOpenSwitchBranch,
-  onOpenApkModal,
-  onOpenKelolaPelanggan,
-  onOpenKelolaLayanan,
   onOpenKelolaOwner,
   onSyncCloudData,
   onSelesaikanTransaksi,
   onAmbilTransaksi,
-  onAmbilBanyakTransaksi,
   onSaveTransitionPickup,
   onUpdateSettings,
   settings,
 }) => {
   const toast = useToast();
   const confirm = useConfirm();
+  const isHeavyWidgetsReady = useDeferredWidgetMount();
+
   const [searchQuery, setSearchQuery] = useState('');
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<number>(() =>
@@ -136,16 +195,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   const [isBranchDropdownOpen, setIsBranchDropdownOpen] = useState(false);
   const branchDropdownRef = useRef<HTMLDivElement>(null);
-  const desktopBranchDropdownRef = useRef<HTMLDivElement>(null);
 
-  // Tutup dropdown cabang saat klik di luar
   useEffect(() => {
     if (!isBranchDropdownOpen) return;
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as Node;
-      const insideMobile = branchDropdownRef.current && branchDropdownRef.current.contains(target);
-      const insideDesktop = desktopBranchDropdownRef.current && desktopBranchDropdownRef.current.contains(target);
-      if (!insideMobile && !insideDesktop) {
+      if (branchDropdownRef.current && !branchDropdownRef.current.contains(target)) {
         setIsBranchDropdownOpen(false);
       }
     };
@@ -165,14 +220,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     if (!forceBypass && lastSyncTime > 0 && elapsed < COOLDOWN_MS) {
       const remainingMinutes = Math.ceil((COOLDOWN_MS - elapsed) / 60000);
       const passedMinutes = Math.max(1, Math.floor(elapsed / 60000));
-      const shouldBypass = await confirm.confirm({
+      await confirm.confirm({
         title: 'Jeda Pengaman 10 Menit Aktif',
         message: `Sinkronisasi baru saja dilakukan ${passedMinutes} menit yang lalu.\n tunggu ${remainingMinutes} menit lagi.`,
         confirmText: 'Mengerti',
         cancelText: 'Tunggu',
       });
-        return;
-          }
+      return;
+    }
 
     setIsSyncing(true);
     try {
@@ -212,20 +267,57 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const showAmbilNotaLama = settings?.tampilkanTombolAmbilNotaLama !== false;
   const isOwner = currentUser.role === 'owner';
 
-  const handleHideAmbilNotaLama = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (onUpdateSettings && settings) {
-      onUpdateSettings({
-        ...settings,
-        tampilkanTombolAmbilNotaLama: false,
-      });
-      toast.info('Tombol Ambil Nota Lama disembunyikan. Dapat diaktifkan kembali di Pengaturan.');
-    }
-  };
+  const handleHideAmbilNotaLama = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (onUpdateSettings && settings) {
+        onUpdateSettings({
+          ...settings,
+          tampilkanTombolAmbilNotaLama: false,
+        });
+        toast.info('Tombol Ambil Nota Lama disembunyikan. Dapat diaktifkan kembali di Pengaturan.');
+      }
+    },
+    [onUpdateSettings, settings, toast]
+  );
 
-  // Filter transactions for active branch (exclude archived/picked-up)
-  const activeBranchTrx = useMemo(() => {
-    return transaksiList.filter((trx) => trx.laundryId === activeLaundry.id && trx.status !== 'Diambil');
+  // Single-pass komputasi antrean aktif, hitungan per status, & kuota bulan ini (hemat RAM/CPU)
+  const { activeBranchTrx, filterCounts, currentMonthTrxCount } = useMemo(() => {
+    const nowDate = new Date();
+    const startOfMonth = new Date(nowDate.getFullYear(), nowDate.getMonth(), 1).getTime();
+
+    const active: Transaksi[] = [];
+    let baruMasuk = 0;
+    let sedangDikerjakan = 0;
+    let selesai = 0;
+    let monthCount = 0;
+
+    for (let i = 0; i < transaksiList.length; i++) {
+      const trx = transaksiList[i];
+      if (!trx || trx.laundryId !== activeLaundry.id) continue;
+
+      if ((trx.tanggalMasuk || 0) >= startOfMonth) {
+        monthCount++;
+      }
+
+      if (trx.status !== 'Diambil') {
+        active.push(trx);
+        if (trx.status === 'Diterima') baruMasuk++;
+        else if (trx.status === 'Proses') sedangDikerjakan++;
+        else if (trx.status === 'Selesai') selesai++;
+      }
+    }
+
+    return {
+      activeBranchTrx: active,
+      filterCounts: {
+        semua: active.length,
+        baruMasuk,
+        sedangDikerjakan,
+        selesai,
+      },
+      currentMonthTrxCount: monthCount,
+    };
   }, [transaksiList, activeLaundry.id]);
 
   const showInitialSkeleton = Boolean(isLoadingTransaksi && activeBranchTrx.length === 0);
@@ -234,8 +326,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const pelangganMap = useMemo(() => {
     const map: Record<string, Pelanggan> = {};
     if (pelangganList && pelangganList.length > 0) {
-      for (const p of pelangganList) {
-        if (p.nama) {
+      for (let i = 0; i < pelangganList.length; i++) {
+        const p = pelangganList[i];
+        if (p?.nama) {
           map[p.nama.trim().toLowerCase()] = p;
         }
       }
@@ -243,8 +336,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       try {
         const stored = StorageService.get<Pelanggan[]>('pelanggan', []);
         if (Array.isArray(stored)) {
-          for (const p of stored) {
-            if (p.nama) {
+          for (let i = 0; i < stored.length; i++) {
+            const p = stored[i];
+            if (p?.nama) {
               map[p.nama.trim().toLowerCase()] = p;
             }
           }
@@ -256,43 +350,22 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     return map;
   }, [pelangganList]);
 
-  // Helper untuk mendapatkan alamat transaksi (prioritas: trx.alamat -> data pelanggan -> '-')
-  const getAlamat = (trx: Transaksi | null | undefined): string => {
-    if (!trx) return '-';
-    if (trx.alamat && trx.alamat.trim() !== '') {
-      return trx.alamat.trim();
-    }
-    if (trx.namaPelanggan) {
-      const p = pelangganMap[trx.namaPelanggan.trim().toLowerCase()];
-      if (p?.alamat && p.alamat.trim() !== '') return p.alamat.trim();
-      if (p?.alamatLengkap && p.alamatLengkap.trim() !== '') return p.alamatLengkap.trim();
-    }
-    return '-';
-  };
+  const getAlamat = useCallback(
+    (trx: Transaksi | null | undefined): string => {
+      if (!trx) return '-';
+      if (trx.alamat && trx.alamat.trim() !== '') {
+        return trx.alamat.trim();
+      }
+      if (trx.namaPelanggan) {
+        const p = pelangganMap[trx.namaPelanggan.trim().toLowerCase()];
+        if (p?.alamat && p.alamat.trim() !== '') return p.alamat.trim();
+        if (p?.alamatLengkap && p.alamatLengkap.trim() !== '') return p.alamatLengkap.trim();
+      }
+      return '-';
+    },
+    [pelangganMap]
+  );
 
-  // Count items per category
-  const filterCounts = useMemo(() => {
-    let baruMasuk = 0;
-    let sedangDikerjakan = 0;
-    let selesai = 0;
-
-    activeBranchTrx.forEach((t) => {
-      if (t.status === 'Diterima') baruMasuk++;
-      else if (t.status === 'Proses') sedangDikerjakan++;
-      else if (t.status === 'Selesai') selesai++;
-    });
-
-    return {
-      semua: activeBranchTrx.length,
-      baruMasuk,
-      sedangDikerjakan,
-      selesai,
-    };
-  }, [activeBranchTrx]);
-
-  // Alur langsung selesai (tanpa melalui status kuning / sedang dikerjakan):
-  // 1. Tab Jam Merah ('Baru Masuk') SELALU DITAMPILKAN
-  // 2. Tab 'Sedang Dikerjakan' (kuning) DIHILANGKAN jika opsi ini aktif (kecuali jika masih ada data cucian lama yang berstatus proses)
   const showSedangDikerjakanTab =
     !settings?.selesaikanSaatDitugaskan || filterCounts.sedangDikerjakan > 0;
   const showBaruMasukTab = true;
@@ -328,13 +401,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     }
 
     return list;
-  }, [activeBranchTrx, filterStatus, searchQuery, pelangganMap]);
+  }, [activeBranchTrx, filterStatus, searchQuery, getAlamat]);
 
   // Paginasi 10 Transaksi per Halaman (Hemat Memori & Ringan untuk HP)
   const ITEMS_PER_PAGE = 10;
   const [currentPage, setCurrentPage] = useState<number>(1);
 
-  // Reset halaman saat filter status atau pencarian berubah
   useEffect(() => {
     setCurrentPage(1);
   }, [searchQuery, filterStatus]);
@@ -347,101 +419,31 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     return displayedTrx.slice(start, start + ITEMS_PER_PAGE);
   }, [displayedTrx, validCurrentPage]);
 
-  // Daily statistics calculation
-  const stats = useMemo(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const startOfToday = today.getTime();
-
-    const branchAll = transaksiList.filter((t) => t.laundryId === activeLaundry.id);
-
-    const masukHariIni = branchAll.filter((t) => !t.isTransisi && t.tanggalMasuk >= startOfToday);
-    const diambilHariIni = branchAll.filter((t) => (t.tanggalPengambilan || 0) >= startOfToday);
-    const selesaiHariIni = branchAll.filter((t) => (t.tanggalStatusSelesai || 0) >= startOfToday);
-
-    // Calculate income today (Hanya uang riil yang masuk hari ini)
-    let totalUangMasuk = 0;
-    masukHariIni.forEach((t) => {
-      const bayarAwal = Math.min(t.totalHarga, t.jumlahDp || 0);
-      totalUangMasuk += bayarAwal;
-    });
-
-    // Add settlement for collected today
-    diambilHariIni.forEach((t) => {
-      if (t.statusPembayaran === 'Lunas') {
-        const pelunasan = Math.max(0, t.totalHarga - (t.jumlahDp || 0));
-        totalUangMasuk += pelunasan;
-      }
-    });
-
-    const harusSelesaiHariIni = activeBranchTrx.filter((t) => {
-      if (t.status === 'Selesai') return false;
-      if (!t.tanggalSelesai) return false;
-      return t.tanggalSelesai <= Date.now() + 24 * 60 * 60 * 1000;
-    }).length;
-
-    const readyCount = activeBranchTrx.filter((t) => t.status === 'Selesai').length;
-
-    const endOfToday = startOfToday + 24 * 60 * 60 * 1000 - 1;
-
-    const totalPengeluaranHariIni = (pengeluaranList || [])
-      .filter((p) => p.laundryId === activeLaundry.id && p.tanggal >= startOfToday && p.tanggal <= endOfToday)
-      .reduce((sum, item) => sum + (item.jumlah || 0), 0);
-
-    return {
-      transaksiMasuk: masukHariIni.length,
-      transaksiDiambil: diambilHariIni.length,
-      transaksiSelesai: selesaiHariIni.length,
-      harusSelesai: harusSelesaiHariIni,
-      totalUangMasuk,
-      totalPengeluaran: totalPengeluaranHariIni,
-      readyCount,
-    };
-  }, [transaksiList, activeLaundry.id, activeBranchTrx, pengeluaranList]);
-
-  const totalLaba = Math.max(0, stats.totalUangMasuk - stats.totalPengeluaran);
-
   const limits = useMemo(() => {
     return getLaundryLimits(currentTier || currentUser.subscriptionType);
   }, [currentTier, currentUser.subscriptionType]);
 
   const isNewcomer = limits.tier === 'newcomer';
-  const paketNama = limits.label;
-
-  // Perhitungan Transaksi Bulan Berjalan (Kuota Bulanan)
-  const currentMonthTrxCount = useMemo(() => {
-    const d = new Date();
-    const startOfMonth = new Date(d.getFullYear(), d.getMonth(), 1).getTime();
-    return transaksiList.filter((t) => t.laundryId === activeLaundry.id && (t.tanggalMasuk || 0) >= startOfMonth).length;
-  }, [transaksiList, activeLaundry.id]);
-
   const isMonthlyQuotaFull = currentMonthTrxCount >= limits.maxMonthlyTransactions;
 
   // Perhitungan Status Langganan & Masa Aktif
   const now = Date.now();
   const subscriptionEnd = currentUser.subscriptionEndDate || 0;
   const diffMs = subscriptionEnd - now;
-  const sisaHari = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
-  const isExpiringSoon = !isNewcomer && sisaHari <= 5 && sisaHari > 0;
   const isExpired = !isNewcomer && subscriptionEnd > 0 && diffMs <= 0;
 
-  const formatTanggalKadaluarsa = useMemo(() => {
-    if (isNewcomer || !subscriptionEnd) return 'Gratis';
-    return new Intl.DateTimeFormat('id-ID', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-    }).format(new Date(subscriptionEnd));
-  }, [isNewcomer, subscriptionEnd]);
+  const formattedToday = useMemo(
+    () =>
+      new Intl.DateTimeFormat('id-ID', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'short',
+        year: '2-digit',
+      }).format(new Date()),
+    []
+  );
 
-  const formattedToday = new Intl.DateTimeFormat('id-ID', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'short',
-    year: '2-digit',
-  }).format(new Date());
-
-  const getEmptyStateMessage = () => {
+  const getEmptyStateMessage = useCallback(() => {
     if (searchQuery.trim()) {
       return 'Tidak ada transaksi yang cocok dengan kata kunci pencarian.';
     }
@@ -455,886 +457,98 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       default:
         return 'Tidak ada antrean transaksi aktif saat ini.';
     }
-  };
- 
+  }, [searchQuery, filterStatus]);
+
+  // Daftar pelanggan unik HANYA dihitung saat modal transisi dibuka (tidak membebani render awal)
+  const existingTransitionCustomers = useMemo(() => {
+    if (!isTransitionModalOpen) return [];
+    const map = new Map<string, { nama: string; nomorTelepon?: string }>();
+    for (let i = 0; i < transaksiList.length; i++) {
+      const t = transaksiList[i];
+      if (t?.namaPelanggan) {
+        const key = t.namaPelanggan.toLowerCase();
+        if (!map.has(key)) {
+          map.set(key, { nama: t.namaPelanggan, nomorTelepon: t.nomorTelepon || undefined });
+        }
+      }
+    }
+    return Array.from(map.values());
+  }, [isTransitionModalOpen, transaksiList]);
+
+  const resolvedMobileLaundryName =
+    typeof activeLaundry.namaLaundry === 'object'
+      ? (activeLaundry.namaLaundry as { namaLaundry?: string })?.namaLaundry || "Kafela's Laundry"
+      : activeLaundry.namaLaundry || "Kafela's Laundry";
+
   return (
     <div className="flex flex-col h-full max-h-full bg-slate-100 text-slate-800 select-none overflow-hidden relative">
       {!isMobile ? (
         /* ============================================================================
-           TAMPILAN KHUSUS PC / TABLET (WEB WORKSPACE DENGAN SIDEBAR)
+           TAMPILAN KHUSUS PC / TABLET (CODE-SPLIT LAZY CHUNK — TIDAK DIMUAT DI HP)
            ============================================================================ */
-        <div className="flex flex-col h-full overflow-hidden">
-          {/* Header Bar PC / Tablet */}
-          <header className="bg-white border-b border-slate-200/90 px-6 h-16 flex items-center justify-between shrink-0 z-20 shadow-2xs">
-            <div className="flex items-center gap-3 min-w-0">
-              <div>
-                <div className="flex items-center gap-2">
-                  <h1 className="font-black text-base text-slate-900 tracking-tight">
-                    Dashboard Antrean & Kasir
-                  </h1>
-                  {laundries.length > 1 ? (
-                    <div className="relative inline-block" ref={desktopBranchDropdownRef}>
-                      <button
-                        type="button"
-                        onClick={() => setIsBranchDropdownOpen(!isBranchDropdownOpen)}
-                        title="Klik untuk memilih cabang laundry"
-                        className="px-2 py-0.5 rounded-md bg-rose-50 text-[#800000] border border-rose-200/80 text-[11px] font-bold inline-flex items-center gap-1 hover:bg-rose-100 transition cursor-pointer"
-                      >
-                        <span>
-                          {typeof activeLaundry.namaLaundry === 'object' ? (activeLaundry.namaLaundry as any)?.namaLaundry || "Kafela's Laundry" : (activeLaundry.namaLaundry || "Kafela's Laundry")}
-                        </span>
-                        <ChevronDown className={`w-3 h-3 text-[#800000]/80 transition-transform ${isBranchDropdownOpen ? 'rotate-180' : ''}`} />
-                      </button>
-
-                      {isBranchDropdownOpen && (
-                        <div className="absolute left-0 top-full mt-2 w-64 bg-white rounded-2xl shadow-2xl border border-slate-200 py-1.5 z-50 text-slate-800 animate-in fade-in zoom-in-95 overflow-hidden">
-                          <div className="px-3.5 py-2 border-b border-slate-100 flex items-center justify-between">
-                            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Pilih Cabang</span>
-                            <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">{laundries.length} Cabang</span>
-                          </div>
-                          <div className="max-h-64 overflow-y-auto divide-y divide-slate-50">
-                            {laundries.map((lnd) => {
-                              const isCurrent = lnd.id === activeLaundry.id;
-                              const lndName = typeof lnd.namaLaundry === 'object' ? (lnd.namaLaundry as any)?.namaLaundry || "Kafela's Laundry" : (lnd.namaLaundry || "Kafela's Laundry");
-                              return (
-                                <button
-                                  key={lnd.id}
-                                  type="button"
-                                  onClick={() => {
-                                    if (onSelectBranch) {
-                                      onSelectBranch(lnd.id);
-                                    }
-                                    setIsBranchDropdownOpen(false);
-                                    if (!isCurrent) {
-                                      toast.success(`Beralih ke cabang: ${lndName}`);
-                                    }
-                                  }}
-                                  className={`w-full text-left px-3.5 py-2.5 flex items-center justify-between text-xs transition cursor-pointer ${
-                                    isCurrent
-                                      ? 'bg-rose-50 text-[#800000] font-bold'
-                                      : 'text-slate-700 hover:bg-slate-50'
-                                  }`}
-                                >
-                                  <div className="min-w-0 pr-2">
-                                    <div className="flex items-center gap-2">
-                                      <Building2 className={`w-3.5 h-3.5 shrink-0 ${isCurrent ? 'text-[#800000]' : 'text-slate-400'}`} />
-                                      <span className="truncate">{lndName}</span>
-                                    </div>
-                                    {lnd.alamat && (
-                                      <p className="text-[10px] text-slate-400 truncate pl-5 mt-0.5">{lnd.alamat}</p>
-                                    )}
-                                  </div>
-                                  {isCurrent && <Check className="w-4 h-4 text-[#800000] shrink-0" />}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <span className="px-2 py-0.5 rounded-md bg-rose-50 text-[#800000] border border-rose-200/80 text-[11px] font-bold">
-                      {typeof activeLaundry.namaLaundry === 'object' ? (activeLaundry.namaLaundry as any)?.namaLaundry || "Kafela's Laundry" : (activeLaundry.namaLaundry || "Kafela's Laundry")}
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs text-slate-500 font-medium capitalize mt-0.5">
-                  {formattedToday} • {activeLaundry.alamat || 'Operasional Kasir Aktif'}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2.5">
-              <PWAInstallButton variant="header" />
-
-              {/* Badge Status & Sisa Hari Langganan PC */}
-       
-
-
-              {onSyncCloudData && (
-                <button
-                  type="button"
-                  onClick={() => handleManualSync(false)}
-                  disabled={isSyncing}
-                  title="Sinkronisasi Paksa (Smart Delta Sync - Hemat Kuota, Jeda Cooldown 10 Menit)"
-                  className="px-3 py-2 rounded-xl border border-blue-200 bg-blue-50/80 hover:bg-blue-100 text-xs font-bold text-blue-900 flex items-center gap-1.5 transition active:scale-95 disabled:opacity-60 cursor-pointer shadow-2xs"
-                >
-                  <RotateCw className={`w-3.5 h-3.5 text-blue-600 ${isSyncing ? 'animate-spin' : ''}`} />
-                  <span className="hidden xl:inline">{isSyncing ? 'Menyinkron...' : 'Sinkronisasi Paksa'}</span>
-                  {lastSyncTime > 0 && !isSyncing && (
-                    <span className="text-[10px] font-normal text-blue-600/80 hidden 2xl:inline tabular-nums">
-                      • {new Date(lastSyncTime).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
-                    </span>
-                  )}
-                </button>
-              )}
-
-              {showAmbilNotaLama && (
-                <div className="inline-flex items-center rounded-xl bg-amber-600 shadow-2xs overflow-hidden group">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTransitionInitialQuery('');
-                      setIsTransitionModalOpen(true);
-                    }}
-                    title="Ambil & Pelunasan Nota Lama dari Aplikasi Sebelumnya (Transisi Cepat)"
-                    className="px-3.5 py-2 hover:bg-amber-700 active:bg-amber-800 text-white font-bold text-xs flex items-center gap-1.5 transition cursor-pointer"
-                  >
-                    <History className="w-3.5 h-3.5 text-amber-100" />
-                    <span>Ambil Nota Lama</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleHideAmbilNotaLama}
-                    title="Sembunyikan tombol (Dapat dimunculkan kembali di Pengaturan)"
-                    className="px-2 py-2.5 bg-amber-700/80 hover:bg-amber-800 active:bg-amber-900 text-amber-200 hover:text-white transition flex items-center justify-center cursor-pointer border-l border-amber-500/40"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              )}
-
-              {/* Indikator Kuota Transaksi Bulanan Newcomer */}
-              {isNewcomer && (
-                <div
-                  onClick={() => onOpenUpgradeModal?.('Batas kuota 50 transaksi per bulan untuk Paket Newcomer (Gratis) telah tercapai')}
-                  title={`Terpakai ${currentMonthTrxCount} dari ${limits.maxMonthlyTransactions} nota bulan ini. Klik untuk lihat opsi upgrade.`}
-                  className={`px-3 py-2 rounded-xl border flex items-center gap-1.5 text-xs font-bold transition cursor-pointer select-none active:scale-95 ${
-                    isMonthlyQuotaFull
-                      ? 'bg-rose-50 border-rose-300 text-rose-700 animate-pulse'
-                      : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
-                  }`}
-                >
-                  <Receipt className={`w-3.5 h-3.5 ${isMonthlyQuotaFull ? 'text-rose-600' : 'text-[#800000]'}`} />
-                  <span className="font-mono tabular-nums">
-                    {currentMonthTrxCount} / {limits.maxMonthlyTransactions} Nota
-                  </span>
-                  {isMonthlyQuotaFull ? (
-                    <span className="px-1.5 py-0.5 rounded-md bg-rose-600 text-white text-[10px] font-black uppercase">Penuh</span>
-                  ) : (
-                    <span className="text-[10px] text-emerald-700 font-semibold hidden xl:inline">Gratis</span>
-                  )}
-                </div>
-              )}
-
-              <button
-                type="button"
-                onClick={onOpenAturKas}
-                className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs shadow-2xs flex items-center gap-1.5 transition active:scale-95"
-              >
-                <DollarSign className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Catat Kas</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={onOpenTour}
-                className="px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs shadow-xs flex items-center gap-1.5 transition active:scale-95 cursor-pointer"
-                title="Mulai Tur Panduan Interaktif"
-              >
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>Mulai Tur</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={onOpenNewTransaksi}
-                data-tour="btn-tambah-transaksi"
-                title={
-                  activeBranchTrx.length >= 400
-                    ? 'Transaksi baru dikunci (Capai 400+ pesanan). Klik untuk kelola arsip.'
-                    : activeBranchTrx.length >= 300
-                    ? 'Peringatan: 300+ pesanan aktif belum diambil'
-                    : 'Buat Transaksi Baru'
-                }
-                className={`px-4 py-2 rounded-xl font-bold text-xs shadow-xs flex items-center gap-1.5 transition active:scale-95 ${
-                  activeBranchTrx.length >= 400
-                    ? 'bg-red-600 hover:bg-red-700 text-white ring-2 ring-red-200'
-                    : activeBranchTrx.length >= 300
-                    ? 'bg-amber-600 hover:bg-amber-700 text-white ring-2 ring-amber-200'
-                    : 'bg-[#800000] hover:bg-[#660000] text-white'
-                }`}
-              >
-                {activeBranchTrx.length >= 400 ? (
-                  <Lock className="w-4 h-4 stroke-[2.5]" />
-                ) : (
-                  <Plus className="w-4 h-4 stroke-[2.5]" />
-                )}
-                <span>Transaksi Baru</span>
-                {activeBranchTrx.length >= 400 ? (
-                  <span className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded font-black">
-                    Terkunci
-                  </span>
-                ) : activeBranchTrx.length >= 300 ? (
-                  <span className="text-[10px] bg-amber-800 text-amber-100 px-1.5 py-0.5 rounded font-black">
-                    300+
-                  </span>
-                ) : null}
-              </button>
-            </div>
-          </header>
-
-          {/* Main Scrollable PC / Tablet Workspace */}
-          <div className="flex-1 overflow-y-auto p-5 lg:p-6">
-            <div className="max-w-7xl mx-auto w-full space-y-5">
-              <PWAInstallButton variant="banner" />
-
-          
-
-              {/* Alert Banner Batas Transaksi Aktif (>= 300 Peringatan, >= 400 Terkunci) */}
-              {activeBranchTrx.length >= 300 && (
-                <div
-                  onClick={onOpenLimitModal || onOpenNewTransaksi}
-                  className={`p-4 rounded-2xl border cursor-pointer active:scale-99 transition flex items-center justify-between gap-3 shadow-xs ${
-                    activeBranchTrx.length >= 400
-                      ? 'bg-red-50 border-red-300 text-red-950'
-                      : 'bg-amber-50 border-amber-300 text-amber-950'
-                  }`}
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div
-                      className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-xs ${
-                        activeBranchTrx.length >= 400 ? 'bg-red-600 text-white' : 'bg-amber-500 text-white'
-                      }`}
-                    >
-                      {activeBranchTrx.length >= 400 ? (
-                        <Lock className="w-5 h-5 stroke-[2.5]" />
-                      ) : (
-                        <ShieldAlert className="w-5 h-5 stroke-[2.5]" />
-                      )}
-                    </div>
-                    <div className="min-w-0 text-xs">
-                      <div className="font-black flex items-center gap-2 flex-wrap">
-                        <span className="text-sm">
-                          {activeBranchTrx.length >= 400
-                            ? 'Batas Maksimal Tercapai: Pembuatan Transaksi Baru Terkunci!'
-                            : 'Peringatan: Transaksi Aktif Mendekati Batas Maksimal'}
-                        </span>
-                        <span
-                          className={`px-2 py-0.5 rounded-md text-[11px] font-black ${
-                            activeBranchTrx.length >= 400
-                              ? 'bg-red-200 text-red-900'
-                              : 'bg-amber-200 text-amber-900'
-                          }`}
-                        >
-                          {activeBranchTrx.length} / 400 Pesanan
-                        </span>
-                      </div>
-                      <p className="text-xs opacity-90 mt-0.5">
-                        {activeBranchTrx.length >= 400
-                          ? 'Anda tidak dapat membuat transaksi baru sampai dilakukan pengarsipan pesanan yang menumpuk. Klik di sini untuk mengarsipkan cepat.'
-                          : 'Sudah mencapai 300+ pesanan belum diambil. Klik di sini untuk menandai sudah diambil atau mengarsipkan pesanan lama.'}
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      (onOpenLimitModal || onOpenNewTransaksi)();
-                    }}
-                    className={`px-4 py-2 rounded-xl text-xs font-black shrink-0 shadow-xs active:scale-95 transition ${
-                      activeBranchTrx.length >= 400
-                        ? 'bg-red-600 hover:bg-red-700 text-white'
-                        : 'bg-amber-600 hover:bg-amber-700 text-white'
-                    }`}
-                  >
-                    Kelola Arsip Cepat
-                  </button>
-                </div>
-              )}
-
-              {/* Alert Banner Masa Langganan Habis (PC) */}
-              {isExpired && !isNewcomer && (
-                <div
-                  onClick={() => (onOpenExpiredModal || onOpenKelolaOwner)()}
-                  className="p-3.5 rounded-2xl bg-gradient-to-r from-rose-900 via-rose-800 to-[#800000] text-white border border-rose-500/40 shadow-sm cursor-pointer active:scale-98 transition flex items-center justify-between gap-3"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center shrink-0 text-amber-300">
-                      <Clock className="w-5 h-5 animate-pulse" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-black text-xs text-amber-300 tracking-wider uppercase">
-                          Masa Langganan Habis (0 Hari Tersisa)
-                        </span>
-                        {currentUser.role === 'owner' && (
-                          <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded-md font-bold font-mono">
-                            Saldo Dompet: {formatRupiah(currentUser.walletBalance || 0)}
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-xs text-rose-100 mt-0.5">
-                        Hari langganan akun Anda telah berakhir. Klik di sini untuk melihat saldo, mengisi saldo, dan perpanjang 30 hari.
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      (onOpenExpiredModal || onOpenKelolaOwner)();
-                    }}
-                    className="px-4 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs shrink-0 shadow-sm transition active:scale-95 cursor-pointer"
-                  >
-                    Perpanjang 30 Hari
-                  </button>
-                </div>
-              )}
-
-              {/* Baris Kartu Ringkasan KPI Harian (4 Kolom Proporsional) */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
-                <div className="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-2xs flex flex-col justify-between">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                      Pemasukan Hari Ini
-                    </span>
-                    <span className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold text-xs">
-                      +
-                    </span>
-                  </div>
-                  <div className="mt-2">
-                    <div className="text-lg font-black text-emerald-700 tracking-tight">
-                      {formatRupiah(stats.totalUangMasuk)}
-                    </div>
-                    <div className="text-[11px] text-slate-500 font-medium mt-0.5">
-                      {stats.transaksiMasuk} Transaksi Masuk Hari Ini
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-2xs flex flex-col justify-between">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                      Pengeluaran Hari Ini
-                    </span>
-                    <span className="w-7 h-7 rounded-lg bg-red-50 text-red-600 flex items-center justify-center font-bold text-xs">
-                      -
-                    </span>
-                  </div>
-                  <div className="mt-2">
-                    <div className="text-lg font-black text-red-600 tracking-tight">
-                      {formatRupiah(stats.totalPengeluaran)}
-                    </div>
-                    <div className="text-[11px] text-slate-500 font-medium mt-0.5">
-                      Biaya Operasional Tercatat
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-emerald-50/70 rounded-2xl border border-emerald-200 p-4 shadow-2xs flex flex-col justify-between">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-extrabold uppercase tracking-wider text-emerald-800">
-                      Total Laba Hari Ini
-                    </span>
-                    <DollarSign className="w-4 h-4 text-emerald-700" />
-                  </div>
-                  <div className="mt-2">
-                    <div className="text-lg font-black text-emerald-800 tracking-tight">
-                      {formatRupiah(totalLaba)}
-                    </div>
-                    <div className="text-[11px] text-emerald-700/80 font-semibold mt-0.5">
-                      Selisih Kas Masuk & Keluar
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-2xs flex flex-col justify-between">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                      Target Penyelesaian
-                    </span>
-                    <Clock className="w-4 h-4 text-amber-600" />
-                  </div>
-                  <div className="mt-2 grid grid-cols-3 gap-1 text-center pt-0.5">
-                    <div className="bg-slate-50 rounded-lg py-1 px-1.5 border border-slate-100">
-                      <div className="text-xs font-black text-emerald-700">{stats.transaksiSelesai}</div>
-                      <div className="text-[10px] text-slate-500 font-semibold">Selesai</div>
-                    </div>
-                    <div className="bg-slate-50 rounded-lg py-1 px-1.5 border border-slate-100">
-                      <div className="text-xs font-black text-slate-800">{stats.transaksiDiambil}</div>
-                      <div className="text-[10px] text-slate-500 font-semibold">Diambil</div>
-                    </div>
-                    <div className="bg-amber-50/70 rounded-lg py-1 px-1.5 border border-amber-200/60">
-                      <div className="text-xs font-black text-amber-700">{stats.harusSelesai}</div>
-                      <div className="text-[10px] text-amber-800 font-semibold">Target</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Area Kerja Utama: Daftar Antrean & Panel Ringkasan Kanan */}
-              <div className="grid grid-cols-1 xl:grid-cols-12 gap-5 items-start">
-                {/* Kolom Kiri (Utama): Pencarian, Filter & Tabel Antrean */}
-                <div className="xl:col-span-8 2xl:col-span-9 space-y-3.5">
-                  {/* Bar Pencarian & Filter */}
-                  <div className="bg-white rounded-2xl border border-slate-200/90 p-3.5 shadow-2xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
-                    <div className="relative flex-1">
-                      <input
-                        type="text"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder="Cari nama pelanggan, nomor nota, atau telepon..."
-                        className="w-full bg-slate-50 border border-slate-300 rounded-xl py-2.5 pl-9 pr-8 text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#800000] focus:bg-white transition"
-                      />
-                      <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
-                      {searchQuery && (
-                        <button
-                          type="button"
-                          onClick={() => setSearchQuery('')}
-                          className="absolute right-3 top-2.5 text-xs text-slate-400 hover:text-slate-600 font-bold cursor-pointer"
-                        >
-                          ✕
-                        </button>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => setFilterStatus('semua')}
-                        className={`py-2 px-3 rounded-xl font-bold text-xs flex items-center gap-1.5 transition ${
-                          filterStatus === 'semua'
-                            ? 'bg-slate-800 text-white shadow-2xs'
-                            : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-                        }`}
-                      >
-                        <span>Semua</span>
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-md font-black bg-white/20">
-                          {filterCounts.semua}
-                        </span>
-                      </button>
-
-                      {showBaruMasukTab && (
-                        <button
-                          type="button"
-                          onClick={() => setFilterStatus(filterStatus === 'baru_masuk' ? 'semua' : 'baru_masuk')}
-                          className={`py-2 px-3 rounded-xl font-bold text-xs flex items-center gap-1.5 transition ${
-                            filterStatus === 'baru_masuk'
-                              ? 'bg-rose-700 text-white shadow-2xs ring-2 ring-rose-200'
-                              : 'bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200'
-                          }`}
-                        >
-                          <Clock className="w-3.5 h-3.5 shrink-0" />
-                          <span>Baru Masuk</span>
-                          <span className="text-[10px] px-1.5 py-0.5 rounded-md font-black bg-rose-200 text-rose-900">
-                            {filterCounts.baruMasuk}
-                          </span>
-                        </button>
-                      )}
-
-                      {showSedangDikerjakanTab && (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setFilterStatus(filterStatus === 'sedang_dikerjakan' ? 'semua' : 'sedang_dikerjakan')
-                          }
-                          className={`py-2 px-3 rounded-xl font-bold text-xs flex items-center gap-1.5 transition ${
-                            filterStatus === 'sedang_dikerjakan'
-                              ? 'bg-amber-600 text-white shadow-2xs ring-2 ring-amber-200'
-                              : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200'
-                          }`}
-                        >
-                          <Sparkles className="w-3.5 h-3.5 shrink-0" />
-                          <span>Dikerjakan</span>
-                          <span className="text-[10px] px-1.5 py-0.5 rounded-md font-black bg-amber-200 text-amber-900">
-                            {filterCounts.sedangDikerjakan}
-                          </span>
-                        </button>
-                      )}
-
-                      <button
-                        type="button"
-                        onClick={() => setFilterStatus(filterStatus === 'selesai' ? 'semua' : 'selesai')}
-                        className={`py-2 px-3 rounded-xl font-bold text-xs flex items-center gap-1.5 transition ${
-                          filterStatus === 'selesai'
-                            ? 'bg-emerald-600 text-white shadow-2xs ring-2 ring-emerald-200'
-                            : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200'
-                        }`}
-                      >
-                        <CheckCircle className="w-3.5 h-3.5 shrink-0" />
-                        <span>Siap Ambil</span>
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-md font-black bg-emerald-200 text-emerald-900">
-                          {filterCounts.selesai}
-                        </span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Daftar Antrean Transaksi (PC / Tablet Table Card List) */}
-                  <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
-                    {/* Table Header */}
-                    <div className="bg-slate-50 border-b border-slate-200 px-4 py-2.5 grid grid-cols-12 gap-3 text-[11px] font-extrabold uppercase tracking-wider text-slate-500">
-                      <div className="col-span-2">Alamat & Waktu</div>
-                      <div className="col-span-3">Pelanggan</div>
-                      <div className="col-span-3">Rincian Layanan</div>
-                      <div className="col-span-2 text-right">Tagihan & Status</div>
-                      <div className="col-span-2 text-right">Aksi Cepat</div>
-                    </div>
-
-                    {displayedTrx.length === 0 ? (
-                      showInitialSkeleton ? (
-                        <div className="divide-y divide-slate-100" aria-busy="true" aria-label="Memuat antrean transaksi">
-                          {[0, 1, 2, 3, 4].map((idx) => (
-                            <div
-                              key={idx}
-                              className="px-4 py-3 grid grid-cols-12 gap-3 items-center animate-pulse"
-                            >
-                              <div className="col-span-2 space-y-1.5">
-                                <div className="h-3.5 w-24 rounded bg-slate-200/80" />
-                                <div className="h-2.5 w-20 rounded bg-slate-100" />
-                              </div>
-                              <div className="col-span-3 space-y-1.5">
-                                <div className="h-4 w-32 rounded bg-slate-200/80" />
-                                <div className="h-2.5 w-24 rounded bg-slate-100" />
-                              </div>
-                              <div className="col-span-3 space-y-1.5">
-                                <div className="h-3.5 w-40 rounded bg-slate-200/80" />
-                                <div className="h-2.5 w-24 rounded bg-slate-100" />
-                              </div>
-                              <div className="col-span-2 flex flex-col items-end space-y-1.5">
-                                <div className="h-3.5 w-20 rounded bg-slate-200/80" />
-                                <div className="h-2.5 w-14 rounded bg-slate-100" />
-                              </div>
-                              <div className="col-span-2 flex justify-end">
-                                <div className="h-8 w-24 rounded-xl bg-slate-200/70" />
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                      <div className="p-12 text-center space-y-3">
-                        <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mx-auto text-slate-400">
-                          <CheckCircle className="w-6 h-6" />
-                        </div>
-                        <p className="text-sm font-semibold text-slate-700">
-                          {getEmptyStateMessage()}
-                        </p>
-                        {searchQuery && showAmbilNotaLama && (
-                          <div className="pt-2">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setTransitionInitialQuery(searchQuery);
-                                setIsTransitionModalOpen(true);
-                              }}
-                              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 font-bold text-xs shadow-2xs transition active:scale-95 cursor-pointer"
-                            >
-                              <History className="w-4 h-4 text-amber-600" />
-                              <span>Nota "{searchQuery}" tidak ada di sistem baru? Klik untuk Ambil Nota Lama (10 Detik)</span>
-                            </button>
-                          </div>
-                        )}
-                        {filterStatus !== 'semua' && (
-                          <button
-                            type="button"
-                            onClick={() => setFilterStatus('semua')}
-                            className="text-xs text-[#800000] font-bold underline hover:text-[#660000]"
-                          >
-                            Lihat Semua Pesanan Aktif
-                          </button>
-                        )}
-                      </div>
-                      )
-                    ) : (
-                      <div className="divide-y divide-slate-100">
-                        {paginatedTrx.map((trx, index) => {
-                          const isLunas = trx.statusPembayaran === 'Lunas';
-                          const sisa = Math.max(0, trx.totalHarga - trx.jumlahDp);
-                          const isEven = index % 2 === 0;
-                          const serviceText =
-                            Array.isArray(trx.items) && trx.items.length > 0
-                              ? trx.items
-                                  .map(
-                                    (it) =>
-                                      `${it?.namaLayanan || 'Layanan'} (${it?.berat || 0} ${it?.satuan || ''})`
-                                  )
-                                  .join(', ')
-                              : 'Layanan Cuci';
-
-                          return (
-                            <div
-                              key={trx.id}
-                              onClick={() => onOpenDetailTransaksi(trx.id)}
-                              className={`px-4 py-3 grid grid-cols-12 gap-3 items-center cursor-pointer transition hover:bg-rose-50/40 ${
-                                isEven ? 'bg-white' : 'bg-slate-50/50'
-                              }`}
-                            >
-                              {/* Kolom 1: Alamat & Waktu */}
-                              <div className="col-span-2 min-w-0">
-                                <div className="text-xs font-bold text-slate-800 truncate flex items-center gap-1" title={getAlamat(trx)}>
-                                  <MapPin className="w-3.5 h-3.5 text-rose-600/70 shrink-0" />
-                                  <span className="truncate">{getAlamat(trx)}</span>
-                                </div>
-                                <div className="text-[11px] text-slate-500 mt-0.5">
-                                  {formatShortDate(trx.tanggalMasuk)} • {formatShortTime(trx.tanggalMasuk)}
-                                </div>
-                              </div>
-
-                              {/* Kolom 2: Pelanggan */}
-                              <div className="col-span-3 min-w-0">
-                                <div className="font-bold text-sm text-slate-900 truncate">
-                                  {trx.namaPelanggan}
-                                </div>
-                                {trx.nomorTelepon ? (
-                                  <div className="text-[11px] text-slate-400 truncate">{trx.nomorTelepon}</div>
-                                ) : trx.nomorTransaksi ? (
-                                  <div className="text-[11px] text-slate-400 font-mono truncate">{trx.nomorTransaksi}</div>
-                                ) : null}
-                              </div>
-
-                              {/* Kolom 3: Rincian Layanan */}
-                              <div className="col-span-3 min-w-0">
-                                <div className="text-xs text-slate-700 font-medium line-clamp-2">
-                                  {serviceText}
-                                </div>
-                                {trx.dikerjakanOleh && (
-                                  <div className="text-[10px] text-emerald-700 font-semibold mt-0.5">
-                                    Staf: {trx.dikerjakanOleh}
-                                  </div>
-                                )}
-                              </div>
-
-                              {/* Kolom 4: Tagihan & Status Pembayaran */}
-                              <div className="col-span-2 text-right">
-                                <div className="text-xs font-extrabold text-slate-900">
-                                  {formatRupiah(trx.totalHarga)}
-                                </div>
-                                <div
-                                  className={`text-[11px] font-black mt-0.5 ${
-                                    isLunas ? 'text-emerald-600' : 'text-red-600'
-                                  }`}
-                                >
-                                  {isLunas ? 'LUNAS' : `Sisa ${formatRupiah(sisa).replace('Rp ', '')}`}
-                                </div>
-                              </div>
-
-                              {/* Kolom 5: Aksi Cepat Status */}
-                              <div
-                                className="col-span-2 flex justify-end"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                {trx.status === 'Diterima' ? (
-                                  settings?.selesaikanSaatDitugaskan ? (
-                                    <button
-                                      type="button"
-                                      data-tour="btn-dashboard-kerjakan"
-                                      onClick={() => onSelesaikanTransaksi(trx)}
-                                      title="Langsung Selesai & Siap Ambil"
-                                      className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-2xs active:scale-95 transition"
-                                    >
-                                      <CheckCircle className="w-3.5 h-3.5" />
-                                      <span>Selesai</span>
-                                    </button>
-                                  ) : (
-                                    <button
-                                      type="button"
-                                      data-tour="btn-dashboard-kerjakan"
-                                      onClick={() => onSelesaikanTransaksi(trx)}
-                                      title="Mulai Pengerjaan"
-                                      className="px-3 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-2xs active:scale-95 transition"
-                                    >
-                                      <Clock className="w-3.5 h-3.5" />
-                                      <span>Proses</span>
-                                    </button>
-                                  )
-                                ) : trx.status === 'Proses' ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => onSelesaikanTransaksi(trx)}
-                                    title="Tandai Selesai"
-                                    className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-2xs active:scale-95 transition"
-                                  >
-                                    <CheckCircle className="w-3.5 h-3.5" />
-                                    <span>Selesai</span>
-                                  </button>
-                                ) : (
-                                  <button
-                                    type="button"
-                                    data-tour="btn-diambil"
-                                    onClick={() => setTrxToAmbil(trx)}
-                                    title="Ambil / Serahkan ke Pelanggan"
-                                    className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-2xs active:scale-95 transition"
-                                  >
-                                    <Truck className="w-3.5 h-3.5" />
-                                    <span>Serahkan</span>
-                                  </button>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-
-                    {/* Kontrol Paginasi */}
-                    {displayedTrx.length > 0 && (
-                      <div className="bg-slate-50/80 border-t border-slate-200 px-4 py-3 flex items-center justify-between gap-2">
-                        <div className="text-xs text-slate-500 font-medium">
-                          Menampilkan{' '}
-                          <span className="font-bold text-slate-800">
-                            {(validCurrentPage - 1) * ITEMS_PER_PAGE + 1}
-                          </span>{' '}
-                          -{' '}
-                          <span className="font-bold text-slate-800">
-                            {Math.min(validCurrentPage * ITEMS_PER_PAGE, displayedTrx.length)}
-                          </span>{' '}
-                          dari <span className="font-bold text-[#800000]">{displayedTrx.length}</span>{' '}
-                          transaksi
-                        </div>
-
-                        {totalPages > 1 && (
-                          <div className="flex items-center gap-1.5">
-                            <button
-                              type="button"
-                              disabled={validCurrentPage === 1}
-                              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                              className="px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-35 disabled:cursor-not-allowed text-xs font-bold text-slate-700 transition flex items-center gap-1"
-                            >
-                              <ChevronLeft className="w-3.5 h-3.5" />
-                              <span>Sebelumnya</span>
-                            </button>
-
-                            <div className="flex items-center gap-1">
-                              {Array.from({ length: totalPages }, (_, i) => i + 1)
-                                .filter((pageNum) => {
-                                  return (
-                                    pageNum === 1 ||
-                                    pageNum === totalPages ||
-                                    Math.abs(pageNum - validCurrentPage) <= 1
-                                  );
-                                })
-                                .map((pageNum, idx, arr) => {
-                                  const prev = arr[idx - 1];
-                                  const showEllipsis = prev && pageNum - prev > 1;
-                                  return (
-                                    <React.Fragment key={pageNum}>
-                                      {showEllipsis && (
-                                        <span className="text-xs text-slate-400 px-0.5">...</span>
-                                      )}
-                                      <button
-                                        type="button"
-                                        onClick={() => setCurrentPage(pageNum)}
-                                        className={`w-7 h-7 rounded-lg text-xs font-bold transition ${
-                                          validCurrentPage === pageNum
-                                            ? 'bg-[#800000] text-white shadow-2xs'
-                                            : 'bg-white border border-slate-200 hover:bg-slate-100 text-slate-700'
-                                        }`}
-                                      >
-                                        {pageNum}
-                                      </button>
-                                    </React.Fragment>
-                                  );
-                                })}
-                            </div>
-
-                            <button
-                              type="button"
-                              disabled={validCurrentPage === totalPages}
-                              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                              className="px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-35 disabled:cursor-not-allowed text-xs font-bold text-slate-700 transition flex items-center gap-1"
-                            >
-                              <span>Berikutnya</span>
-                              <ChevronRight className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Kolom Kanan: Panel Ringkasan Harian & Pintasan Cepat */}
-                <div className="xl:col-span-4 2xl:col-span-3 space-y-4">
-                  <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-4 space-y-3.5">
-                    <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-                      <div>
-                        <h3 className="text-xs font-extrabold uppercase tracking-wider text-[#800000]">
-                          Rekap Kas Hari Ini
-                        </h3>
-                        <p className="text-[11px] text-slate-500 capitalize mt-0.5">{formattedToday}</p>
-                      </div>
-                      <span className="text-[11px] font-bold bg-slate-100 text-slate-700 px-2.5 py-1 rounded-lg truncate max-w-[120px]">
-                        {typeof currentUser.displayName === 'object' ? (currentUser.displayName as any)?.displayName || (currentUser.displayName as any)?.namaLaundry || 'Owner' : (currentUser.displayName || 'Owner')}
-                      </span>
-                    </div>
-
-                    <div className="space-y-2">
-                      <div className="px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-between">
-                        <span className="text-xs font-semibold text-slate-600">Pemasukan Kas</span>
-                        <span className="text-xs font-extrabold text-emerald-600">
-                          {formatRupiah(stats.totalUangMasuk)}
-                        </span>
-                      </div>
-                      <div className="px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-between">
-                        <span className="text-xs font-semibold text-slate-600">Pengeluaran</span>
-                        <span className="text-xs font-extrabold text-red-600">
-                          {formatRupiah(stats.totalPengeluaran)}
-                        </span>
-                      </div>
-                      <div className="px-3 py-2.5 rounded-xl border border-emerald-200 bg-emerald-50/70 flex items-center justify-between">
-                        <span className="text-xs font-bold text-slate-800">Total Laba Hari Ini</span>
-                        <span className="text-sm font-black text-emerald-700">
-                          {formatRupiah(totalLaba)}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="pt-2 border-t border-slate-100 space-y-2 text-xs text-slate-600">
-                      <div className="flex justify-between items-center">
-                        <span>Transaksi Masuk Hari Ini</span>
-                        <span className="font-bold text-slate-900">{stats.transaksiMasuk} Nota</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span>Selesai Dikerjakan Hari Ini</span>
-                        <span className="font-bold text-emerald-700">{stats.transaksiSelesai} Nota</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span>Transaksi Diambil Hari Ini</span>
-                        <span className="font-bold text-slate-900">{stats.transaksiDiambil} Nota</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span>Harus Selesai (24 Jam)</span>
-                        <span className="font-bold text-amber-600">{stats.harusSelesai} Nota</span>
-                      </div>
-                    </div>
-
-                    <div className="pt-2 border-t border-slate-100 grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={onOpenBukuKas}
-                        className="py-2 px-3 rounded-xl border border-slate-200 hover:border-[#800000] hover:text-[#800000] text-xs font-bold text-slate-700 transition flex items-center justify-center gap-1.5"
-                      >
-                        <DollarSign className="w-3.5 h-3.5" />
-                        <span>Buku Kas</span>
-                      </button>
-                      {isOwner && (
-                        <button
-                          type="button"
-                          onClick={onOpenLaporan}
-                          className="py-2 px-3 rounded-xl border border-slate-200 hover:border-[#800000] hover:text-[#800000] text-xs font-bold text-slate-700 transition flex items-center justify-center gap-1.5 cursor-pointer"
-                        >
-                          <FileText className="w-3.5 h-3.5" />
-                          <span>Laporan</span>
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <Suspense fallback={<DesktopWorkspaceFallback />}>
+          <LazyDesktopWorkspace
+            transaksiList={transaksiList}
+            pengeluaranList={pengeluaranList}
+            activeBranchTrxCount={activeBranchTrx.length}
+            displayedTrx={displayedTrx}
+            paginatedTrx={paginatedTrx}
+            showInitialSkeleton={showInitialSkeleton}
+            filterStatus={filterStatus}
+            onChangeFilterStatus={setFilterStatus}
+            filterCounts={filterCounts}
+            showBaruMasukTab={showBaruMasukTab}
+            showSedangDikerjakanTab={showSedangDikerjakanTab}
+            searchQuery={searchQuery}
+            onChangeSearchQuery={setSearchQuery}
+            validCurrentPage={validCurrentPage}
+            totalPages={totalPages}
+            itemsPerPage={ITEMS_PER_PAGE}
+            onChangePage={setCurrentPage}
+            getAlamat={getAlamat}
+            getEmptyStateMessage={getEmptyStateMessage}
+            settings={settings}
+            currentUser={currentUser}
+            activeLaundry={activeLaundry}
+            laundries={laundries}
+            formattedToday={formattedToday}
+            limits={limits}
+            isNewcomer={isNewcomer}
+            isExpired={isExpired}
+            currentMonthTrxCount={currentMonthTrxCount}
+            isMonthlyQuotaFull={isMonthlyQuotaFull}
+            isSyncing={isSyncing}
+            lastSyncTime={lastSyncTime}
+            showAmbilNotaLama={showAmbilNotaLama}
+            onManualSync={onSyncCloudData ? () => handleManualSync(false) : undefined}
+            onHideAmbilNotaLama={handleHideAmbilNotaLama}
+            onOpenTransitionModal={(q) => {
+              setTransitionInitialQuery(q);
+              setIsTransitionModalOpen(true);
+            }}
+            onSelectBranch={onSelectBranch}
+            onOpenUpgradeModal={onOpenUpgradeModal}
+            onOpenExpiredModal={onOpenExpiredModal}
+            onOpenKelolaOwner={onOpenKelolaOwner}
+            onOpenLimitModal={onOpenLimitModal}
+            onOpenNewTransaksi={onOpenNewTransaksi}
+            onOpenAturKas={onOpenAturKas}
+            onOpenTour={onOpenTour}
+            onOpenDetailTransaksi={onOpenDetailTransaksi}
+            onSelesaikanTransaksi={onSelesaikanTransaksi}
+            onRequestAmbilTransaksi={setTrxToAmbil}
+            onOpenBukuKas={onOpenBukuKas}
+            onOpenLaporan={onOpenLaporan}
+          />
+        </Suspense>
       ) : (
         /* ============================================================================
-           TAMPILAN KHUSUS HP / MOBILE (DIPERTAHANKAN 100% SESUAI ASLINYA)
+           TAMPILAN KHUSUS HP / MOBILE (RINGAN & CEPAT UNTUK PERANGKAT KELAS BAWAH)
            ============================================================================ */
         <>
           {/* 1. TOOLBAR ATAS (Maroon) */}
           <header className="bg-[#800000] text-white shadow-md shrink-0 z-30">
             <div className="flex items-center justify-between px-2 md:px-1 h-14">
-              {/* Tombol Kiri: Arsip Transaksi */}
               <div className="flex items-center gap-1">
                 <button
                   onClick={onOpenArsip}
@@ -1344,7 +558,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   <Archive className="w-5 h-5 text-white" />
                 </button>
 
-                {/* Nama Laundry & Switcher Cabang Langsung */}
                 <div className="relative" ref={branchDropdownRef}>
                   {laundries.length > 1 ? (
                     <button
@@ -1355,32 +568,43 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     >
                       <div className="flex items-center gap-1">
                         <span className="font-bold text-[18px] truncate text-white tracking-wide">
-                          {typeof activeLaundry.namaLaundry === 'object' ? (activeLaundry.namaLaundry as any)?.namaLaundry || "Kafela's Laundry" : (activeLaundry.namaLaundry || "Kafela's Laundry")}
+                          {resolvedMobileLaundryName}
                         </span>
-                        <ChevronDown className={`w-3.5 h-3.5 text-white/90 shrink-0 transition-transform ${isBranchDropdownOpen ? 'rotate-180' : ''}`} />
+                        <ChevronDown
+                          className={`w-3.5 h-3.5 text-white/90 shrink-0 transition-transform ${
+                            isBranchDropdownOpen ? 'rotate-180' : ''
+                          }`}
+                        />
                       </div>
                     </button>
                   ) : (
                     <div className="flex flex-col items-start px-1 py-1 max-w-[190px]">
                       <div className="flex items-center gap-1">
                         <span className="font-bold text-[18px] truncate text-white tracking-wide">
-                          {typeof activeLaundry.namaLaundry === 'object' ? (activeLaundry.namaLaundry as any)?.namaLaundry || "Kafela's Laundry" : (activeLaundry.namaLaundry || "Kafela's Laundry")}
+                          {resolvedMobileLaundryName}
                         </span>
                       </div>
                     </div>
                   )}
 
-                  {/* Dropdown Menu Cabang Langsung */}
                   {isBranchDropdownOpen && laundries.length > 1 && (
                     <div className="absolute left-0 top-full mt-1.5 w-60 bg-white rounded-2xl shadow-2xl border border-slate-200 py-1.5 z-50 text-slate-800 animate-in fade-in zoom-in-95 overflow-hidden">
                       <div className="px-3.5 py-2 border-b border-slate-100 flex items-center justify-between">
-                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Pilih Cabang</span>
-                        <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">{laundries.length} Cabang</span>
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                          Pilih Cabang
+                        </span>
+                        <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+                          {laundries.length} Cabang
+                        </span>
                       </div>
                       <div className="max-h-60 overflow-y-auto divide-y divide-slate-50">
                         {laundries.map((lnd) => {
                           const isCurrent = lnd.id === activeLaundry.id;
-                          const lndName = typeof lnd.namaLaundry === 'object' ? (lnd.namaLaundry as any)?.namaLaundry || "Kafela's Laundry" : (lnd.namaLaundry || "Kafela's Laundry");
+                          const lndName =
+                            typeof lnd.namaLaundry === 'object'
+                              ? (lnd.namaLaundry as { namaLaundry?: string })?.namaLaundry ||
+                                "Kafela's Laundry"
+                              : lnd.namaLaundry || "Kafela's Laundry";
                           return (
                             <button
                               key={lnd.id}
@@ -1402,11 +626,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                             >
                               <div className="min-w-0 pr-2">
                                 <div className="flex items-center gap-2">
-                                  <Building2 className={`w-3.5 h-3.5 shrink-0 ${isCurrent ? 'text-[#800000]' : 'text-slate-400'}`} />
+                                  <Building2
+                                    className={`w-3.5 h-3.5 shrink-0 ${
+                                      isCurrent ? 'text-[#800000]' : 'text-slate-400'
+                                    }`}
+                                  />
                                   <span className="truncate">{lndName}</span>
                                 </div>
                                 {lnd.alamat && (
-                                  <p className="text-[10px] text-slate-400 truncate pl-5 mt-0.5">{lnd.alamat}</p>
+                                  <p className="text-[10px] text-slate-400 truncate pl-5 mt-0.5">
+                                    {lnd.alamat}
+                                  </p>
                                 )}
                               </div>
                               {isCurrent && <Check className="w-4 h-4 text-[#800000] shrink-0" />}
@@ -1419,7 +649,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 </div>
               </div>
 
-              {/* Tombol Kanan: Pasang PWA, Sinkron Cloud & Settings */}
               <div className="flex items-center gap-0">
                 <PWAInstallButton variant="header" />
 
@@ -1449,10 +678,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           {/* 2. AREA ATAS YANG BISA DI-SCROLL (Pencarian, Filter, Transaksi, Paginasi) */}
           <div className="flex-1 overflow-y-auto px-1.5 sm:px-4 md:px-6 py-1">
             <div className="max-w-7xl mx-auto w-full space-y-3 pb-2">
-              {/* PWA Install Banner */}
               <PWAInstallButton variant="banner" />
 
-              {/* Alert Banner Masa Langganan Habis (Mobile) */}
               {isExpired && !isNewcomer && (
                 <div
                   onClick={() => (onOpenExpiredModal || onOpenKelolaOwner)()}
@@ -1491,10 +718,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 </div>
               )}
 
-              {/* Alert Banner Kuota Bulanan Newcomer di HP */}
               {isNewcomer && (
                 <div
-                  onClick={() => onOpenUpgradeModal?.('Batas kuota 50 transaksi per bulan untuk Paket Newcomer (Gratis) telah tercapai')}
+                  onClick={() =>
+                    onOpenUpgradeModal?.(
+                      'Batas kuota 50 transaksi per bulan untuk Paket Newcomer (Gratis) telah tercapai'
+                    )
+                  }
                   className={`p-2.5 sm:p-3 rounded-2xl border transition flex items-center justify-between gap-2.5 shadow-2xs cursor-pointer active:scale-98 ${
                     isMonthlyQuotaFull
                       ? 'bg-rose-50 border-rose-300 text-rose-950 animate-pulse'
@@ -1515,13 +745,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     >
                       <Receipt className="w-4 h-4" />
                     </div>
-                   
                   </div>
                   <button
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      onOpenUpgradeModal?.('Batas kuota 50 transaksi per bulan untuk Paket Newcomer (Gratis) telah tercapai');
+                      onOpenUpgradeModal?.(
+                        'Batas kuota 50 transaksi per bulan untuk Paket Newcomer (Gratis) telah tercapai'
+                      );
                     }}
                     className={`px-3 py-1.5 rounded-xl font-bold text-xs shrink-0 shadow-2xs transition active:scale-95 cursor-pointer ${
                       isMonthlyQuotaFull
@@ -1534,11 +765,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 </div>
               )}
 
-
-
-       
-
-              {/* Alert Banner Batas Transaksi Aktif di HP (>= 300 Peringatan, >= 400 Terkunci) */}
               {activeBranchTrx.length >= 300 && (
                 <div
                   onClick={onOpenLimitModal || onOpenNewTransaksi}
@@ -1551,7 +777,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   <div className="flex items-center gap-2.5 min-w-0">
                     <div
                       className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-xs ${
-                        activeBranchTrx.length >= 400 ? 'bg-red-600 text-white' : 'bg-amber-500 text-white'
+                        activeBranchTrx.length >= 400
+                          ? 'bg-red-600 text-white'
+                          : 'bg-amber-500 text-white'
                       }`}
                     >
                       {activeBranchTrx.length >= 400 ? (
@@ -1601,7 +829,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 </div>
               )}
 
-              {/* 2. PENCARIAN & 3 TOMBOL FILTER BERSEBELAHAN */}
+              {/* PENCARIAN & 3 TOMBOL FILTER BERSEBELAHAN */}
               <div className="bg-white rounded-2xl border border-slate-200 p-2 sm:p-3 shadow-2xs space-y-1.5">
                 {showAmbilNotaLama && (
                   <div className="flex items-center gap-1.5">
@@ -1626,8 +854,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     </button>
                   </div>
                 )}
-                <div className="flex grid grid-cols-2 gap-1 items-center">
-                  {/* Kolom 1: Kolom Pencarian */}
+                <div className="grid grid-cols-2 gap-1 items-center">
                   <div className="relative w-full">
                     <input
                       type="text"
@@ -1648,14 +875,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     )}
                   </div>
 
-                  {/* Kolom 2: Tombol Filter (Mobile) */}
-                  <div className={`grid ${showSedangDikerjakanTab ? 'grid-cols-3' : 'grid-cols-2'} gap-1 w-full`}>
-                  
-
-                    {/* Tombol 1: Baru Masuk (Filter Jam Merah) */}
+                  <div
+                    className={`grid ${
+                      showSedangDikerjakanTab ? 'grid-cols-3' : 'grid-cols-2'
+                    } gap-1 w-full`}
+                  >
                     <button
                       type="button"
-                      onClick={() => setFilterStatus(filterStatus === 'baru_masuk' ? 'semua' : 'baru_masuk')}
+                      onClick={() =>
+                        setFilterStatus(filterStatus === 'baru_masuk' ? 'semua' : 'baru_masuk')
+                      }
                       className={`py-2 px-1 rounded-xl font-bold text-xs flex items-center justify-center gap-1 transition ${
                         filterStatus === 'baru_masuk'
                           ? 'bg-rose-700 text-white shadow-sm ring-2 ring-rose-300'
@@ -1668,11 +897,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       </span>
                     </button>
 
-                    {/* Tombol 2: Sedang Dikerjakan (Kuning) - Disembunyikan saat alur langsung selesai */}
                     {showSedangDikerjakanTab && (
                       <button
                         type="button"
-                        onClick={() => setFilterStatus(filterStatus === 'sedang_dikerjakan' ? 'semua' : 'sedang_dikerjakan')}
+                        onClick={() =>
+                          setFilterStatus(
+                            filterStatus === 'sedang_dikerjakan' ? 'semua' : 'sedang_dikerjakan'
+                          )
+                        }
                         className={`py-2 px-1 rounded-xl font-bold text-xs flex items-center justify-center gap-1 transition ${
                           filterStatus === 'sedang_dikerjakan'
                             ? 'bg-amber-600 text-white shadow-sm ring-2 ring-amber-300'
@@ -1686,10 +918,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       </button>
                     )}
 
-                    {/* Tombol 3: Selesai / Siap Ambil (Centang Hijau) */}
                     <button
                       type="button"
-                      onClick={() => setFilterStatus(filterStatus === 'selesai' ? 'semua' : 'selesai')}
+                      onClick={() =>
+                        setFilterStatus(filterStatus === 'selesai' ? 'semua' : 'selesai')
+                      }
                       className={`py-2 px-1 rounded-xl font-bold text-xs flex items-center justify-center gap-1 transition ${
                         filterStatus === 'selesai'
                           ? 'bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-300'
@@ -1705,11 +938,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 </div>
               </div>
 
-              {/* 4. DAFTAR TRANSAKSI AKTIF */}
+              {/* DAFTAR TRANSAKSI AKTIF */}
               <main className="space-y-1">
                 {displayedTrx.length === 0 ? (
                   showInitialSkeleton ? (
-                    <div className="space-y-1" aria-busy="true" aria-label="Memuat antrean transaksi">
+                    <div
+                      className="space-y-1"
+                      aria-busy="true"
+                      aria-label="Memuat antrean transaksi"
+                    >
                       {[0, 1, 2, 3, 4].map((idx) => (
                         <div
                           key={idx}
@@ -1735,40 +972,40 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       ))}
                     </div>
                   ) : (
-                  <div className="bg-white rounded-2xl p-8 text-center border border-slate-200 mt-0 space-y-1">
-                    <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mx-auto text-slate-400">
-                      <CheckCircle className="w-6 h-6" />
-                    </div>
-                    <p className="text-sm font-semibold text-slate-700">
-                      {getEmptyStateMessage()}
-                    </p>
-                    {searchQuery && showAmbilNotaLama && (
-                      <div className="pt-1">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setTransitionInitialQuery(searchQuery);
-                            setIsTransitionModalOpen(true);
-                          }}
-                          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 font-bold text-xs shadow-2xs transition active:scale-95 text-left cursor-pointer"
-                        >
-                          <History className="w-4 h-4 text-amber-600 shrink-0" />
-                          <span>Nota "{searchQuery}" tidak ada? Ambil Nota Lama</span>
-                        </button>
+                    <div className="bg-white rounded-2xl p-8 text-center border border-slate-200 mt-0 space-y-1">
+                      <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mx-auto text-slate-400">
+                        <CheckCircle className="w-6 h-6" />
                       </div>
-                    )}
-                    <div className="flex items-center justify-center gap-2 pt-1">
-                      {filterStatus !== 'semua' && (
-                        <button
-                          type="button"
-                          onClick={() => setFilterStatus('semua')}
-                          className="text-xs text-[#800000] font-bold underline hover:text-[#660000]"
-                        >
-                          Lihat Semua Pesanan
-                        </button>
+                      <p className="text-sm font-semibold text-slate-700">
+                        {getEmptyStateMessage()}
+                      </p>
+                      {searchQuery && showAmbilNotaLama && (
+                        <div className="pt-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTransitionInitialQuery(searchQuery);
+                              setIsTransitionModalOpen(true);
+                            }}
+                            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 font-bold text-xs shadow-2xs transition active:scale-95 text-left cursor-pointer"
+                          >
+                            <History className="w-4 h-4 text-amber-600 shrink-0" />
+                            <span>Nota "{searchQuery}" tidak ada? Ambil Nota Lama</span>
+                          </button>
+                        </div>
                       )}
+                      <div className="flex items-center justify-center gap-2 pt-1">
+                        {filterStatus !== 'semua' && (
+                          <button
+                            type="button"
+                            onClick={() => setFilterStatus('semua')}
+                            className="text-xs text-[#800000] font-bold underline hover:text-[#660000]"
+                          >
+                            Lihat Semua Pesanan
+                          </button>
+                        )}
+                      </div>
                     </div>
-                  </div>
                   )
                 ) : (
                   paginatedTrx.map((trx, index) => {
@@ -1778,7 +1015,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
                     const serviceText =
                       Array.isArray(trx.items) && trx.items.length > 0
-                        ? trx.items.map((it) => `${it?.namaLayanan || 'Layanan'} (${it?.berat || 0} ${it?.satuan || ''})`).join(', ')
+                        ? trx.items
+                            .map(
+                              (it) =>
+                                `${it?.namaLayanan || 'Layanan'} (${it?.berat || 0} ${
+                                  it?.satuan || ''
+                                })`
+                            )
+                            .join(', ')
                         : 'Layanan Cuci';
 
                     return (
@@ -1790,7 +1034,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         }`}
                       >
                         <div className="flex items-center gap-1 sm:gap-1">
-                          {/* Tanggal & Jam Masuk (Diperkecil / Compact) */}
                           <div className="w-9 shrink-0 text-center border-r border-slate-200 pr-1 flex flex-col justify-center">
                             <div className="text-[10px] text-slate-800 leading-none">
                               {formatShortTime(trx.tanggalMasuk)}
@@ -1800,20 +1043,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                             </div>
                           </div>
 
-                          {/* Pelanggan, Layanan & Item Jadwal */}
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-1.5 ">
+                            <div className="flex items-center gap-1.5">
                               <span className="font-bold text-[12.5px] text-slate-900 truncate">
                                 {trx.namaPelanggan}
                               </span>
                               <div
-                    className="text-[10px] text-slate-800   truncate"
+                                className="text-[10px] text-slate-800 truncate"
                                 title={getAlamat(trx)}
                               >
                                 <span className="truncate">{getAlamat(trx)}</span>
                               </div>
 
-                              {/* Lunas / Sisa di Ujung Kanan */}
                               <div className="ml-auto text-right">
                                 <div
                                   className={`text-xs font-black tracking-tight leading-tight ${
@@ -1836,27 +1077,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                               onClick={(e) => e.stopPropagation()}
                             >
                               {trx.status === 'Diterima' ? (
-                                settings?.selesaikanSaatDitugaskan ? (
-                                  <button
-                                    type="button"
-                                    data-tour="btn-dashboard-kerjakan"
-                                    onClick={() => onSelesaikanTransaksi(trx)}
-                                    title="Langsung Selesai & Siap Ambil"
-                                    className="w-10 min-h-[20px] rounded-xl bg-rose-600 hover:bg-rose-700 text-white flex flex-col items-center justify-center gap-1 shadow-2xs active:scale-95 transition"
-                                  >
-                                    <Clock className="w-4 h-4" />
-                                  </button>
-                                ) : (
-                                  <button
-                                    type="button"
-                                    data-tour="btn-dashboard-kerjakan"
-                                    onClick={() => onSelesaikanTransaksi(trx)}
-                                    title="Mulai Pengerjaan"
-                                    className="w-10 min-h-[20px] rounded-xl bg-rose-600 hover:bg-rose-700 text-white flex flex-col items-center justify-center gap-1 shadow-2xs active:scale-95 transition"
-                                  >
-                                    <Clock className="w-4 h-4" />
-                                  </button>
-                                )
+                                <button
+                                  type="button"
+                                  data-tour="btn-dashboard-kerjakan"
+                                  onClick={() => onSelesaikanTransaksi(trx)}
+                                  title={
+                                    settings?.selesaikanSaatDitugaskan
+                                      ? 'Langsung Selesai & Siap Ambil'
+                                      : 'Mulai Pengerjaan'
+                                  }
+                                  className="w-10 min-h-[20px] rounded-xl bg-rose-600 hover:bg-rose-700 text-white flex flex-col items-center justify-center gap-1 shadow-2xs active:scale-95 transition"
+                                >
+                                  <Clock className="w-4 h-4" />
+                                </button>
                               ) : trx.status === 'Proses' ? (
                                 <button
                                   type="button"
@@ -1886,11 +1119,21 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 )}
               </main>
 
-              {/* 5. KONTROL PAGINASI (10 TRANSAKSI PER HALAMAN) */}
+              {/* KONTROL PAGINASI (10 TRANSAKSI PER HALAMAN) */}
               {displayedTrx.length > 0 && (
                 <div className="bg-white rounded-2xl border border-slate-200 p-2.5 shadow-2xs flex flex-col sm:flex-row items-center justify-between gap-2">
                   <div className="text-[11px] text-slate-500 font-medium text-center sm:text-left">
-                    Menampilkan <span className="font-bold text-slate-800">{(validCurrentPage - 1) * ITEMS_PER_PAGE + 1}</span> - <span className="font-bold text-slate-800">{Math.min(validCurrentPage * ITEMS_PER_PAGE, displayedTrx.length)}</span> dari <span className="font-bold text-[#800000]">{displayedTrx.length}</span> transaksi
+                    Menampilkan{' '}
+                    <span className="font-bold text-slate-800">
+                      {(validCurrentPage - 1) * ITEMS_PER_PAGE + 1}
+                    </span>{' '}
+                    -{' '}
+                    <span className="font-bold text-slate-800">
+                      {Math.min(validCurrentPage * ITEMS_PER_PAGE, displayedTrx.length)}
+                    </span>{' '}
+                    dari{' '}
+                    <span className="font-bold text-[#800000]">{displayedTrx.length}</span>{' '}
+                    transaksi
                   </div>
 
                   {totalPages > 1 && (
@@ -1920,7 +1163,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
                             return (
                               <React.Fragment key={pageNum}>
-                                {showEllipsis && <span className="text-xs text-slate-400 px-0.5">...</span>}
+                                {showEllipsis && (
+                                  <span className="text-xs text-slate-400 px-0.5">...</span>
+                                )}
                                 <button
                                   type="button"
                                   onClick={() => setCurrentPage(pageNum)}
@@ -1953,97 +1198,25 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
           </div>
 
-          {/* 5. KARTU RINGKASAN HARIAN (Terkunci tetap di bawah, tidak terscroll) */}
+          {/* 5. WIDGET LAPORAN RINGKASAN HARIAN & GRAFIK (CODE-SPLIT + DEFERRED IDLE RENDER) */}
           <div className="shrink-0 z-20 bg-slate-100/95 backdrop-blur-xs px-2 sm:px-4 pt-1.5 pb-[70px] border-t border-slate-200/80 shadow-md">
             <div className="max-w-7xl mx-auto w-full">
-              <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-3 space-y-2">
-                {/* Header Ringkasan: Tanggal & User Login */}
-                <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[12px] font-bold text-slate-800 capitalize">
-                      {formattedToday}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[10px] font-semibold bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md truncate max-w-[130px]">
-                      {typeof currentUser.displayName === 'object' ? (currentUser.displayName as any)?.displayName || (currentUser.displayName as any)?.namaLaundry || 'Owner' : (currentUser.displayName || 'Owner')}
-                    </span>
-
-                    <button
-                      type="button"
-                      onClick={() => setIsSummaryCollapsed(!isSummaryCollapsed)}
-                      className="text-[10px] font-bold text-slate-500 hover:text-slate-800 p-1 rounded hover:bg-slate-100 transition active:scale-95 flex items-center justify-center"
-                      title={isSummaryCollapsed ? 'Buka Rincian Lengkap' : 'Sembunyikan / Perkecil'}
-                    >
-                      {isSummaryCollapsed ? (
-                        <ChevronUp className="w-3.5 h-3.5 text-slate-600" />
-                      ) : (
-                        <ChevronDown className="w-3.5 h-3.5 text-slate-600" />
-                      )}
-                    </button>
-                  </div>
-                </div>
-
-                {isSummaryCollapsed ? (
-                  <div className="flex items-center justify-between text-[11px] font-bold pt-0.5">
-                    <span className="text-slate-600">
-                      Masuk: <span className="text-emerald-700 font-extrabold">{formatRupiah(stats.totalUangMasuk)}</span>
-                    </span>
-                    <span className="text-slate-600">
-                      Keluar: <span className="text-red-600 font-extrabold">{formatRupiah(stats.totalPengeluaran)}</span>
-                    </span>
-                    <span className="text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-md font-black">
-                      Laba: {formatRupiah(totalLaba)}
-                    </span>
-                  </div>
-                ) : (
-                  <>
-                    <div className="grid grid-cols-2 gap-1.5">
-                      <div className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-between">
-                        <span className="text-[10px] font-semibold text-slate-500">Pemasukan</span>
-                        <span className="text-xs font-bold text-emerald-600">
-                          {formatRupiah(stats.totalUangMasuk)}
-                        </span>
-                      </div>
-                      <div className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-between">
-                        <span className="text-[10px] font-semibold text-slate-500">Pengeluaran</span>
-                        <span className="text-xs font-bold text-red-600">
-                          {formatRupiah(stats.totalPengeluaran)}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="px-2.5 py-2 rounded-lg border border-emerald-200 bg-emerald-50/60 flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-700">Total Laba Hari Ini</span>
-                      <span className="text-xs font-black text-emerald-700">
-                        {formatRupiah(totalLaba)}
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] pt-1.5 text-slate-600 border-t border-slate-100">
-                      <div className="flex justify-between items-center">
-                        <span>Transaksi Masuk:</span>
-                        <span className="font-bold text-slate-900">{stats.transaksiMasuk}</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span>Selesai Hari Ini:</span>
-                        <span className="font-bold text-emerald-700">{stats.transaksiSelesai}</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span>Transaksi Diambil:</span>
-                        <span className="font-bold text-slate-900">{stats.transaksiDiambil}</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span>Harus Selesai:</span>
-                        <span className="font-bold text-amber-600">{stats.harusSelesai}</span>
-                      </div>
-                    </div>
-
-         
-                  </>
-                )}
-              </div>
+              {isHeavyWidgetsReady ? (
+                <Suspense fallback={<MobileDailyReportSkeleton collapsed={isSummaryCollapsed} />}>
+                  <LazyDailyReportWidget
+                    variant="mobile-bar"
+                    transaksiList={transaksiList}
+                    pengeluaranList={pengeluaranList}
+                    activeLaundryId={activeLaundry.id}
+                    currentUser={currentUser}
+                    formattedToday={formattedToday}
+                    isSummaryCollapsed={isSummaryCollapsed}
+                    onToggleCollapse={() => setIsSummaryCollapsed((v) => !v)}
+                  />
+                </Suspense>
+              ) : (
+                <MobileDailyReportSkeleton collapsed={isSummaryCollapsed} />
+              )}
             </div>
           </div>
 
@@ -2130,135 +1303,38 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </>
       )}
 
-      {/* MODAL KONFIRMASI PENGAMBILAN TRANSAKSI ("Benar mau diambil?") */}
-      {trxToAmbil && (() => {
-        const isLunas = trxToAmbil.statusPembayaran === 'Lunas';
-        const sisa = Math.max(0, trxToAmbil.totalHarga - (trxToAmbil.jumlahDp || 0));
-        const servicesDesc =
-          Array.isArray(trxToAmbil.items) && trxToAmbil.items.length > 0
-            ? trxToAmbil.items.map((it) => `${it?.namaLayanan || 'Layanan'} (${it?.berat || 0} ${it?.satuan || ''})`).join(', ')
-            : 'Layanan Laundry';
+      {/* MODAL KONFIRMASI PENGAMBILAN TRANSAKSI (LAZY CHUNK) */}
+      {trxToAmbil && (
+        <Suspense fallback={null}>
+          <LazyPickupConfirmModal
+            transaksi={trxToAmbil}
+            alamat={getAlamat(trxToAmbil)}
+            onCancel={() => setTrxToAmbil(null)}
+            onConfirm={(trx) => {
+              onAmbilTransaksi(trx);
+              setTrxToAmbil(null);
+            }}
+          />
+        </Suspense>
+      )}
 
-        return (
-          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
-            <div className="bg-white rounded-3xl max-w-md w-full p-5 sm:p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
-              {/* Header Icon */}
-              <div className="w-14 h-14 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto mb-3 shadow-xs">
-                <Truck className="w-7 h-7" />
-              </div>
-
-              {/* Title & Pertanyaan Utama */}
-              <h3 className="text-lg font-black text-slate-900 text-center tracking-tight">
-                Benar mau diambil?
-              </h3>
-              <p className="text-xs text-slate-500 text-center mt-1">
-                Konfirmasi penyerahan cucian ke pelanggan
-              </p>
-
-              {/* Rincian Transaksi */}
-              <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-200 mt-4 space-y-2 text-xs">
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-500">Pelanggan:</span>
-                  <span className="font-bold text-slate-900 truncate max-w-[190px]">
-                    {trxToAmbil.namaPelanggan}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-500">Alamat:</span>
-                  <span className="font-medium text-slate-700 truncate max-w-[190px]">
-                    {getAlamat(trxToAmbil)}
-                  </span>
-                </div>
-                <div className="flex justify-between items-start gap-2">
-                  <span className="text-slate-500 shrink-0">Layanan:</span>
-                  <span className="text-slate-800 font-medium text-right line-clamp-2">
-                    {servicesDesc}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center pt-1.5 border-t border-slate-200">
-                  <span className="text-slate-500 font-semibold">Total Tagihan:</span>
-                  <span className="font-extrabold text-slate-900 text-sm">
-                    {formatRupiah(trxToAmbil.totalHarga)}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center pt-1 border-t border-dashed border-slate-200">
-                  <span className="text-slate-500">Status Pembayaran:</span>
-                  {isLunas || sisa <= 0 ? (
-                    <span className="px-2 py-0.5 rounded-full font-black bg-emerald-100 text-emerald-800 text-[11px]">
-                      LUNAS
-                    </span>
-                  ) : (
-                    <span className="px-2 py-0.5 rounded-full font-black bg-rose-100 text-rose-800 text-[11px]">
-                      SISA {formatRupiah(sisa)}
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {/* Catatan Sisa Pembayaran / Pelunasan */}
-              {!isLunas && sisa > 0 ? (
-                <div className="mt-3.5 p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-xs flex items-start gap-2.5">
-                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                  <div className="leading-relaxed">
-                    Masih terdapat sisa tagihan sebesar <strong className="font-bold text-rose-700">{formatRupiah(sisa)}</strong>.
-                    Jika Anda konfirmasi <strong>"Ya, Benar Diambil"</strong>, transaksi ini otomatis ditandai <strong>LUNAS</strong> dan diserahkan.
-                  </div>
-                </div>
-              ) : (
-                <div className="mt-3.5 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-900 text-xs flex items-start gap-2.5">
-                  <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                  <div className="leading-relaxed">
-                    Cucian sudah lunas dan siap diserahkan kepada pelanggan. Data akan otomatis masuk ke arsip cucian selesai diambil.
-                  </div>
-                </div>
-              )}
-
-              {/* Tombol Aksi */}
-              <div className="grid grid-cols-2 gap-2.5 mt-5">
-                <button
-                  type="button"
-                  onClick={() => setTrxToAmbil(null)}
-                  className="py-2.5 px-4 rounded-xl border border-slate-300 hover:bg-slate-100 font-bold text-xs text-slate-700 transition active:scale-95"
-                >
-                  Batal
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    onAmbilTransaksi(trxToAmbil);
-                    setTrxToAmbil(null);
-                  }}
-                  className="py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 font-black text-xs text-white shadow-md transition active:scale-95 flex items-center justify-center gap-1.5"
-                >
-                  <Truck className="w-4 h-4" />
-                  <span>Ya, Benar Diambil</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* MODAL INPUT KILAT AMBIL NOTA LAMA (TRANSISI) */}
-      <QuickTransitionPickupModal
-        isOpen={isTransitionModalOpen}
-        onClose={() => setIsTransitionModalOpen(false)}
-        initialQuery={transitionInitialQuery}
-        existingCustomers={Array.from(
-          new Map(
-            transaksiList
-              .filter((t) => t.namaPelanggan)
-              .map((t) => [t.namaPelanggan.toLowerCase(), { nama: t.namaPelanggan, nomorTelepon: t.nomorTelepon }])
-          ).values()
-        )}
-        onSave={(data) => {
-          setIsTransitionModalOpen(false);
-          if (onSaveTransitionPickup) {
-            onSaveTransitionPickup(data);
-          }
-        }}
-      />
+      {/* MODAL INPUT KILAT AMBIL NOTA LAMA (LAZY CHUNK — HANYA DIMUAT SAAT DIBUKA) */}
+      {isTransitionModalOpen && (
+        <Suspense fallback={null}>
+          <LazyQuickTransitionPickupModal
+            isOpen={isTransitionModalOpen}
+            onClose={() => setIsTransitionModalOpen(false)}
+            initialQuery={transitionInitialQuery}
+            existingCustomers={existingTransitionCustomers}
+            onSave={(data) => {
+              setIsTransitionModalOpen(false);
+              if (onSaveTransitionPickup) {
+                onSaveTransitionPickup(data);
+              }
+            }}
+          />
+        </Suspense>
+      )}
     </div>
   );
 };
-

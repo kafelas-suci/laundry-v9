@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { Suspense, lazy, useState, useMemo, useEffect } from 'react';
 import {
   ArrowLeft,
   ChevronDown,
@@ -34,12 +34,20 @@ import { formatRupiah, formatShortDate, formatReceiptDate, formatLocalDateKey, e
 import { FirebaseSyncService } from '../utils/firebaseSync';
 import { StorageService, defaultSettings } from '../utils/storage';
 import { IndexedDbService } from '../utils/indexedDb';
-import { exportLaporanToExcel, LaporanSummaryExportData } from '../utils/excelExport';
-import { generateLaporanPdf, LaporanPdfData } from '../utils/pdfExport';
-import { ReportPdfModal } from '../components/ReportPdfModal';
+import type { LaporanSummaryExportData } from '../utils/excelExport';
+import type { LaporanPdfData } from '../utils/pdfExport';
 import { useToast } from '../components/NotificationContext';
 import { getLaundryLimits } from '../utils/subscription';
-import { BranchComparisonD3Chart, BranchPerformanceData } from '../components/BranchComparisonD3Chart';
+import type { BranchPerformanceData } from '../components/BranchComparisonD3Chart';
+
+const LazyReportPdfModal = lazy(() =>
+  import('../components/ReportPdfModal').then((m) => ({ default: m.ReportPdfModal }))
+);
+const LazyBranchComparisonD3Chart = lazy(() =>
+  import('../components/BranchComparisonD3Chart').then((m) => ({
+    default: m.BranchComparisonD3Chart,
+  }))
+);
 
 interface LaporanViewProps {
   onBack: () => void;
@@ -674,8 +682,8 @@ const [showMonthPickerModal, setShowMonthPickerModal] = useState<boolean>(false)
 
   const currentPeriodeLabel = `${selectedMonth === -1 ? 'Semua Bulan' : monthNames[selectedMonth]} ${selectedYear}`;
 
-  // Handler Ekspor Excel (.xlsx)
-  const handleExportExcel = () => {
+  // Handler Ekspor Excel (.xlsx) — dimuat dinamis saat tombol diklik
+  const handleExportExcel = async () => {
     if (!canExcel) {
       toast.warning('Fitur ekspor Excel (.xlsx) hanya untuk Paket Premium.');
       return;
@@ -714,6 +722,7 @@ const [showMonthPickerModal, setShowMonthPickerModal] = useState<boolean>(false)
         dailyRows: summary.dailyRows,
       };
 
+      const { exportLaporanToExcel } = await import('../utils/excelExport');
       exportLaporanToExcel(exportPayload, filteredTrx, filteredExp);
       toast.success('Berkas Excel (.xlsx) berhasil diunduh!');
     } catch (err) {
@@ -766,14 +775,15 @@ const [showMonthPickerModal, setShowMonthPickerModal] = useState<boolean>(false)
     comparativeAnalytics,
   ]);
 
-  // 1-Click Direct Download PDF File
-  const handleDownloadPDF = () => {
+  // 1-Click Direct Download PDF File — dimuat dinamis saat tombol diklik
+  const handleDownloadPDF = async () => {
     if (!canPdf) {
       toast.warning('Fitur cetak dan unduh dokumen laporan resmi PDF hanya untuk Paket Premium.');
       return;
     }
 
     try {
+      const { generateLaporanPdf } = await import('../utils/pdfExport');
       const fileName = generateLaporanPdf(pdfPayload);
       toast.success(`Berkas PDF ${fileName} berhasil diunduh ke HP/PC!`);
     } catch (err) {
@@ -2649,19 +2659,28 @@ className="text-[10px] text-slate-800 flex items-center gap-1 max-w-[160px] trun
               </div>
             </div>
 
-            {/* Komponen Visualisasi D3.js Chart */}
-            <BranchComparisonD3Chart
-              data={branchComparisonData}
-              periodeLabel={currentPeriodeLabel}
-              onSelectBranch={(branchId) => {
-                if (onSelectBranch) {
-                  onSelectBranch(branchId);
-                  const targetLnd = laundries.find((l) => l.id === branchId);
-                  toast.success(`Beralih ke cabang: ${targetLnd?.namaLaundry || branchId}`);
-                }
-              }}
-              activeBranchId={activeLaundryId}
-            />
+            {/* Komponen Visualisasi D3.js Chart (Code-Split Lazy Chunk) */}
+            <Suspense
+              fallback={
+                <div className="bg-white rounded-2xl border border-slate-200 p-6 h-72 animate-pulse flex flex-col justify-between">
+                  <div className="h-4 w-48 bg-slate-200/80 rounded" />
+                  <div className="h-48 bg-slate-50 rounded-xl border border-slate-100" />
+                </div>
+              }
+            >
+              <LazyBranchComparisonD3Chart
+                data={branchComparisonData}
+                periodeLabel={currentPeriodeLabel}
+                onSelectBranch={(branchId) => {
+                  if (onSelectBranch) {
+                    onSelectBranch(branchId);
+                    const targetLnd = laundries.find((l) => l.id === branchId);
+                    toast.success(`Beralih ke cabang: ${targetLnd?.namaLaundry || branchId}`);
+                  }
+                }}
+                activeBranchId={activeLaundryId}
+              />
+            </Suspense>
 
             {/* Panduan Eksekutif untuk Owner */}
             <div className="bg-amber-50/90 border border-amber-200/90 rounded-2xl p-4 text-xs text-amber-950 space-y-2 shadow-2xs">
@@ -2685,12 +2704,16 @@ className="text-[10px] text-slate-800 flex items-center gap-1 max-w-[160px] trun
         )}
       </main>
 
-      {/* Modal Pratinjau Dokumen & Cetak PDF Resmi */}
-      <ReportPdfModal
-        isOpen={showPdfModal}
-        onClose={() => setShowPdfModal(false)}
-        data={pdfPayload}
-      />
+      {/* Modal Pratinjau Dokumen & Cetak PDF Resmi (Code-Split Lazy Chunk) */}
+      {showPdfModal && (
+        <Suspense fallback={null}>
+          <LazyReportPdfModal
+            isOpen={showPdfModal}
+            onClose={() => setShowPdfModal(false)}
+            data={pdfPayload}
+          />
+        </Suspense>
+      )}
     </div>
   );
 };
