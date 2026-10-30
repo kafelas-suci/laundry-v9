@@ -3,11 +3,9 @@ import { DEFAULT_KAFELA_LOGO_BASE64 } from './defaultLogo';
 
 let cachedLogoKey = '';
 let cachedLogoBase64 = '';
+let cachedThermalKey = '';
+let cachedThermalDataUrl = '';
 
-/**
- * Dapatkan string Base64 logo toko siap cetak untuk printer Bluetooth thermal.
- * Mengembalikan string kosong jika logo dinonaktifkan atau belum diunggah.
- */
 export async function getLogoBase64(settings: SettingsData): Promise<string> {
   if (!settings.useLogo || !settings.logoPath || !settings.logoPath.trim()) {
     return '';
@@ -15,7 +13,6 @@ export async function getLogoBase64(settings: SettingsData): Promise<string> {
 
   const rawPath = settings.logoPath.trim();
 
-  // 1. Jika logoPath berupa Base64 Data URL (hasil upload gambar di Pengaturan)
   if (rawPath.startsWith('data:image/')) {
     const commaIdx = rawPath.indexOf(',');
     const b64 = commaIdx !== -1 ? rawPath.slice(commaIdx + 1) : rawPath;
@@ -24,12 +21,10 @@ export async function getLogoBase64(settings: SettingsData): Promise<string> {
     return cachedLogoBase64;
   }
 
-  // 2. Jika logoPath secara eksplisit menggunakan aset demo Kafela
   if (rawPath === '/logo-kafela.png' || rawPath.includes('logo-kafela')) {
     return DEFAULT_KAFELA_LOGO_BASE64;
   }
 
-  // 3. Jika logoPath adalah URL kustom lain
   if (cachedLogoKey === rawPath && cachedLogoBase64) {
     return cachedLogoBase64;
   }
@@ -58,6 +53,83 @@ export async function getLogoBase64(settings: SettingsData): Promise<string> {
   } catch {
     return '';
   }
+}
+
+export function getCachedThermalLogoDataUrl(settings: SettingsData): string {
+  if (!settings.useLogo || !settings.logoPath || !settings.logoPath.trim()) {
+    return '';
+  }
+  const key = settings.logoPath.trim();
+  return cachedThermalKey === key ? cachedThermalDataUrl : '';
+}
+
+export async function getThermalLogoDataUrl(settings: SettingsData): Promise<string> {
+  if (!settings.useLogo || !settings.logoPath || !settings.logoPath.trim()) {
+    return '';
+  }
+
+  const key = settings.logoPath.trim();
+  if (cachedThermalKey === key && cachedThermalDataUrl) {
+    return cachedThermalDataUrl;
+  }
+
+  const b64 = await getLogoBase64(settings);
+  if (!b64) return '';
+
+  const srcDataUrl = b64.startsWith('data:') ? b64 : `data:image/png;base64,${b64}`;
+
+  if (typeof document === 'undefined') {
+    return srcDataUrl;
+  }
+
+  return new Promise((resolve) => {
+    try {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        try {
+          const natW = img.naturalWidth || img.width || 120;
+          const natH = img.naturalHeight || img.height || 120;
+          const scale = natW > 480 ? 480 / natW : 1;
+          const targetW = Math.max(1, Math.round(natW * scale));
+          const targetH = Math.max(1, Math.round(natH * scale));
+
+          const canvas = document.createElement('canvas');
+          canvas.width = targetW;
+          canvas.height = targetH;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve(srcDataUrl);
+            return;
+          }
+
+          ctx.drawImage(img, 0, 0, targetW, targetH);
+          const imageData = ctx.getImageData(0, 0, targetW, targetH);
+          const pixels = imageData.data;
+
+          for (let i = 0; i < pixels.length; i += 4) {
+            const lum = 0.299 * pixels[i] + 0.587 * pixels[i + 1] + 0.114 * pixels[i + 2];
+            const contrasted = Math.max(0, Math.min(255, Math.round((lum - 128) * 1.25 + 128)));
+            pixels[i] = contrasted;
+            pixels[i + 1] = contrasted;
+            pixels[i + 2] = contrasted;
+          }
+
+          ctx.putImageData(imageData, 0, 0);
+          const outUrl = canvas.toDataURL('image/png');
+          cachedThermalKey = key;
+          cachedThermalDataUrl = outUrl;
+          resolve(outUrl);
+        } catch {
+          resolve(srcDataUrl);
+        }
+      };
+      img.onerror = () => resolve(srcDataUrl);
+      img.src = srcDataUrl;
+    } catch {
+      resolve(srcDataUrl);
+    }
+  });
 }
 
 /**

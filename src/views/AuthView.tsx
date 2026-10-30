@@ -21,6 +21,7 @@ import {
   UserPlus,
   Store,
   Shirt,
+  Globe,
 } from 'lucide-react';
 import {
   signInWithPopup,
@@ -267,30 +268,38 @@ export const AuthView: React.FC<AuthViewProps> = ({
   return (
     <div className="min-h-screen bg-white text-slate-900 flex flex-col justify-between selection:bg-[#800000]/10 selection:text-[#800000]">
       {/* Top Navigation Bar */}
-      <header className=" w-full border-b border-slate-100 bg-[#800000] backdrop-blur-md sticky top-0 z-30">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2.5 ml-4">
-           
-            <div className="flex flex-col">
-              <span className="text-xm sm:text-sm font-bold text-white leading-none">
+      <header className="w-full border-b border-slate-100 bg-[#800000] backdrop-blur-md sticky top-0 z-30">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 ml-1 sm:ml-4 min-w-0">
+            <div className="flex flex-col min-w-0">
+              <span className="text-sm font-bold text-white leading-none truncate">
                 Kafelas Laundry
               </span>
-              <span className="text-[10px] sm:text-[11px] text-slate-400 font-medium">
+              <span className="text-[10px] sm:text-[11px] text-white/75 font-medium mt-0.5 truncate">
                 Sistem Laundry Profesional
               </span>
             </div>
           </div>
 
-          <div className="flex items-center gap-1">
- <a
-  href="/tutorial.html"
-  target="_blank"
-  rel="noopener noreferrer"
-  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-900 shadow-sm hover:from-amber-600 hover:to-yellow-500 transition-all"
->
-  <Sparkles className="w-3.5 h-3.5 text-slate-900" />
-  <span className="sm:inline">Tutorial</span>
-</a>
+          <div className="flex items-center gap-2 shrink-0">
+            <a
+              href="/profil.html"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/15 hover:bg-white/25 text-white border border-white/25 transition-colors whitespace-nowrap"
+            >
+              <Globe className="w-3.5 h-3.5 text-white/90" />
+              <span>Profil</span>
+            </a>
+            <a
+              href="/tutorial.html"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-900 shadow-sm hover:from-amber-600 hover:to-yellow-500 transition-all whitespace-nowrap"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-slate-900" />
+              <span>Tutorial</span>
+            </a>
           </div>
         </div>
       </header>

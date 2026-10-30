@@ -32,7 +32,11 @@ interface SubscriptionExpiredModalProps {
   onClose: () => void;
   currentUser: User;
   onTopUpWallet?: (nominal: number) => void;
-  onExtendSubscription: (packageName: string, cost: number, days: number) => void;
+  onExtendSubscription: (
+    packageName: string,
+    cost: number,
+    days: number
+  ) => Promise<boolean> | boolean | void;
   onMidtransSettled?: (result: MidtransVerifyResult) => void;
   sisaHari?: number;
 }
@@ -70,16 +74,27 @@ export const SubscriptionExpiredModal: React.FC<SubscriptionExpiredModalProps> =
     setTimeout(() => setCopiedBank(null), 2000);
   };
 
-  const handlePayWithWallet = () => {
+  const handlePayWithWallet = async () => {
     if (!isBalanceEnough) {
       toast.warning(
         `Saldo belum mencukupi (${formatRupiah(walletBalance)}). Gunakan tombol Lewat Midtrans atau Transfer Biasa di bawah.`
       );
       return;
     }
-    onExtendSubscription(`Paket Premium (${selectedDays} Hari)`, selectedCost, selectedDays);
-    toast.success(`Masa aktif Paket Premium berhasil diperpanjang ${selectedDays} hari!`);
-    onClose();
+    setIsProcessing(true);
+    try {
+      const ok = await onExtendSubscription(
+        `Paket Premium (${selectedDays} Hari)`,
+        selectedCost,
+        selectedDays
+      );
+      if (ok !== false) {
+        toast.success(`Masa aktif Paket Premium berhasil diperpanjang ${selectedDays} hari!`);
+        onClose();
+      }
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const handlePayMidtrans = async () => {
@@ -208,11 +223,16 @@ export const SubscriptionExpiredModal: React.FC<SubscriptionExpiredModalProps> =
               {isBalanceEnough && (
                 <button
                   type="button"
+                  disabled={isProcessing}
                   onClick={handlePayWithWallet}
-                  className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-bold text-xs flex items-center gap-1.5 transition shadow-sm cursor-pointer shrink-0"
+                  className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 active:scale-95 text-white font-bold text-xs flex items-center gap-1.5 transition shadow-sm cursor-pointer shrink-0"
                 >
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  <span>Potong Saldo</span>
+                  {isProcessing ? (
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                  )}
+                  <span>{isProcessing ? 'Memproses...' : 'Potong Saldo'}</span>
                 </button>
               )}
             </div>

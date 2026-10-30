@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   X,
   Crown,
   Check,
   Lock,
   MessageCircle,
+  RefreshCw,
   ShieldCheck,
   Zap,
   Building2,
@@ -22,7 +23,7 @@ interface UpgradePlanModalProps {
   currentTier?: string | null;
   triggerReason?: string;
   onChoosePayment?: (method: 'midtrans' | 'manual') => void;
-  onExtendWithWallet?: () => void;
+  onExtendWithWallet?: () => Promise<boolean> | boolean | void;
 }
 
 export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
@@ -34,6 +35,8 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
   onChoosePayment,
   onExtendWithWallet,
 }) => {
+  const [isProcessingWallet, setIsProcessingWallet] = useState(false);
+
   if (!isOpen) return null;
 
   const activeTier = normalizeTier(currentTier);
@@ -144,16 +147,31 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
                 {canPayWithWallet && onExtendWithWallet && (
                   <button
                     type="button"
-                    onClick={() => {
-                      onClose();
-                      onExtendWithWallet();
+                    disabled={isProcessingWallet}
+                    onClick={async () => {
+                      setIsProcessingWallet(true);
+                      try {
+                        const ok = await onExtendWithWallet();
+                        if (ok !== false) {
+                          onClose();
+                        }
+                      } finally {
+                        setIsProcessingWallet(false);
+                      }
                     }}
-                    className="w-full py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition active:scale-98 cursor-pointer flex items-center justify-center gap-1.5 shadow-xs tabular-nums"
+                    className="w-full py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-bold text-xs transition active:scale-98 cursor-pointer flex items-center justify-center gap-1.5 shadow-xs tabular-nums"
                   >
-                    <Wallet className="w-3.5 h-3.5" />
+                    {isProcessingWallet ? (
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Wallet className="w-3.5 h-3.5" />
+                    )}
                     <span>
-                      {activeTier === 'premium' ? 'Perpanjang' : 'Aktifkan'} via Saldo (
-                      {formatRupiah(HARGA_PREMIUM_BULANAN)})
+                      {isProcessingWallet
+                        ? 'Memproses di Server...'
+                        : `${activeTier === 'premium' ? 'Perpanjang' : 'Aktifkan'} via Saldo (${formatRupiah(
+                            HARGA_PREMIUM_BULANAN
+                          )})`}
                     </span>
                   </button>
                 )}

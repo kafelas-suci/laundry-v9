@@ -26,7 +26,7 @@
         ]
       },
       {
-        "source": "/@(index.html|sw.js|registerSW.js|manifest.json|manifest.webmanifest)",
+        "source": "/@(index.html|profil.html|tutorial.html|landing.html|sw.js|registerSW.js|manifest.json|manifest.webmanifest)",
         "headers": [
           {
             "key": "Cache-Control",
@@ -56,12 +56,16 @@
     "cleanUrls": false,
     "rewrites": [
       {
+        "source": "/profil",
+        "destination": "/profil.html"
+      },
+      {
         "source": "/landing",
-        "destination": "/landing.html"
+        "destination": "/profil.html"
       },
       {
         "source": "/beranda",
-        "destination": "/landing.html"
+        "destination": "/profil.html"
       },
       {
         "source": "/tutorial",
@@ -70,10 +74,6 @@
       {
         "source": "/panduan",
         "destination": "/tutorial.html"
-      },
-      {
-        "source": "/profil",
-        "destination": "/profil.html"
       },
       {
         "source": "/booking",

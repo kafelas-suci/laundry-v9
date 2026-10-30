@@ -1,9 +1,11 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
-import App from './App.tsx';
+import App, { InitialBootData, resolveInitialLaundryId } from './App.tsx';
 import './index.css';
 import { initPWA, recoverFromCacheAndReload } from './utils/pwaUpdater';
 import { NotificationProvider } from './components/NotificationContext';
+import { StorageService } from './utils/storage';
+import { IndexedDbService } from './utils/indexedDb';
 
 declare global {
   interface Window {
@@ -99,8 +101,46 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, Error
   }
 }
 
-function bootstrapApplication() {
-  console.info('[Kafelas Boot] Menginisialisasi entry point React...');
+const PREHYDRATE_BUDGET_MS = 100;
+
+async function prepareInitialBootData(): Promise<InitialBootData> {
+  // 1. Inisialisasi skema dasar LocalStorage satu kali secara sinkron sebelum komponen dipasang
+  StorageService.initData();
+  const initialLaundryId = resolveInitialLaundryId();
+
+  // 2. Pre-hydrate transaksi IndexedDB lokal dengan batas anggaran super singkat (~5-15ms di perangkat normal)
+  //    agar render pertama React langsung memiliki data lengkap tanpa memicu re-render kedua / efek berkedip.
+  const hydrationPromise = IndexedDbService.hydrateBranchTransaksi(initialLaundryId);
+
+  const raced = await Promise.race<
+    | { hydrated: true; list: Awaited<typeof hydrationPromise> }
+    | { hydrated: false }
+  >([
+    hydrationPromise
+      .then((list) => ({ hydrated: true as const, list }))
+      .catch(() => ({ hydrated: true as const, list: [] })),
+    new Promise<{ hydrated: false }>((resolve) => {
+      window.setTimeout(() => resolve({ hydrated: false }), PREHYDRATE_BUDGET_MS);
+    }),
+  ]);
+
+  if (raced.hydrated) {
+    return {
+      laundryId: initialLaundryId,
+      transaksi: raced.list,
+      hydrated: true,
+    };
+  }
+
+  return {
+    laundryId: initialLaundryId,
+    transaksi: null,
+    hydrated: false,
+    pendingHydration: hydrationPromise,
+  };
+}
+
+async function bootstrapApplication() {
   const rootElement = document.getElementById('root');
 
   if (!rootElement) {
@@ -108,21 +148,23 @@ function bootstrapApplication() {
     return;
   }
 
-  createRoot(rootElement).render(
-    <ErrorBoundary>
-      <NotificationProvider>
-        <App />
-      </NotificationProvider>
-    </ErrorBoundary>
-  );
-
+  // Tandai bundle JS aktif lebih awal agar watchdog boot tidak menganggap bundle gagal dimuat
   window.__KAFELAS_MOUNTED__ = true;
   try {
     sessionStorage.removeItem('kafelas_sw_autorecover_v2');
   } catch {
     // Abaikan jika sessionStorage dibatasi pada browser/WebView
   }
-  console.info('[Kafelas Boot] Root React berhasil dipasang.');
+
+  const initialBootData = await prepareInitialBootData();
+
+  createRoot(rootElement).render(
+    <ErrorBoundary>
+      <NotificationProvider>
+        <App initialBootData={initialBootData} />
+      </NotificationProvider>
+    </ErrorBoundary>
+  );
 
   // Inisialisasi PWA dijalankan non-blocking setelah render utama terpasang
   initPWA();

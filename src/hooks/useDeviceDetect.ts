@@ -87,14 +87,37 @@ export function useDeviceDetect() {
   const [device, setDevice] = useState<DeviceInfo>(detectDevice);
 
   useEffect(() => {
+    let rafId: number | null = null;
+
     const handleResize = () => {
-      setDevice(detectDevice());
+      if (rafId !== null) return;
+      rafId = window.requestAnimationFrame(() => {
+        rafId = null;
+        const next = detectDevice();
+        setDevice((prev) => {
+          if (
+            prev.isMobile === next.isMobile &&
+            prev.isPcOrTablet === next.isPcOrTablet &&
+            prev.isPhone === next.isPhone &&
+            prev.isTablet === next.isTablet &&
+            prev.isDesktop === next.isDesktop &&
+            prev.os === next.os &&
+            prev.isTouchDevice === next.isTouchDevice
+          ) {
+            return prev;
+          }
+          return next;
+        });
+      });
     };
 
-    window.addEventListener('resize', handleResize);
-    window.addEventListener('orientationchange', handleResize);
+    window.addEventListener('resize', handleResize, { passive: true });
+    window.addEventListener('orientationchange', handleResize, { passive: true });
 
     return () => {
+      if (rafId !== null) {
+        window.cancelAnimationFrame(rafId);
+      }
       window.removeEventListener('resize', handleResize);
       window.removeEventListener('orientationchange', handleResize);
     };

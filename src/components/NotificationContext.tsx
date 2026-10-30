@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useMemo } from 'react';
 import { CheckCircle2, AlertTriangle, XCircle, Info, X } from 'lucide-react';
 
 export type ToastType = 'success' | 'error' | 'warning' | 'info';
@@ -89,20 +89,23 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     [removeToast]
   );
 
-  const toastMethods: ToastContextValue = {
-    show: showToast,
-    success: (msg, dur = 3000) => showToast(msg, 'success', dur),
-    error: (msg, dur = 3500) => showToast(msg, 'error', dur),
-    warning: (msg, dur = 3000) => showToast(msg, 'warning', dur),
-    info: (msg, dur = 3000) => showToast(msg, 'info', dur),
-  };
+  const toastMethods = useMemo<ToastContextValue>(
+    () => ({
+      show: showToast,
+      success: (msg, dur = 3000) => showToast(msg, 'success', dur),
+      error: (msg, dur = 3500) => showToast(msg, 'error', dur),
+      warning: (msg, dur = 3000) => showToast(msg, 'warning', dur),
+      info: (msg, dur = 3000) => showToast(msg, 'info', dur),
+    }),
+    [showToast]
+  );
 
   useEffect(() => {
     globalToastRef = toastMethods;
     return () => {
       globalToastRef = null;
     };
-  }, [showToast]);
+  }, [toastMethods]);
 
   // Safe window.alert and window.confirm override to prevent browser native dialogs
   useEffect(() => {
@@ -171,9 +174,11 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     });
   };
 
+  const confirmContextValue = useMemo<ConfirmContextValue>(() => ({ confirm }), [confirm]);
+
   return (
     <ToastContext.Provider value={toastMethods}>
-      <ConfirmContext.Provider value={{ confirm }}>
+      <ConfirmContext.Provider value={confirmContextValue}>
         {children}
 
         {/* TOP-CENTER FLOATING TOASTS CONTAINER */}

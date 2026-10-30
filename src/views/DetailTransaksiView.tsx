@@ -44,37 +44,6 @@ export const DetailTransaksiView: React.FC<DetailTransaksiViewProps> = ({
   const sisaBayar = isLunas ? 0 : Math.max(0, transaksi.totalHarga - transaksi.jumlahDp);
   const isArchived = transaksi.status === 'Diambil';
 
-  const customerPhoneClean = (transaksi.nomorTelepon || pelanggan?.nomorTelepon || '')
-    .replace(/[^0-9]/g, '')
-    .replace(/^0/, '62');
-
-  const handleShareWhatsAppText = () => {
-    const effectiveLaundryName = laundryName || settings.headerStruk || "Kafela's Laundry";
-    let msg = `Halo Kak *${transaksi.namaPelanggan}*,\n\n`;
-    msg += `Terima kasih telah mempercayakan pakaian Anda di *${effectiveLaundryName}*.\n`;
-    msg += `No. Nota: *${transaksi.nomorTransaksi}*\n`;
-    msg += `Total Transaksi: ${formatRupiah(transaksi.totalHarga)}\n`;
-    if (transaksi.jumlahDp > 0) {
-      msg += `Pembayaran Awal: ${formatRupiah(transaksi.jumlahDp)}\n`;
-    }
-    if (sisaBayar > 0) {
-      msg += `Sisa Tagihan: *${formatRupiah(sisaBayar)}*\n`;
-    }
-    msg += `*${isLunas ? 'LUNAS' : 'BELUM LUNAS'}*\n\n`;
-    msg += `Rincian Layanan:\n`;
-    (transaksi.items || []).forEach((it) => {
-      msg += `• ${it?.namaLayanan || 'Layanan'} (${it?.berat || 0} ${it?.satuan || ''}) = ${formatRupiah(it?.subtotal || 0)}\n`;
-    });
-    msg += `\n${settings.chattyFooter}`;
-
-    if (customerPhoneClean) {
-      window.open(`https://api.whatsapp.com/send?phone=${customerPhoneClean}&text=${encodeURIComponent(msg)}`, '_blank');
-    } else {
-      navigator.clipboard.writeText(msg);
-      toast.success('Teks nota berhasil disalin ke clipboard! (Nomor WhatsApp pelanggan belum tersimpan)');
-    }
-  };
-
   const handleDeleteConfirm = async () => {
     if (!isOwner) {
       toast.warning('Akses Dibatasi: Penghapusan nota hanya dapat dilakukan oleh akun Pemilik (Owner).');
@@ -218,28 +187,34 @@ export const DetailTransaksiView: React.FC<DetailTransaksiViewProps> = ({
           )}
         </div>
 
-        {/* Primary Action Buttons */}
-        <div className="grid grid-cols-2 gap-2">
-          <button
-            onClick={() => setShowReceiptModal(true)}
-            data-tour="btn-cetak-nota"
-            className="flex items-center justify-center gap-2 py-3 rounded-xl bg-[#800000] hover:bg-[#660000] text-white font-bold text-xs shadow-xs transition active:scale-98"
-          >
-            <Printer className="w-4 h-4" />
-            Lihat Struk
-          </button>
-                  {/* Tombol Ambil Cucian jika belum diambil */}
-        {!isArchived && onAmbil && (
-          <button
-            onClick={() => setShowConfirmAmbil(true)}
-            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition active:scale-98"
-          >
-            <Truck className="w-4 h-4" />
-            <span>Ambil Cucian</span>
-          </button>
-        )}
+        <div className="space-y-2">
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => setShowReceiptModal(true)}
+              data-tour="btn-cetak-nota"
+              className="min-h-[44px] flex items-center justify-center gap-2 py-3 px-3 rounded-xl bg-[#800000] hover:bg-[#660000] text-white font-bold text-xs shadow-xs transition active:scale-98 whitespace-nowrap"
+            >
+              <Printer className="w-4 h-4 shrink-0" />
+              <span>Lihat Struk</span>
+            </button>
+            <button
+              onClick={() => setShowShareModal(true)}
+              className="min-h-[44px] flex items-center justify-center gap-2 py-3 px-3 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs shadow-xs transition active:scale-98 whitespace-nowrap"
+            >
+              <Share2 className="w-4 h-4 shrink-0" />
+              <span>Share Struk / WA</span>
+            </button>
+          </div>
 
- 
+          {!isArchived && onAmbil && (
+            <button
+              onClick={() => setShowConfirmAmbil(true)}
+              className="w-full min-h-[44px] flex items-center justify-center gap-2 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition active:scale-98 whitespace-nowrap"
+            >
+              <Truck className="w-4 h-4 shrink-0" />
+              <span>Ambil Cucian</span>
+            </button>
+          )}
         </div>
 
 

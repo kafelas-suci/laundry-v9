@@ -22,6 +22,7 @@ import { getLaundryLimits } from '../utils/subscription';
 interface StatusPengerjaanViewProps {
   onBack: () => void;
   transaksiList: Transaksi[];
+  isLoadingTransaksi?: boolean;
   pelangganList?: Pelanggan[];
   semuaLayanan: Layanan[];
   staffList: User[];
@@ -40,6 +41,7 @@ interface StatusPengerjaanViewProps {
 export const StatusPengerjaanView: React.FC<StatusPengerjaanViewProps> = ({
   onBack,
   transaksiList,
+  isLoadingTransaksi = false,
   pelangganList = [],
   semuaLayanan,
   staffList,
@@ -509,12 +511,33 @@ export const StatusPengerjaanView: React.FC<StatusPengerjaanViewProps> = ({
         {/* DAFTAR ANTREAN CUCIAN */}
         <div className="space-y-1.5">
           {displayedOrders.length === 0 ? (
+            isLoadingTransaksi && transaksiList.length === 0 ? (
+              <div className="space-y-1.5" aria-busy="true">
+                {[0, 1, 2, 3].map((idx) => (
+                  <div
+                    key={idx}
+                    className="bg-white px-2.5 py-2.5 rounded-2xl border border-slate-200 shadow-2xs flex items-center justify-between gap-2.5 animate-pulse"
+                  >
+                    <div className="w-9 shrink-0 border-r border-slate-100 pr-1.5 space-y-1.5">
+                      <div className="h-2.5 w-7 rounded bg-slate-200/80 mx-auto" />
+                      <div className="h-2 w-6 rounded bg-slate-100 mx-auto" />
+                    </div>
+                    <div className="flex-1 min-w-0 space-y-1.5">
+                      <div className="h-3.5 w-32 rounded bg-slate-200/80" />
+                      <div className="h-2.5 w-44 rounded bg-slate-100" />
+                    </div>
+                    <div className="h-7 w-16 rounded-xl bg-slate-200/70 shrink-0" />
+                  </div>
+                ))}
+              </div>
+            ) : (
             <div className="p-8 bg-white rounded-2xl text-center border border-slate-200 text-xs text-slate-500 space-y-1.5">
               <Clock className="w-7 h-7 mx-auto text-slate-300" />
               <p className="font-bold text-slate-700">
                 Tidak ada antrean cucian yang perlu dikerjakan.
               </p>
             </div>
+            )
           ) : (
             paginatedOrders.map((trx) => {
               const est = trx.tanggalSelesai || trx.tanggalMasuk + 3 * 24 * 60 * 60 * 1000;

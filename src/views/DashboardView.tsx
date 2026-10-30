@@ -49,6 +49,7 @@ export type DashboardFilterStatus = 'semua' | 'selesai' | 'baru_masuk' | 'sedang
 
 interface DashboardViewProps {
   transaksiList: Transaksi[];
+  isLoadingTransaksi?: boolean;
   pelangganList?: Pelanggan[];
   settings: SettingsData;
   currentUser: User;
@@ -90,6 +91,7 @@ interface DashboardViewProps {
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
   transaksiList,
+  isLoadingTransaksi = false,
   pelangganList = [],
   currentUser,
   activeLaundry,
@@ -165,14 +167,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       const passedMinutes = Math.max(1, Math.floor(elapsed / 60000));
       const shouldBypass = await confirm.confirm({
         title: 'Jeda Pengaman 10 Menit Aktif',
-        message: `Sinkronisasi baru saja dilakukan ${passedMinutes} menit yang lalu.\n\nUntuk menghemat kuota Firestore, disarankan menunggu ${remainingMinutes} menit lagi.\n\nApakah Anda tetap ingin memaksakan sinkronisasi sekarang?`,
-        confirmText: 'Tetap Sinkron',
-        cancelText: 'Tunggu Saja',
+        message: `Sinkronisasi baru saja dilakukan ${passedMinutes} menit yang lalu.\n tunggu ${remainingMinutes} menit lagi.`,
+        confirmText: 'Mengerti',
+        cancelText: 'Tunggu',
       });
-      if (!shouldBypass) {
         return;
-      }
-    }
+          }
 
     setIsSyncing(true);
     try {
@@ -227,6 +227,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const activeBranchTrx = useMemo(() => {
     return transaksiList.filter((trx) => trx.laundryId === activeLaundry.id && trx.status !== 'Diambil');
   }, [transaksiList, activeLaundry.id]);
+
+  const showInitialSkeleton = Boolean(isLoadingTransaksi && activeBranchTrx.length === 0);
 
   // Lookup map untuk data pelanggan (alamat lengkap / cadangan)
   const pelangganMap = useMemo(() => {
@@ -972,6 +974,36 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     </div>
 
                     {displayedTrx.length === 0 ? (
+                      showInitialSkeleton ? (
+                        <div className="divide-y divide-slate-100" aria-busy="true" aria-label="Memuat antrean transaksi">
+                          {[0, 1, 2, 3, 4].map((idx) => (
+                            <div
+                              key={idx}
+                              className="px-4 py-3 grid grid-cols-12 gap-3 items-center animate-pulse"
+                            >
+                              <div className="col-span-2 space-y-1.5">
+                                <div className="h-3.5 w-24 rounded bg-slate-200/80" />
+                                <div className="h-2.5 w-20 rounded bg-slate-100" />
+                              </div>
+                              <div className="col-span-3 space-y-1.5">
+                                <div className="h-4 w-32 rounded bg-slate-200/80" />
+                                <div className="h-2.5 w-24 rounded bg-slate-100" />
+                              </div>
+                              <div className="col-span-3 space-y-1.5">
+                                <div className="h-3.5 w-40 rounded bg-slate-200/80" />
+                                <div className="h-2.5 w-24 rounded bg-slate-100" />
+                              </div>
+                              <div className="col-span-2 flex flex-col items-end space-y-1.5">
+                                <div className="h-3.5 w-20 rounded bg-slate-200/80" />
+                                <div className="h-2.5 w-14 rounded bg-slate-100" />
+                              </div>
+                              <div className="col-span-2 flex justify-end">
+                                <div className="h-8 w-24 rounded-xl bg-slate-200/70" />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
                       <div className="p-12 text-center space-y-3">
                         <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mx-auto text-slate-400">
                           <CheckCircle className="w-6 h-6" />
@@ -1004,6 +1036,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                           </button>
                         )}
                       </div>
+                      )
                     ) : (
                       <div className="divide-y divide-slate-100">
                         {paginatedTrx.map((trx, index) => {
@@ -1675,6 +1708,33 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               {/* 4. DAFTAR TRANSAKSI AKTIF */}
               <main className="space-y-1">
                 {displayedTrx.length === 0 ? (
+                  showInitialSkeleton ? (
+                    <div className="space-y-1" aria-busy="true" aria-label="Memuat antrean transaksi">
+                      {[0, 1, 2, 3, 4].map((idx) => (
+                        <div
+                          key={idx}
+                          className="p-2 sm:p-3 rounded-2xl border border-slate-200 bg-white shadow-2xs animate-pulse"
+                        >
+                          <div className="flex items-center gap-2">
+                            <div className="w-9 shrink-0 border-r border-slate-100 pr-1.5 space-y-1.5">
+                              <div className="h-2.5 w-7 rounded bg-slate-200/80 mx-auto" />
+                              <div className="h-2 w-6 rounded bg-slate-100 mx-auto" />
+                            </div>
+                            <div className="flex-1 min-w-0 space-y-1.5">
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="h-3.5 w-32 rounded bg-slate-200/80" />
+                                <div className="h-3 w-14 rounded bg-slate-200/70" />
+                              </div>
+                              <div className="h-2.5 w-44 rounded bg-slate-100" />
+                            </div>
+                            <div className="shrink-0 pl-1 border-l border-slate-100">
+                              <div className="w-10 h-7 rounded-xl bg-slate-200/70" />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
                   <div className="bg-white rounded-2xl p-8 text-center border border-slate-200 mt-0 space-y-1">
                     <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mx-auto text-slate-400">
                       <CheckCircle className="w-6 h-6" />
@@ -1709,6 +1769,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       )}
                     </div>
                   </div>
+                  )
                 ) : (
                   paginatedTrx.map((trx, index) => {
                     const isLunas = trx.statusPembayaran === 'Lunas';

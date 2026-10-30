@@ -206,11 +206,11 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
           icon: SettingsIcon,
         },
         {
-          id: 'landing_link',
+          id: 'profil_link',
           label: 'Web Profil',
           icon: Globe,
           isExternal: true,
-          href: '/landing.html',
+          href: '/profil.html',
         },
         {
           id: 'tutorial_link',
@@ -355,15 +355,31 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
                   activeView === item.id ||
                   (item.id === 'dashboard' && activeView === 'detail_transaksi');
 
+                if (item.isExternal && item.href) {
+                  return (
+                    <a
+                      key={item.id}
+                      href={item.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title={collapsed ? item.label : undefined}
+                      className={`w-full flex items-center ${
+                        collapsed ? 'justify-center px-0 py-2.5' : 'justify-between px-3 py-2'
+                      } rounded-xl text-xs font-bold transition-all group relative text-slate-600 hover:bg-slate-100/80 hover:text-slate-900 border border-transparent`}
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <Icon className="w-4 h-4 shrink-0 transition-colors text-slate-400 group-hover:text-slate-700" />
+                        {!collapsed && <span className="truncate">{item.label}</span>}
+                      </div>
+                    </a>
+                  );
+                }
+
                 return (
                   <button
                     key={item.id}
                     type="button"
                     onClick={() => {
-                      if ((item as any).isExternal && (item as any).href) {
-                        window.open((item as any).href, '_blank');
-                        return;
-                      }
                       if (
                         (item.id === 'kelola_kasir' ||
                           item.id === 'kelola_owner' ||

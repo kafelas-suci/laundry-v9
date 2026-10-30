@@ -1,10 +1,72 @@
+import { toBlob } from 'html-to-image';
 import { Transaksi, SettingsData } from '../types';
 import { formatDateIndo, formatNumberOnly } from './formatters';
-import { getLogoBase64 } from './logoHelper';
+import { getThermalLogoDataUrl } from './logoHelper';
 
-/**
- * Membagi teks panjang menjadi beberapa baris yang muat dalam lebar canvas tertentu
- */
+export function getReceiptFileName(transaksi: Transaksi): string {
+  const safeInvoice = (transaksi.nomorTransaksi || 'nota').replace(/[^a-zA-Z0-9_-]/g, '_');
+  return `struk-${safeInvoice}.png`;
+}
+
+export function triggerBlobDownload(
+  blob: Blob,
+  fileName: string,
+  existingUrl?: string | null
+): string {
+  const url = existingUrl || URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  a.className = 'hidden';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  if (!existingUrl) {
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  }
+  return url;
+}
+
+export async function tryCopyImageBlobToClipboard(blob: Blob): Promise<boolean> {
+  try {
+    if (
+      typeof navigator === 'undefined' ||
+      !navigator.clipboard ||
+      typeof navigator.clipboard.write !== 'function' ||
+      typeof ClipboardItem === 'undefined'
+    ) {
+      return false;
+    }
+    const item = new ClipboardItem({ 'image/png': blob });
+    await navigator.clipboard.write([item]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function captureReceiptElementToBlob(element: HTMLElement): Promise<Blob> {
+  const width = 320;
+  const height = Math.max(element.offsetHeight, element.scrollHeight, 220);
+  const blob = await toBlob(element, {
+    cacheBust: false,
+    skipFonts: true,
+    pixelRatio: 3,
+    width,
+    height,
+    backgroundColor: '#ffffff',
+    style: {
+      margin: '0',
+      transform: 'none',
+      boxShadow: 'none',
+    },
+  });
+  if (!blob || blob.size < 500) {
+    throw new Error('Gagal merender elemen struk ke gambar PNG');
+  }
+  return blob;
+}
+
 function wrapCanvasText(
   ctx: CanvasRenderingContext2D,
   text: string,
@@ -29,13 +91,10 @@ function wrapCanvasText(
   return lines;
 }
 
-/**
- * Menggambar garis putus-putus horizontal khas struk thermal
- */
 function drawDashedLine(ctx: CanvasRenderingContext2D, y: number, width: number, padding: number) {
   ctx.save();
   ctx.setLineDash([4, 3]);
-  ctx.strokeStyle = '#334155';
+  ctx.strokeStyle = '#1E293B';
   ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.moveTo(padding, y);
@@ -44,9 +103,6 @@ function drawDashedLine(ctx: CanvasRenderingContext2D, y: number, width: number,
   ctx.restore();
 }
 
-/**
- * Generate elemen HTMLCanvasElement dari struk transaksi berkualitas tinggi (HD)
- */
 export async function generateReceiptCanvas(
   transaksi: Transaksi,
   settings: SettingsData,
@@ -54,8 +110,9 @@ export async function generateReceiptCanvas(
   laundryAddress?: string,
   laundryPhone?: string
 ): Promise<HTMLCanvasElement> {
-  const width = 440;
-  const padding = 24;
+  const width = 320;
+  const scaleFactor = 3;
+  const padding = 20;
   const contentWidth = width - padding * 2;
 
   const headerTitle = laundryName || settings.headerStruk || 'Kafelas Laundry';
@@ -66,20 +123,22 @@ export async function generateReceiptCanvas(
   const sisaBayar = isLunas ? 0 : Math.max(0, transaksi.totalHarga - (transaksi.jumlahDp || 0));
   const statusFinal = isLunas || sisaBayar <= 0 ? 'LUNAS' : 'BELUM LUNAS';
 
-  // 1. Muat gambar logo jika diaktifkan dan tersedia
   let logoImg: HTMLImageElement | null = null;
   const maxLogoH =
-    settings.logoSize === 'kecil' ? 36 : settings.logoSize === 'besar' ? 68 : 50;
+    settings.logoSize === 'kecil' ? 28 : settings.logoSize === 'besar' ? 52 : 36;
+  const maxLogoW =
+    settings.logoSize === 'kecil' ? 70 : settings.logoSize === 'besar' ? 130 : 95;
+
   if (settings.useLogo && settings.logoPath) {
     try {
-      const base64 = await getLogoBase64(settings);
-      if (base64) {
+      const thermalUrl = await getThermalLogoDataUrl(settings);
+      if (thermalUrl) {
         logoImg = await new Promise<HTMLImageElement | null>((resolve) => {
           const img = new Image();
           img.crossOrigin = 'anonymous';
           img.onload = () => resolve(img);
           img.onerror = () => resolve(null);
-          img.src = base64.startsWith('data:') ? base64 : `data:image/png;base64,${base64}`;
+          img.src = thermalUrl;
         });
       }
     } catch {
@@ -87,330 +146,361 @@ export async function generateReceiptCanvas(
     }
   }
 
-  // 2. Estimasi tinggi canvas secara dinamis
-  // Buat context sementara untuk mengukur teks
   const tempCanvas = document.createElement('canvas');
   const tempCtx = tempCanvas.getContext('2d')!;
-  tempCtx.font = '13px "Courier New", Courier, monospace';
-
-  let estimatedHeight = 60; // Padding atas & bawah
+  let estimatedHeight = padding * 2 + 12;
 
   if (logoImg) {
-    estimatedHeight += maxLogoH + 12;
+    const scale = Math.min(
+      1,
+      maxLogoH / (logoImg.naturalHeight || logoImg.height || 1),
+      maxLogoW / (logoImg.naturalWidth || logoImg.width || 1)
+    );
+    estimatedHeight += (logoImg.naturalHeight || logoImg.height) * scale + 10;
   }
 
-  // Header toko (Title, phone, address)
+  tempCtx.font = 'bold 14px "Courier New", Courier, monospace';
+  estimatedHeight += wrapCanvasText(tempCtx, headerTitle.toUpperCase(), contentWidth).length * 17;
+  tempCtx.font = '10px "Courier New", Courier, monospace';
+  if (headerPhone) estimatedHeight += 14;
+  tempCtx.font = '9px "Courier New", Courier, monospace';
+  if (headerAddress) estimatedHeight += wrapCanvasText(tempCtx, headerAddress, contentWidth).length * 13;
+
+  estimatedHeight += 18;
+  estimatedHeight += 14 * (transaksi.tanggalSelesai ? 4 : 3) + 6;
+
+  estimatedHeight += 16;
   tempCtx.font = 'bold 16px "Courier New", Courier, monospace';
-  estimatedHeight += wrapCanvasText(tempCtx, headerTitle.toUpperCase(), contentWidth).length * 20;
-  tempCtx.font = '12px "Courier New", Courier, monospace';
-  if (headerPhone) estimatedHeight += 16;
-  if (headerAddress) estimatedHeight += wrapCanvasText(tempCtx, headerAddress, contentWidth).length * 15;
+  estimatedHeight += wrapCanvasText(tempCtx, (transaksi.namaPelanggan || 'PELANGGAN').toUpperCase(), contentWidth).length * 19;
+  if (transaksi.alamat) estimatedHeight += 14;
+  estimatedHeight += 18;
+  if (sisaBayar > 0) estimatedHeight += 18;
 
-  // Garis 1 + Meta transaksi (No, Terima, Selesai, Yth)
-  estimatedHeight += 18; // garis pemisah
-  estimatedHeight += 18 * 4; // baris meta
-
-  // Garis 2 + Nama Pelanggan + Status
-  estimatedHeight += 18; // garis pemisah
-  tempCtx.font = 'bold 16px "Courier New", Courier, monospace';
-  estimatedHeight += wrapCanvasText(tempCtx, (transaksi.namaPelanggan || 'Pelanggan').toUpperCase(), contentWidth).length * 20;
-  if (transaksi.alamat) estimatedHeight += 16;
-  estimatedHeight += 24; // Status badge
-  if (sisaBayar > 0) estimatedHeight += 20;
-
-  // Garis 3 + Items Layanan
-  estimatedHeight += 18; // garis pemisah
+  estimatedHeight += 16;
   const items = Array.isArray(transaksi.items) && transaksi.items.length > 0 ? transaksi.items : [];
-  estimatedHeight += Math.max(1, items.length) * 36;
+  estimatedHeight += Math.max(1, items.length) * 30;
 
-  // Garis 4 + Financial Totals
-  estimatedHeight += 18; // garis pemisah
-  estimatedHeight += 22; // Total transaksi
-  if (transaksi.jumlahDp > 0) estimatedHeight += 20;
-  if (sisaBayar > 0 || (isLunas && transaksi.jumlahDp > 0)) estimatedHeight += 20;
+  estimatedHeight += 16;
+  if (transaksi.diskon && transaksi.diskon > 0) estimatedHeight += 16;
+  estimatedHeight += 16;
+  if (transaksi.jumlahDp > 0) estimatedHeight += 16;
+  if (sisaBayar > 0 || (isLunas && transaksi.jumlahDp > 0 && transaksi.jumlahDp < transaksi.totalHarga)) {
+    estimatedHeight += 16;
+  }
 
-  // Garis 5 + Metode, Catatan, Footers
-  estimatedHeight += 18; // garis pemisah
-  if (transaksi.metodePembayaran) estimatedHeight += 18;
+  estimatedHeight += 16;
+  tempCtx.font = '10px "Courier New", Courier, monospace';
+  if (transaksi.metodePembayaran) estimatedHeight += 14;
   if (transaksi.catatan) {
-    estimatedHeight += wrapCanvasText(tempCtx, `Catatan: ${transaksi.catatan}`, contentWidth).length * 16 + 6;
+    estimatedHeight += wrapCanvasText(tempCtx, `Catatan: ${transaksi.catatan}`, contentWidth).length * 14 + 4;
   }
   if (settings.footerStruk) {
-    estimatedHeight += wrapCanvasText(tempCtx, settings.footerStruk, contentWidth).length * 15 + 6;
+    estimatedHeight += wrapCanvasText(tempCtx, settings.footerStruk, contentWidth).length * 13 + 6;
   }
   if (settings.chattyFooter) {
-    estimatedHeight += wrapCanvasText(tempCtx, settings.chattyFooter, contentWidth).length * 15 + 6;
+    estimatedHeight += wrapCanvasText(tempCtx, settings.chattyFooter, contentWidth).length * 13 + 6;
   }
-  estimatedHeight += 40; // ruang bawah
 
-  // 3. Buat Canvas Utama
+  const logicalHeight = Math.ceil(estimatedHeight);
   const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = Math.ceil(estimatedHeight);
+  canvas.width = width * scaleFactor;
+  canvas.height = logicalHeight * scaleFactor;
   const ctx = canvas.getContext('2d')!;
+  ctx.scale(scaleFactor, scaleFactor);
 
-  // Background Putih
   ctx.fillStyle = '#FFFFFF';
-  ctx.fillRect(0, 0, width, canvas.height);
+  ctx.fillRect(0, 0, width, logicalHeight);
 
-  // Border luar tipis
   ctx.strokeStyle = '#E2E8F0';
-  ctx.lineWidth = 2;
-  ctx.strokeRect(1, 1, width - 2, canvas.height - 2);
+  ctx.lineWidth = 1;
+  ctx.strokeRect(0.5, 0.5, width - 1, logicalHeight - 1);
 
-  // Watermark samar
   ctx.save();
+  ctx.beginPath();
+  ctx.rect(0, 0, width, logicalHeight);
+  ctx.clip();
+  ctx.translate(width / 2, logicalHeight / 2);
   ctx.rotate((-20 * Math.PI) / 180);
-  ctx.fillStyle = 'rgba(15, 23, 42, 0.03)';
-  ctx.font = 'bold 14px "Courier New", Courier, monospace';
-  for (let x = -width; x < width * 2; x += 130) {
-    for (let y = -canvas.height; y < canvas.height * 2; y += 45) {
-      ctx.fillText(`${headerTitle.toUpperCase()} •`, x, y);
+  ctx.fillStyle = 'rgba(15, 23, 42, 0.04)';
+  ctx.font = 'bold 12px "Courier New", Courier, monospace';
+  for (let x = -width; x < width; x += 125) {
+    for (let wy = -logicalHeight; wy < logicalHeight; wy += 36) {
+      ctx.fillText(`${headerTitle.toUpperCase()} •`, x, wy);
     }
   }
   ctx.restore();
 
-  // 4. Render Isi Struk
   let y = padding + 10;
 
-  // Logo Toko
   if (logoImg) {
-    const scale = Math.min(1, maxLogoH / (logoImg.naturalHeight || logoImg.height || 1));
+    const scale = Math.min(
+      1,
+      maxLogoH / (logoImg.naturalHeight || logoImg.height || 1),
+      maxLogoW / (logoImg.naturalWidth || logoImg.width || 1)
+    );
     const renderW = (logoImg.naturalWidth || logoImg.width) * scale;
     const renderH = (logoImg.naturalHeight || logoImg.height) * scale;
     const logoX = (width - renderW) / 2;
-    ctx.drawImage(logoImg, logoX, y, renderW, renderH);
+    ctx.drawImage(logoImg, logoX, y - 6, renderW, renderH);
     y += renderH + 8;
   }
 
-  // Header Toko
   ctx.fillStyle = '#0F172A';
   ctx.textAlign = 'center';
-  ctx.font = 'bold 16px "Courier New", Courier, monospace';
-  const titleLines = wrapCanvasText(ctx, headerTitle.toUpperCase(), contentWidth);
-  for (const line of titleLines) {
+  ctx.font = 'bold 14px "Courier New", Courier, monospace';
+  for (const line of wrapCanvasText(ctx, headerTitle.toUpperCase(), contentWidth)) {
     ctx.fillText(line, width / 2, y);
-    y += 19;
+    y += 17;
   }
 
-  ctx.font = '12px "Courier New", Courier, monospace';
   if (headerPhone) {
+    ctx.font = '10px "Courier New", Courier, monospace';
+    ctx.fillStyle = '#0F172A';
     ctx.fillText(headerPhone, width / 2, y);
-    y += 16;
+    y += 14;
   }
+
   if (headerAddress) {
-    ctx.fillStyle = '#475569';
-    const addrLines = wrapCanvasText(ctx, headerAddress, contentWidth);
-    for (const line of addrLines) {
+    ctx.font = '9px "Courier New", Courier, monospace';
+    ctx.fillStyle = '#334155';
+    for (const line of wrapCanvasText(ctx, headerAddress, contentWidth)) {
       ctx.fillText(line, width / 2, y);
-      y += 15;
+      y += 13;
     }
   }
 
-  y += 6;
+  y += 4;
   drawDashedLine(ctx, y, width, padding);
-  y += 16;
+  y += 14;
 
-  // Metadata Nota
-  ctx.font = '12px "Courier New", Courier, monospace';
+  ctx.font = '10px "Courier New", Courier, monospace';
   ctx.fillStyle = '#0F172A';
-  
-  // No
   ctx.textAlign = 'left';
   ctx.fillText('No.', padding, y);
   ctx.textAlign = 'right';
-  ctx.font = 'bold 12px "Courier New", Courier, monospace';
+  ctx.font = 'bold 10px "Courier New", Courier, monospace';
   ctx.fillText(transaksi.nomorTransaksi || '-', width - padding, y);
-  y += 18;
+  y += 14;
 
-  // Terima
-  ctx.font = '12px "Courier New", Courier, monospace';
+  ctx.font = '10px "Courier New", Courier, monospace';
   ctx.textAlign = 'left';
   ctx.fillText('Terima', padding, y);
   ctx.textAlign = 'right';
   ctx.fillText(formatDateIndo(transaksi.tanggalMasuk, true), width - padding, y);
-  y += 18;
+  y += 14;
 
-  // Selesai
   if (transaksi.tanggalSelesai) {
     ctx.textAlign = 'left';
     ctx.fillText('Selesai', padding, y);
     ctx.textAlign = 'right';
-    ctx.font = 'bold 12px "Courier New", Courier, monospace';
+    ctx.font = 'bold 10px "Courier New", Courier, monospace';
     ctx.fillText(formatDateIndo(transaksi.tanggalSelesai), width - padding, y);
-    y += 18;
+    y += 14;
   }
 
-  // Yth
-  ctx.font = '12px "Courier New", Courier, monospace';
+  ctx.font = '10px "Courier New", Courier, monospace';
   ctx.textAlign = 'left';
-  ctx.fillText('Yth. Bapak/Ibu', padding, y);
-  y += 8;
+  ctx.fillText('Yth. Bapak/Ibu', padding, y + 2);
+  y += 10;
 
   drawDashedLine(ctx, y, width, padding);
-  y += 18;
+  y += 16;
 
-  // Nama Pelanggan & Status
   ctx.textAlign = 'center';
-  ctx.font = 'bold 17px "Courier New", Courier, monospace';
+  ctx.font = 'bold 16px "Courier New", Courier, monospace';
   ctx.fillStyle = '#0F172A';
-  const nameLines = wrapCanvasText(ctx, (transaksi.namaPelanggan || 'PELANGGAN').toUpperCase(), contentWidth);
-  for (const line of nameLines) {
+  for (const line of wrapCanvasText(ctx, (transaksi.namaPelanggan || 'PELANGGAN').toUpperCase(), contentWidth)) {
     ctx.fillText(line, width / 2, y);
-    y += 20;
+    y += 19;
   }
 
   if (transaksi.alamat) {
-    ctx.font = '11px "Courier New", Courier, monospace';
-    ctx.fillStyle = '#64748B';
+    ctx.font = '10px "Courier New", Courier, monospace';
+    ctx.fillStyle = '#475569';
     ctx.fillText(`(${transaksi.alamat})`, width / 2, y);
-    y += 16;
+    y += 14;
   }
 
-  // Status Badge Text
-  ctx.font = 'bold 14px "Courier New", Courier, monospace';
+  ctx.font = 'bold 12px "Courier New", Courier, monospace';
   ctx.fillStyle = statusFinal === 'LUNAS' ? '#047857' : '#B91C1C';
   ctx.fillText(statusFinal, width / 2, y);
-  y += 18;
+  y += 15;
 
   if (sisaBayar > 0) {
-    ctx.font = 'bold 15px "Courier New", Courier, monospace';
+    ctx.font = 'bold 14px "Courier New", Courier, monospace';
     ctx.fillStyle = '#B91C1C';
     ctx.fillText(`Rp.${formatNumberOnly(sisaBayar)},-`, width / 2, y);
-    y += 20;
+    y += 16;
   }
 
   y += 2;
   drawDashedLine(ctx, y, width, padding);
-  y += 18;
+  y += 15;
 
-  // Items Layanan
   if (items.length > 0) {
     for (const item of items) {
       ctx.textAlign = 'left';
       ctx.fillStyle = '#0F172A';
-      ctx.font = 'bold 12px "Courier New", Courier, monospace';
+      ctx.font = 'bold 11px "Courier New", Courier, monospace';
       ctx.fillText(item?.namaLayanan || 'Layanan', padding, y);
-      y += 16;
+      y += 14;
 
-      ctx.font = '12px "Courier New", Courier, monospace';
-      ctx.fillStyle = '#334155';
-      const leftCol = `${item?.berat || 0} ${item?.satuan || ''} x ${formatNumberOnly(item?.hargaPerKg || item?.hargaSatuan || 0)}`;
+      ctx.font = '10px "Courier New", Courier, monospace';
+      ctx.fillStyle = '#0F172A';
+      const leftCol = `${item?.berat || 0} ${item?.satuan || ''} x ${formatNumberOnly(
+        item?.hargaPerKg || item?.hargaSatuan || 0
+      )}`;
       ctx.fillText(leftCol, padding, y);
 
       ctx.textAlign = 'right';
       ctx.fillText(`= ${formatNumberOnly(item?.subtotal || 0)}`, width - padding, y);
-      y += 18;
+      y += 16;
     }
   } else {
     ctx.textAlign = 'left';
-    ctx.font = 'bold 12px "Courier New", Courier, monospace';
+    ctx.fillStyle = '#0F172A';
+    ctx.font = 'bold 11px "Courier New", Courier, monospace';
     ctx.fillText('Cucian Laundry', padding, y);
-    y += 16;
+    y += 14;
+    ctx.font = '10px "Courier New", Courier, monospace';
+    ctx.fillText('1 Paket', padding, y);
     ctx.textAlign = 'right';
     ctx.fillText(`= ${formatNumberOnly(transaksi.totalHarga)}`, width - padding, y);
-    y += 18;
+    y += 16;
   }
 
   y += 2;
   drawDashedLine(ctx, y, width, padding);
-  y += 18;
+  y += 15;
 
-  // Financial Totals
+  if (transaksi.diskon && transaksi.diskon > 0) {
+    ctx.font = '11px "Courier New", Courier, monospace';
+    ctx.fillStyle = '#BE123C';
+    ctx.textAlign = 'left';
+    ctx.fillText('Potongan Diskon', padding, y);
+    ctx.textAlign = 'right';
+    ctx.fillText(`-Rp ${formatNumberOnly(transaksi.diskon)}`, width - padding, y);
+    y += 15;
+  }
+
   ctx.textAlign = 'left';
   ctx.fillStyle = '#0F172A';
-  ctx.font = 'bold 13px "Courier New", Courier, monospace';
+  ctx.font = 'bold 11px "Courier New", Courier, monospace';
   ctx.fillText('Total Transaksi', padding, y);
   ctx.textAlign = 'right';
   ctx.fillText(`Rp ${formatNumberOnly(transaksi.totalHarga)}`, width - padding, y);
-  y += 18;
+  y += 15;
 
   if (transaksi.jumlahDp > 0) {
     ctx.textAlign = 'left';
-    ctx.font = '12px "Courier New", Courier, monospace';
+    ctx.font = '11px "Courier New", Courier, monospace';
+    ctx.fillStyle = '#0F172A';
     ctx.fillText('Pembayaran Awal', padding, y);
     ctx.textAlign = 'right';
     ctx.fillText(`Rp ${formatNumberOnly(transaksi.jumlahDp)}`, width - padding, y);
-    y += 18;
+    y += 15;
   }
 
   if (sisaBayar > 0) {
     ctx.textAlign = 'left';
-    ctx.font = 'bold 13px "Courier New", Courier, monospace';
+    ctx.font = 'bold 11px "Courier New", Courier, monospace';
     ctx.fillStyle = '#B91C1C';
     ctx.fillText('Sisa Pembayaran', padding, y);
     ctx.textAlign = 'right';
     ctx.fillText(`Rp ${formatNumberOnly(sisaBayar)}`, width - padding, y);
-    y += 18;
+    y += 15;
   } else if (isLunas && transaksi.jumlahDp > 0 && transaksi.jumlahDp < transaksi.totalHarga) {
     ctx.textAlign = 'left';
-    ctx.font = 'bold 13px "Courier New", Courier, monospace';
+    ctx.font = 'bold 11px "Courier New", Courier, monospace';
     ctx.fillStyle = '#047857';
     ctx.fillText('Pelunasan', padding, y);
     ctx.textAlign = 'right';
     ctx.fillText(`Rp ${formatNumberOnly(transaksi.totalHarga - transaksi.jumlahDp)}`, width - padding, y);
-    y += 18;
+    y += 15;
   }
 
   y += 2;
   drawDashedLine(ctx, y, width, padding);
-  y += 18;
+  y += 15;
 
-  // Catatan, Metode Pembayaran, Footers
   ctx.textAlign = 'center';
-  ctx.font = '11px "Courier New", Courier, monospace';
-  ctx.fillStyle = '#334155';
+  ctx.font = '10px "Courier New", Courier, monospace';
+  ctx.fillStyle = '#0F172A';
 
   if (transaksi.metodePembayaran) {
     const detail = transaksi.metodePembayaranDetail ? ` (${transaksi.metodePembayaranDetail})` : '';
     ctx.fillText(`Metode: ${transaksi.metodePembayaran}${detail}`, width / 2, y);
-    y += 16;
+    y += 14;
   }
 
   if (transaksi.catatan) {
-    ctx.font = 'italic 11px "Courier New", Courier, monospace';
-    const noteLines = wrapCanvasText(ctx, `Catatan: ${transaksi.catatan}`, contentWidth);
-    for (const line of noteLines) {
+    ctx.font = 'bold italic 10px "Courier New", Courier, monospace';
+    ctx.fillStyle = '#1E293B';
+    for (const line of wrapCanvasText(ctx, `Catatan: ${transaksi.catatan}`, contentWidth)) {
       ctx.fillText(line, width / 2, y);
-      y += 15;
+      y += 13;
     }
     y += 2;
   }
 
   if (settings.footerStruk) {
     ctx.font = '10px "Courier New", Courier, monospace';
-    ctx.fillStyle = '#64748B';
-    const footLines = wrapCanvasText(ctx, settings.footerStruk, contentWidth);
-    for (const line of footLines) {
+    ctx.fillStyle = '#475569';
+    for (const line of wrapCanvasText(ctx, settings.footerStruk, contentWidth)) {
       ctx.fillText(line, width / 2, y);
-      y += 14;
+      y += 13;
     }
+    y += 2;
   }
 
   if (settings.chattyFooter) {
-    ctx.font = 'italic 11px "Courier New", Courier, monospace';
+    ctx.font = 'bold italic 10px "Courier New", Courier, monospace';
     ctx.fillStyle = '#1E293B';
-    const chatLines = wrapCanvasText(ctx, settings.chattyFooter, contentWidth);
-    for (const line of chatLines) {
+    for (const line of wrapCanvasText(ctx, settings.chattyFooter, contentWidth)) {
       ctx.fillText(line, width / 2, y);
-      y += 15;
+      y += 13;
     }
   }
 
   return canvas;
 }
 
-/**
- * Konversi canvas struk ke file Blob PNG
- */
 export async function generateReceiptBlob(
   transaksi: Transaksi,
   settings: SettingsData,
   laundryName?: string,
   laundryAddress?: string,
-  laundryPhone?: string
+  laundryPhone?: string,
+  targetElement?: HTMLElement | null
 ): Promise<Blob> {
-  const canvas = await generateReceiptCanvas(transaksi, settings, laundryName, laundryAddress, laundryPhone);
+  if (typeof document !== 'undefined') {
+    let candidate = targetElement || null;
+    if (!candidate && transaksi.id) {
+      const allNodes = document.querySelectorAll<HTMLElement>('[data-trx-id]');
+      for (let i = 0; i < allNodes.length; i++) {
+        const node = allNodes[i];
+        if (node.dataset.trxId === transaksi.id) {
+          candidate = node;
+          if (node.dataset.receiptCapture === 'true') break;
+        }
+      }
+    }
+    if (candidate) {
+      try {
+        return await captureReceiptElementToBlob(candidate);
+      } catch {
+        // Fallback ke 2D canvas jika gagal capture DOM
+      }
+    }
+  }
+
+  const canvas = await generateReceiptCanvas(
+    transaksi,
+    settings,
+    laundryName,
+    laundryAddress,
+    laundryPhone
+  );
   return new Promise((resolve, reject) => {
     canvas.toBlob((blob) => {
       if (blob) resolve(blob);
@@ -419,9 +509,6 @@ export async function generateReceiptBlob(
   });
 }
 
-/**
- * Unduh langsung gambar struk sebagai file PNG
- */
 export async function downloadReceiptImage(
   transaksi: Transaksi,
   settings: SettingsData,
@@ -429,14 +516,12 @@ export async function downloadReceiptImage(
   laundryAddress?: string,
   laundryPhone?: string
 ): Promise<void> {
-  const blob = await generateReceiptBlob(transaksi, settings, laundryName, laundryAddress, laundryPhone);
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  const fileName = `struk-${(transaksi.nomorTransaksi || 'nota').replace(/[^a-zA-Z0-9_-]/g, '_')}.png`;
-  a.download = fileName;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 2000);
+  const blob = await generateReceiptBlob(
+    transaksi,
+    settings,
+    laundryName,
+    laundryAddress,
+    laundryPhone
+  );
+  triggerBlobDownload(blob, getReceiptFileName(transaksi));
 }

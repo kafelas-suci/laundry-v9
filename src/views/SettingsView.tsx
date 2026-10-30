@@ -40,7 +40,12 @@ import {
   pairBluetoothPrinterDirectly,
 } from '../utils/nativeBridge';
 import { TopUpModal } from '../components/TopUpModal';
-import { MidtransVerifyResult } from '../services/midtransService';
+import { MidtransAdminSetupModal } from '../components/MidtransAdminSetupModal';
+import {
+  SuperAdminBillingModal,
+  SelfAccountBillingSnapshot,
+} from '../components/SuperAdminBillingModal';
+import { MidtransVerifyResult, isSuperAdminUser } from '../services/midtransService';
 import { CloudBackupModal } from '../components/CloudBackupModal';
 import {
   checkAppUpdateManually,
@@ -64,6 +69,7 @@ interface SettingsViewProps {
   onOpenUpgradeModal?: (reason?: string) => void;
   onTopUpWallet?: (nominal: number) => void;
   onMidtransSettled?: (result: MidtransVerifyResult) => void;
+  onSelfAccountUpdated?: (updated: SelfAccountBillingSnapshot) => void;
   onUpdateOwnerProfile?: (data: { displayName: string; nomorTelepon?: string | null }) => void;
   onStartTour?: () => void;
   onLogout: () => void;
@@ -84,12 +90,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onOpenApkModal,
   onOpenUpgradeModal,
   onMidtransSettled,
+  onSelfAccountUpdated,
   onUpdateOwnerProfile,
   onStartTour,
   onLogout,
 }) => {
   const toast = useToast();
   const isOwner = currentUser.role === 'owner';
+  const isSuperAdmin = isSuperAdminUser(currentUser.authEmail || currentUser.emailOrPhone);
 
   // Perhitungan Sisa Masa Aktif Langganan
   const ownerUser = StorageService.get<User[]>('users', []).find((u) => u.role === 'owner') || defaultOwnerUser;
@@ -113,6 +121,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [showLogoutConfirmModal, setShowLogoutConfirmModal] = useState(false);
   const [showEditOwnerModal, setShowEditOwnerModal] = useState(false);
   const [showTopUpModal, setShowTopUpModal] = useState(false);
+  const [showMidtransAdminModal, setShowMidtransAdminModal] = useState(false);
+  const [showSuperAdminBillingModal, setShowSuperAdminBillingModal] = useState(false);
   const [showBackupModal, setShowBackupModal] = useState(false);
   const [editDisplayName, setEditDisplayName] = useState(currentUser.displayName || '');
   const [editNomorTelepon, setEditNomorTelepon] = useState(currentUser.nomorTelepon || '');
@@ -541,6 +551,57 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
         
 
+        {isSuperAdmin && (
+          <div className="space-y-1.5">
+            <div className="text-[11px] font-black text-slate-500 uppercase tracking-wider px-1">
+              Panel Admin Pusat
+            </div>
+            <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs divide-y divide-slate-100 overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setShowSuperAdminBillingModal(true)}
+                className="w-full p-3.5 flex items-center justify-between hover:bg-slate-50 active:bg-slate-100 transition text-left cursor-pointer"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0">
+                    <CreditCard className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold text-slate-900">
+                      Aktivasi Transfer Manual &amp; Saldo User
+                    </div>
+                    <div className="text-[11px] text-slate-500 truncate">
+                      Verifikasi pembayaran BRI / DANA pembeli &amp; kelola paket atau saldo di server
+                    </div>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 ml-2" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowMidtransAdminModal(true)}
+                className="w-full p-3.5 flex items-center justify-between hover:bg-slate-50 active:bg-slate-100 transition text-left cursor-pointer"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-9 h-9 rounded-xl bg-rose-50 text-[#800000] flex items-center justify-center shrink-0">
+                    <ShieldCheck className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold text-slate-900">
+                      Koneksi &amp; Panduan Midtrans
+                    </div>
+                    <div className="text-[11px] text-slate-500 truncate">
+                      Kelola tautan Cloud Run, status kunci &amp; webhook akun Midtrans Anda
+                    </div>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-slate-400 shrink-0 ml-2" />
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* SECTION 1: MANAJEMEN OUTLET & KASIR (Owner Only) */}
         {isOwner && (
           <div className="space-y-1.5">
@@ -746,7 +807,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </div>
           <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs divide-y divide-slate-100 overflow-hidden">
             <a
-              href="/landing.html"
+              href="/profil.html"
               target="_blank"
               rel="noopener noreferrer"
               className="w-full p-3.5 flex items-center justify-between hover:bg-slate-50 active:bg-slate-100 transition text-left"
@@ -757,10 +818,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </div>
                 <div className="min-w-0">
                   <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-                    <span>Lihat Web Profil Resmi Outlet</span>
-                    <span className="text-[9px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.2 rounded">Stand-Alone</span>
+                    <span>Buka Website Profil Resmi</span>
+                    <span className="text-[9px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.2 rounded">Terpisah</span>
                   </div>
-                  <div className="text-[11px] text-slate-500 truncate">Halaman promosi mandiri: cukup edit public/landing.html</div>
+                  <div className="text-[11px] text-slate-500 truncate">Halaman profil minimalis &amp; mandiri (/profil.html)</div>
                 </div>
               </div>
               <ExternalLink className="w-4 h-4 text-slate-400 shrink-0 ml-2" />
@@ -1402,6 +1463,23 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         onMidtransSettled={onMidtransSettled}
         sisaHari={sisaHari}
       />
+
+      {isSuperAdmin && (
+        <>
+          <MidtransAdminSetupModal
+            isOpen={showMidtransAdminModal}
+            onClose={() => setShowMidtransAdminModal(false)}
+            currentUser={currentUser}
+            onMidtransSettled={onMidtransSettled}
+          />
+          <SuperAdminBillingModal
+            isOpen={showSuperAdminBillingModal}
+            onClose={() => setShowSuperAdminBillingModal(false)}
+            currentUser={currentUser}
+            onSelfAccountUpdated={onSelfAccountUpdated}
+          />
+        </>
+      )}
 
       {/* MODAL PENCADANGAN KE GOOGLE DRIVE & CLOUD */}
       <CloudBackupModal

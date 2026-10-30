@@ -5,6 +5,7 @@ import {
   Building2,
   Clock,
   ChevronDown,
+  ChevronRight,
   Edit,
   Trash2,
   X,
@@ -13,13 +14,24 @@ import {
   Zap,
   Wallet,
   Lock,
+  RefreshCw,
+  ShieldCheck,
 } from 'lucide-react';
 import { User, Laundry, SubscriptionHistory } from '../types';
 import { formatRupiah, formatDateIndo } from '../utils/formatters';
 import { useToast, useConfirm } from '../components/NotificationContext';
 import { getLaundryLimits } from '../utils/subscription';
 import { TopUpModal } from '../components/TopUpModal';
-import { MidtransVerifyResult, PaymentPurpose, buildWhatsAppAdminUrl } from '../services/midtransService';
+import {
+  SuperAdminBillingModal,
+  SelfAccountBillingSnapshot,
+} from '../components/SuperAdminBillingModal';
+import {
+  MidtransVerifyResult,
+  PaymentPurpose,
+  buildWhatsAppAdminUrl,
+  isSuperAdminUser,
+} from '../services/midtransService';
 
 interface KelolaOwnerViewProps {
   onBack: () => void;
@@ -28,12 +40,22 @@ interface KelolaOwnerViewProps {
   activeLaundryId: string;
   subscriptionHistory: SubscriptionHistory[];
   onSelectLaundry: (laundryId: string) => void;
-  onAddLaundry: (nama: string, alamat?: string, telepon?: string, copyFromId?: string) => void;
+  onAddLaundry: (
+    nama: string,
+    alamat?: string,
+    telepon?: string,
+    copyFromId?: string
+  ) => Promise<boolean> | boolean | void;
   onUpdateLaundry: (laundry: Laundry) => void;
   onDeleteLaundry: (laundryId: string) => void;
   onTopUpWallet?: (nominal: number) => void;
-  onExtendSubscription: (packageName: string, cost: number, days: number) => void;
+  onExtendSubscription: (
+    packageName: string,
+    cost: number,
+    days: number
+  ) => Promise<boolean> | boolean | void;
   onMidtransSettled?: (result: MidtransVerifyResult) => void;
+  onSelfAccountUpdated?: (updated: SelfAccountBillingSnapshot) => void;
   onUpdateOwnerProfile?: (data: { displayName: string; nomorTelepon?: string | null }) => void;
   onOpenUpgradeModal?: (reason?: string) => void;
   onOpenExpiredModal?: () => void;
@@ -51,6 +73,7 @@ export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
   onDeleteLaundry,
   onExtendSubscription,
   onMidtransSettled,
+  onSelfAccountUpdated,
   onUpdateOwnerProfile,
   onOpenUpgradeModal,
   onOpenExpiredModal,
@@ -59,6 +82,9 @@ export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
   const { confirm } = useConfirm();
   const [showBranches, setShowBranches] = useState(true);
   const [showTopUpModal, setShowTopUpModal] = useState(false);
+  const [showSuperAdminModal, setShowSuperAdminModal] = useState(false);
+  const [isExtendingWallet, setIsExtendingWallet] = useState(false);
+  const [isSubmittingBranch, setIsSubmittingBranch] = useState(false);
   const [topUpPurpose, setTopUpPurpose] = useState<PaymentPurpose>('topup_wallet');
   const [topUpMethod, setTopUpMethod] = useState<'midtrans' | 'manual'>('midtrans');
   const [selectedNominal, setSelectedNominal] = useState<number>(27000);
@@ -76,6 +102,7 @@ export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
 
   const [editingLaundry, setEditingLaundry] = useState<Laundry | null>(null);
 
+  const isSuperAdmin = isSuperAdminUser(currentUser.authEmail || currentUser.emailOrPhone);
   const currentLimits = getLaundryLimits(currentUser.subscriptionType);
   const isNewcomer = currentLimits.tier === 'newcomer';
   const isPremium = currentLimits.tier === 'premium';
@@ -112,8 +139,15 @@ export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
       confirmText: 'Potong Saldo & Aktifkan',
     });
     if (ok) {
-      onExtendSubscription(`${label}`, cost, 30);
-      toast.success(`Langganan ${label} berhasil diaktifkan!`);
+      setIsExtendingWallet(true);
+      try {
+        const success = await onExtendSubscription(`${label}`, cost, 30);
+        if (success !== false) {
+          toast.success(`Langganan ${label} berhasil diaktifkan!`);
+        }
+      } finally {
+        setIsExtendingWallet(false);
+      }
     }
   };
 
@@ -146,16 +180,23 @@ export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
       if (!confirmed) return;
     }
 
-    onAddLaundry(
-      newBranchName.trim(),
-      newBranchAddress.trim() || undefined,
-      newBranchPhone.trim() || undefined,
-      copyLayananFrom || undefined
-    );
-    setShowAddBranchModal(false);
-    setNewBranchName('');
-    setNewBranchAddress('');
-    setNewBranchPhone('');
+    setIsSubmittingBranch(true);
+    try {
+      const success = await onAddLaundry(
+        newBranchName.trim(),
+        newBranchAddress.trim() || undefined,
+        newBranchPhone.trim() || undefined,
+        copyLayananFrom || undefined
+      );
+      if (success !== false) {
+        setShowAddBranchModal(false);
+        setNewBranchName('');
+        setNewBranchAddress('');
+        setNewBranchPhone('');
+      }
+    } finally {
+      setIsSubmittingBranch(false);
+    }
   };
 
   return (
@@ -181,7 +222,29 @@ export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
       </header>
 
       <main className="flex-1 p-3 md:p-5 space-y-4 max-w-4xl mx-auto w-full">
-        
+        {isSuperAdmin && (
+          <button
+            type="button"
+            onClick={() => setShowSuperAdminModal(true)}
+            className="w-full p-3.5 rounded-2xl bg-white border border-slate-200 hover:bg-slate-50 shadow-2xs flex items-center justify-between gap-3 text-left transition cursor-pointer"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-9 h-9 rounded-xl bg-rose-50 text-[#800000] flex items-center justify-center shrink-0">
+                <ShieldCheck className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-xs font-extrabold text-slate-900">
+                  Panel Super Admin · Aktivasi Transfer Manual Pembeli
+                </div>
+                <div className="text-[11px] text-slate-500 truncate">
+                  Cari akun Owner &amp; aktifkan Paket Premium atau tambah saldo transfer BRI / DANA
+                </div>
+              </div>
+            </div>
+            <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+          </button>
+        )}
+
         {/* GRID UTAMA: 2 Kolom Kompak */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           
@@ -253,11 +316,20 @@ export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
                   {currentUser.walletBalance >= HARGA_Premium_BULANAN && (
                     <button
                       type="button"
+                      disabled={isExtendingWallet}
                       onClick={handlePayBulanan}
-                      className="w-full py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition shadow-xs active:scale-98 cursor-pointer flex items-center justify-center gap-1.5 tabular-nums"
+                      className="w-full py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-bold text-xs transition shadow-xs active:scale-98 cursor-pointer flex items-center justify-center gap-1.5 tabular-nums"
                     >
-                      <Wallet className="w-3.5 h-3.5" />
-                      <span>Perpanjang dari Saldo ({formatRupiah(HARGA_Premium_BULANAN)})</span>
+                      {isExtendingWallet ? (
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Wallet className="w-3.5 h-3.5" />
+                      )}
+                      <span>
+                        {isExtendingWallet
+                          ? 'Memproses di Server...'
+                          : `Perpanjang dari Saldo (${formatRupiah(HARGA_Premium_BULANAN)})`}
+                      </span>
                     </button>
                   )}
 
@@ -369,15 +441,12 @@ export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
                           className="flex-1 cursor-pointer truncate"
                         >
                           <div className="flex items-center gap-1.5 truncate">
-                            {isActive && (
-                              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-                            )}
                             <span className="font-bold text-xs text-slate-900 truncate">
                               {typeof lnd.namaLaundry === 'object' ? (lnd.namaLaundry as any)?.namaLaundry || "Kafela's Laundry" : (lnd.namaLaundry || "Kafela's Laundry")}
                             </span>
                             {isActive && (
-                              <span className="text-[9px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold shrink-0">
-                                Aktif
+                              <span className="text-[10px] font-bold text-emerald-700 shrink-0">
+                                · Aktif
                               </span>
                             )}
                           </div>
@@ -530,17 +599,28 @@ export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
               <div className="flex gap-2.5 pt-2">
                 <button
                   type="button"
+                  disabled={isSubmittingBranch}
                   onClick={() => setShowAddBranchModal(false)}
-                  className="flex-1 py-2.5 rounded-2xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition cursor-pointer"
+                  className="flex-1 py-2.5 rounded-2xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition cursor-pointer"
                 >
                   Batal
                 </button>
                 <button
                   type="button"
+                  disabled={isSubmittingBranch}
                   onClick={handleAddBranchSubmit}
-                  className="flex-1 py-2.5 rounded-2xl bg-[#800000] hover:bg-[#660000] text-white text-xs font-bold shadow-md transition cursor-pointer"
+                  className="flex-1 py-2.5 rounded-2xl bg-[#800000] hover:bg-[#660000] disabled:opacity-60 text-white text-xs font-bold shadow-md transition cursor-pointer flex items-center justify-center gap-1.5 tabular-nums"
                 >
-                  {laundries.length >= 1 ? 'Bayar Rp 25.000 & Buat' : 'Buat Cabang'}
+                  {isSubmittingBranch ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Memproses...</span>
+                    </>
+                  ) : laundries.length >= 1 ? (
+                    'Bayar Rp 25.000 & Buat'
+                  ) : (
+                    'Buat Cabang'
+                  )}
                 </button>
               </div>
             </div>
@@ -738,6 +818,15 @@ export const KelolaOwnerView: React.FC<KelolaOwnerViewProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {isSuperAdmin && (
+        <SuperAdminBillingModal
+          isOpen={showSuperAdminModal}
+          onClose={() => setShowSuperAdminModal(false)}
+          currentUser={currentUser}
+          onSelfAccountUpdated={onSelfAccountUpdated}
+        />
       )}
     </div>
   );

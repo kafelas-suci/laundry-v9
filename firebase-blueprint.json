@@ -2,57 +2,109 @@
   "entities": {
     "UserProfile": {
       "title": "UserProfile",
-      "description": "Profil pengguna owner atau kasir laundry",
+      "description": "Profil pengguna owner atau kasir laundry dengan kolom saldo dan langganan yang dikunci khusus server",
       "type": "object",
       "properties": {
-        "uid": { "type": "string" },
-        "ownerId": { "type": "string" },
-        "emailOrPhone": { "type": "string" },
-        "authEmail": { "type": "string" },
-        "displayName": { "type": "string" },
-        "username": { "type": "string" },
-        "nomorTelepon": { "type": "string" },
+        "uid": { "type": "string", "maxLength": 128 },
+        "ownerId": { "type": "string", "maxLength": 128 },
+        "emailOrPhone": { "type": "string", "maxLength": 160 },
+        "authEmail": { "type": "string", "maxLength": 160 },
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "username": { "type": "string", "maxLength": 120 },
+        "nomorTelepon": { "type": "string", "maxLength": 40 },
         "role": { "type": "string", "enum": ["owner", "admin", "karyawan"] },
-        "laundryId": { "type": "string" },
+        "laundryId": { "type": "string", "maxLength": 128 },
+        "laundries": { "type": "object" },
         "walletBalance": { "type": "number" },
         "subscriptionType": { "type": "string", "enum": ["newcomer", "premium"] },
         "subscriptionEndDate": { "type": "number" },
-        "lastSettledOrderId": { "type": "string" },
-        "createdAt": { "type": "number" }
+        "lastSettledOrderId": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" }
       },
       "required": ["uid", "role", "laundryId", "walletBalance"]
     },
     "PaymentOrder": {
       "title": "PaymentOrder",
-      "description": "Catatan pesanan pembayaran Midtrans untuk top-up dan langganan",
+      "description": "Catatan pesanan pembayaran Midtrans yang hanya dapat ditulis oleh server backend",
       "type": "object",
       "properties": {
-        "orderId": { "type": "string" },
-        "ownerId": { "type": "string" },
+        "orderId": { "type": "string", "maxLength": 128 },
+        "ownerId": { "type": "string", "maxLength": 128 },
         "purpose": { "type": "string", "enum": ["extend_premium", "topup_wallet"] },
         "amount": { "type": "number" },
         "durationDays": { "type": "number" },
-        "snapToken": { "type": "string" },
+        "snapToken": { "type": "string", "maxLength": 256 },
+        "redirectUrl": { "type": "string", "maxLength": 512 },
         "status": { "type": "string", "enum": ["pending", "settled", "failed", "expired"] },
         "credited": { "type": "boolean" },
-        "paymentType": { "type": "string" },
+        "paymentType": { "type": "string", "maxLength": 64 },
         "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" },
         "settledAt": { "type": "number" }
       },
       "required": ["orderId", "ownerId", "purpose", "amount", "status", "credited", "createdAt"]
     },
-    "LaundryBranch": {
-      "title": "LaundryBranch",
-      "description": "Informasi cabang toko laundry",
+    "BillingAuditLog": {
+      "title": "BillingAuditLog",
+      "description": "Buku besar audit mutasi saldo dompet, perpanjangan langganan, aktivasi cabang, dan persetujuan transfer manual",
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
-        "ownerId": { "type": "string" },
-        "namaLaundry": { "type": "string" },
-        "alamat": { "type": "string" },
-        "nomorTelepon": { "type": "string" },
-        "subscriptionType": { "type": "string" },
-        "subscriptionEndDate": { "type": "number" }
+        "id": { "type": "string", "maxLength": 128 },
+        "uid": { "type": "string", "maxLength": 128 },
+        "actorUid": { "type": "string", "maxLength": 128 },
+        "actorEmail": { "type": "string", "maxLength": 160 },
+        "action": {
+          "type": "string",
+          "enum": [
+            "midtrans_extend_premium",
+            "midtrans_topup_wallet",
+            "wallet_extend_premium",
+            "wallet_activate_branch",
+            "admin_extend_premium",
+            "admin_topup_wallet"
+          ]
+        },
+        "channel": {
+          "type": "string",
+          "enum": ["MIDTRANS", "WALLET", "BRI", "DANA", "MANUAL"]
+        },
+        "amount": { "type": "number" },
+        "walletDelta": { "type": "number" },
+        "walletBefore": { "type": "number" },
+        "walletAfter": { "type": "number" },
+        "durationDays": { "type": "number" },
+        "subscriptionTypeAfter": { "type": "string", "enum": ["newcomer", "premium"] },
+        "subscriptionEndDateAfter": { "type": "number" },
+        "note": { "type": "string", "maxLength": 300 },
+        "createdAt": { "type": "number" }
+      },
+      "required": [
+        "id",
+        "uid",
+        "actorUid",
+        "action",
+        "channel",
+        "amount",
+        "walletDelta",
+        "walletBefore",
+        "walletAfter",
+        "createdAt"
+      ]
+    },
+    "LaundryBranch": {
+      "title": "LaundryBranch",
+      "description": "Informasi cabang toko laundry dengan proteksi status langganan khusus server",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "ownerId": { "type": "string", "maxLength": 128 },
+        "namaLaundry": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "alamat": { "type": "string", "maxLength": 300 },
+        "nomorTelepon": { "type": "string", "maxLength": 40 },
+        "subscriptionType": { "type": "string", "enum": ["newcomer", "premium"] },
+        "subscriptionEndDate": { "type": "number" },
+        "updatedAt": { "type": "number" }
       },
       "required": ["id", "ownerId", "namaLaundry"]
     },
@@ -61,13 +113,13 @@
       "description": "Registri akun kasir resmi yang ditugaskan pada cabang laundry",
       "type": "object",
       "properties": {
-        "uid": { "type": "string" },
-        "ownerId": { "type": "string" },
-        "laundryId": { "type": "string" },
-        "displayName": { "type": "string" },
-        "emailOrPhone": { "type": "string" },
-        "authEmail": { "type": "string" },
-        "nomorTelepon": { "type": "string" },
+        "uid": { "type": "string", "maxLength": 128 },
+        "ownerId": { "type": "string", "maxLength": 128 },
+        "laundryId": { "type": "string", "maxLength": 128 },
+        "displayName": { "type": "string", "maxLength": 120 },
+        "emailOrPhone": { "type": "string", "maxLength": 160 },
+        "authEmail": { "type": "string", "maxLength": 160 },
+        "nomorTelepon": { "type": "string", "maxLength": 40 },
         "role": { "type": "string", "enum": ["admin", "karyawan"] },
         "createdAt": { "type": "number" }
       },
@@ -145,20 +197,38 @@
         "logoPath": { "type": "string" }
       },
       "required": ["appTitle"]
+    },
+    "PaymentGatewayConfig": {
+      "title": "PaymentGatewayConfig",
+      "description": "Konfigurasi publik alamat server backend pembayaran lintas-domain",
+      "type": "object",
+      "properties": {
+        "backendUrl": { "type": "string", "maxLength": 300 },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["backendUrl", "updatedAt"]
     }
   },
   "firestore": {
+    "/app_config/{configId}": {
+      "schema": "PaymentGatewayConfig",
+      "description": "Konfigurasi publik alamat backend pembayaran yang dikelola Super Admin"
+    },
     "/users/{userId}": {
       "schema": "UserProfile",
-      "description": "Dokumen profil user dengan proteksi saldo dan peran"
+      "description": "Dokumen profil user dengan proteksi penuh saldo dan status langganan di sisi server"
     },
     "/payment_orders/{orderId}": {
       "schema": "PaymentOrder",
-      "description": "Catatan pesanan pembayaran Midtrans"
+      "description": "Catatan pesanan pembayaran Midtrans (read-only bagi pemilik, write khusus server)"
+    },
+    "/billing_audit_logs/{logId}": {
+      "schema": "BillingAuditLog",
+      "description": "Buku besar audit mutasi saldo dan langganan bersifat append-only"
     },
     "/laundries/{laundryId}": {
       "schema": "LaundryBranch",
-      "description": "Dokumen data cabang laundry terisolasi per owner"
+      "description": "Dokumen data cabang laundry terisolasi per owner dengan aktivasi cabang ekstra via backend"
     },
     "/laundries/{laundryId}/staff/{staffUid}": {
       "schema": "LaundryStaff",

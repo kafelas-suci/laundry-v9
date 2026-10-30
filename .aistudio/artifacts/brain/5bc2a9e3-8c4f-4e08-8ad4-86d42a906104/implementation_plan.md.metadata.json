@@ -1,6 +1,6 @@
 {
-  "summary":  "Revisi rencana kesiapan komersial Kafelas Laundry: menyediakan 2 tombol metode pembayaran berdampingan saat perpanjangan/upgrade/top-up (1. Bayar Otomatis via Midtrans Snap, 2. Transfer Biasa BRI/DANA + Konfirmasi WA Admin), melanjutkan seluruh poin keamanan saldo, kuota Paket Premium Unlimited, nomor DANA 0831 3230 4649, isolasi antar toko, login kasir beda HP, serta disiplin kode bersih tanpa komentar yang tidak perlu.",
-  "updatedAt":  "2026-10-29T01:29:21.526534576Z",
+  "summary":  "Rencana penguncian keamanan penuh (Server-Authoritative Billing & Firestore Rules) untuk melindungi field subscriptionType, subscriptionEndDate, dan walletBalance dari manipulasi sisi client, migrasi seluruh transaksi potong saldo & tambah cabang ke endpoint backend terproteksi, serta penyediaan Panel Aktivasi Transfer Manual khusus Super Admin.",
+  "updatedAt":  "2026-10-29T10:19:22.531335005Z",
   "requestFeedback":  true,
   "userFacing":  true
 }

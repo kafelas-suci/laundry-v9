@@ -1,7 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { X, Printer, Share2, RefreshCw, CheckCircle2 } from 'lucide-react';
+import { X, Printer, Share2, RefreshCw, MessageCircle, Loader2 } from 'lucide-react';
 import { Transaksi, SettingsData, Pelanggan } from '../types';
-import { formatDateIndo, formatNumberOnly } from '../utils/formatters';
 import {
   isAndroidPrintAvailable,
   printViaAndroidBluetooth,
@@ -10,6 +9,20 @@ import {
   getSavedBluetoothPrinter,
   pairBluetoothPrinterDirectly,
 } from '../utils/nativeBridge';
+import {
+  generateReceiptBlob,
+  getReceiptFileName,
+  triggerBlobDownload,
+  tryCopyImageBlobToClipboard,
+} from '../utils/receiptCanvas';
+import {
+  normalizeWhatsAppPhone,
+  isMobileBrowser,
+  canWebShareFiles,
+  buildWhatsAppReceiptCaption,
+  openDirectWhatsAppChat,
+} from '../utils/whatsappHelper';
+import { ReceiptPaper } from './ReceiptPaper';
 import { ShareReceiptModal } from './ShareReceiptModal';
 
 interface ReceiptModalProps {
@@ -34,43 +47,113 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
   laundryAddress,
 }) => {
   const receiptRef = useRef<HTMLDivElement>(null);
+  const ownedUrlRef = useRef<string | null>(null);
+
   const [printFeedback, setPrintFeedback] = useState<string | null>(null);
   const [showShareModal, setShowShareModal] = useState(false);
+  const [isLogoReady, setIsLogoReady] = useState(false);
+
+  const [receiptBlob, setReceiptBlob] = useState<Blob | null>(null);
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
+  const [isGeneratingImg, setIsGeneratingImg] = useState(false);
+
   const [savedPrinterName, setSavedPrinterName] = useState<string | null>(() => {
     return getSavedBluetoothPrinter().name || settings.printerName || null;
   });
 
   useEffect(() => {
-    if (isOpen) {
-      const current = getSavedBluetoothPrinter().name || settings.printerName || null;
-      setSavedPrinterName(current);
-      if (settings.useLogo && settings.logoPath) {
-        preloadLogoBase64(settings.logoPath);
+    if (!isOpen || !transaksi) {
+      setIsLogoReady(false);
+      setReceiptBlob(null);
+      setReceiptFile(null);
+      setReceiptUrl(null);
+      if (ownedUrlRef.current) {
+        URL.revokeObjectURL(ownedUrlRef.current);
+        ownedUrlRef.current = null;
       }
+      return;
     }
-  }, [isOpen, settings.useLogo, settings.logoPath, settings.printerName]);
+
+    const current = getSavedBluetoothPrinter().name || settings.printerName || null;
+    setSavedPrinterName(current);
+    if (settings.useLogo && settings.logoPath) {
+      preloadLogoBase64(settings.logoPath);
+    }
+
+    setIsGeneratingImg(true);
+    const fallbackTimer = setTimeout(() => {
+      setIsLogoReady(true);
+    }, 400);
+
+    return () => {
+      clearTimeout(fallbackTimer);
+    };
+  }, [isOpen, transaksi?.id, settings.useLogo, settings.logoPath, settings.printerName]);
+
+  useEffect(() => {
+    if (!isOpen || !transaksi || !isLogoReady) return;
+
+    let active = true;
+    setIsGeneratingImg(true);
+
+    const raf = requestAnimationFrame(() => {
+      const fileName = getReceiptFileName(transaksi);
+      generateReceiptBlob(
+        transaksi,
+        settings,
+        laundryName,
+        laundryAddress,
+        laundryPhone,
+        receiptRef.current
+      )
+        .then((blob) => {
+          if (!active) return;
+          if (ownedUrlRef.current) {
+            URL.revokeObjectURL(ownedUrlRef.current);
+          }
+          const url = URL.createObjectURL(blob);
+          ownedUrlRef.current = url;
+          setReceiptBlob(blob);
+          setReceiptFile(new File([blob], fileName, { type: 'image/png' }));
+          setReceiptUrl(url);
+          setIsGeneratingImg(false);
+        })
+        .catch(() => {
+          if (active) setIsGeneratingImg(false);
+        });
+    });
+
+    return () => {
+      active = false;
+      cancelAnimationFrame(raf);
+    };
+  }, [isOpen, isLogoReady, transaksi, settings, laundryName, laundryAddress, laundryPhone]);
 
   if (!isOpen || !transaksi) return null;
 
   const headerTitle = laundryName || settings.headerStruk || 'Kafelas Laundry';
-  const headerAddress = laundryAddress || settings.address || '';
-  const headerPhone = laundryPhone || settings.phoneNumber || '';
-
   const isLunas = transaksi.statusPembayaran === 'Lunas';
   const sisaBayar = isLunas ? 0 : Math.max(0, transaksi.totalHarga - transaksi.jumlahDp);
   const statusFinal = isLunas || sisaBayar <= 0 ? 'LUNAS' : 'BELUM LUNAS';
 
   const handlePrint = async (forcePicker = false) => {
-    // 1. Cek apakah ada interface window.MesinPrint APK Android
     if (typeof window !== 'undefined' && window.MesinPrint) {
       const hasLogo = Boolean(settings.useLogo && settings.logoPath);
-      setPrintFeedback(hasLogo ? 'Mengirim struk & logo ke printer Bluetooth...' : 'Mengirim struk ke printer Bluetooth...');
+      setPrintFeedback(
+        hasLogo
+          ? 'Mengirim struk & logo ke printer Bluetooth...'
+          : 'Mengirim struk ke printer Bluetooth...'
+      );
 
       if (typeof window.MesinPrint.print === 'function') {
         try {
           const logoB64 = hasLogo ? await preloadLogoBase64(settings.logoPath) : '';
           window.MesinPrint.print(transaksi, logoB64);
-          setTimeout(() => setPrintFeedback(hasLogo ? 'Struk & logo berhasil dicetak!' : 'Struk berhasil dicetak!'), 800);
+          setTimeout(
+            () => setPrintFeedback(hasLogo ? 'Struk & logo berhasil dicetak!' : 'Struk berhasil dicetak!'),
+            800
+          );
           setTimeout(() => setPrintFeedback(null), 3500);
           return;
         } catch (err) {
@@ -87,13 +170,15 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
           laundryPhone
         );
         if (printed) {
-          setTimeout(() => setPrintFeedback(hasLogo ? 'Struk & logo berhasil dicetak!' : 'Struk berhasil dicetak!'), 800);
+          setTimeout(
+            () => setPrintFeedback(hasLogo ? 'Struk & logo berhasil dicetak!' : 'Struk berhasil dicetak!'),
+            800
+          );
           setTimeout(() => setPrintFeedback(null), 3500);
           return;
         }
       }
     } else {
-      // Fallback ke Web Bluetooth browser atau window.print() / share sheet
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const nav = typeof navigator !== 'undefined' ? (navigator as any) : null;
       if (nav?.bluetooth && typeof nav.bluetooth.requestDevice === 'function') {
@@ -130,7 +215,6 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
         return;
       }
 
-      // Fallback ke window.print() atau share sheet jika cetak browser tidak tersedia
       try {
         window.print();
       } catch {
@@ -139,7 +223,6 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
       return;
     }
 
-    // Fallback jika native bridge gagal mencetak
     try {
       window.print();
     } catch {
@@ -147,8 +230,50 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
     }
   };
 
-  const handlePrintStandard = () => {
-    window.print();
+  const handleQuickShareWhatsApp = async () => {
+    const shareTitle = `${headerTitle} - Struk #${transaksi.nomorTransaksi || ''}`;
+    const waCaption = buildWhatsAppReceiptCaption(transaksi, headerTitle, statusFinal, sisaBayar);
+    const customerPhone = normalizeWhatsAppPhone(
+      transaksi.nomorTelepon || pelanggan?.nomorTelepon
+    );
+
+    if (isMobileBrowser() && receiptFile && canWebShareFiles(receiptFile)) {
+      try {
+        await navigator.share({
+          files: [receiptFile],
+          title: shareTitle,
+          text: waCaption,
+        });
+        return;
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === 'AbortError') return;
+      }
+    }
+
+    try {
+      const blob =
+        receiptBlob ||
+        (await generateReceiptBlob(
+          transaksi,
+          settings,
+          laundryName,
+          laundryAddress,
+          laundryPhone,
+          receiptRef.current
+        ));
+      const fileName = getReceiptFileName(transaksi);
+      const copiedImage = await tryCopyImageBlobToClipboard(blob);
+      triggerBlobDownload(blob, fileName, receiptUrl);
+      openDirectWhatsAppChat(customerPhone, waCaption, 'universal');
+      setPrintFeedback(
+        copiedImage
+          ? 'Gambar struk disalin & diunduh! Tekan Tempel (Ctrl+V) di chat WhatsApp.'
+          : 'Gambar struk diunduh! Lampirkan gambar struk di ruang chat WhatsApp.'
+      );
+      setTimeout(() => setPrintFeedback(null), 5000);
+    } catch {
+      setShowShareModal(true);
+    }
   };
 
   const handleSwitchPrinter = async () => {
@@ -167,7 +292,6 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
     <>
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 overflow-y-auto animate-fade-in">
         <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[95vh]">
-          {/* Top Header */}
           <div className="bg-[#800000] text-white p-4 flex items-center justify-between no-print">
             <div>
               <h3 className="font-bold text-sm">Struk Transaksi</h3>
@@ -181,7 +305,6 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
             </button>
           </div>
 
-          {/* Status & Kontrol Sandingan Printer Bluetooth */}
           <div className="px-4 pt-3 pb-1 bg-slate-50 border-b border-slate-200/80 no-print flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 min-w-0">
               <span
@@ -195,8 +318,8 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                   {savedPrinterName || 'Belum Terhubung'}
                 </strong>
                 {savedPrinterName && (
-                  <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-md ml-1.5">
-                    Tersimpan
+                  <span className="text-[10px] text-emerald-700 font-semibold ml-1.5">
+                    · Tersimpan
                   </span>
                 )}
               </div>
@@ -204,7 +327,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
             <button
               type="button"
               onClick={handleSwitchPrinter}
-              className="text-[11px] font-bold text-[#800000] hover:text-[#660000] hover:bg-[#800000]/10 px-2 py-1 rounded-lg transition shrink-0 flex items-center gap-1"
+              className="text-[11px] font-bold text-[#800000] hover:text-[#660000] hover:bg-[#800000]/10 px-2 py-1 rounded-lg transition shrink-0 flex items-center gap-1 whitespace-nowrap"
               title="Ganti printer Bluetooth yang digunakan"
             >
               <RefreshCw className="w-3 h-3" />
@@ -212,231 +335,86 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
             </button>
           </div>
 
-        {/* Scrollable Receipt Area */}
-        <div className="p-4 overflow-y-auto bg-slate-100 flex justify-center">
-          {/* 58mm Thermal Receipt Card with Watermark */}
-          <div
-            ref={receiptRef}
-            id="printable-receipt"
-            className="w-[320px] bg-white p-5 shadow-md border border-slate-200 relative text-slate-900 font-mono text-[11px] leading-tight select-none"
-            style={{
-              fontFamily: '"Courier New", Courier, monospace',
-            }}
-          >
-            {/* DANA-style repeating watermark background */}
-            <div
-              className="absolute inset-0 pointer-events-none opacity-4 overflow-hidden z-0 flex flex-wrap content-start select-none"
-              style={{
-                transform: 'rotate(-20deg) scale(1.3)',
-                transformOrigin: 'center center',
-              }}
-            >
-              {Array.from({ length: 48 }).map((_, i) => (
-                <div key={i} className="text-[12px] font-black text-slate-900 m-3 whitespace-nowrap">
-                  {headerTitle.toUpperCase()} •
-                </div>
-              ))}
+          <div className="p-4 overflow-y-auto bg-slate-100 flex justify-center">
+            <ReceiptPaper
+              ref={receiptRef}
+              id="printable-receipt"
+              transaksi={transaksi}
+              settings={settings}
+              laundryName={laundryName}
+              laundryPhone={laundryPhone}
+              laundryAddress={laundryAddress}
+              onLogoReady={() => setIsLogoReady(true)}
+            />
+          </div>
+
+          {printFeedback && (
+            <div className="mx-4 mb-2 p-2.5 rounded-xl bg-slate-900 text-white text-xs font-semibold flex items-center justify-between animate-fade-in shadow-md no-print">
+              <span className="leading-snug">{printFeedback}</span>
+              <button
+                onClick={() => setPrintFeedback(null)}
+                className="text-slate-400 hover:text-white text-xs px-2 py-0.5 rounded ml-2 shrink-0"
+              >
+                Tutup
+              </button>
+            </div>
+          )}
+
+          <div className="p-3 bg-slate-50 border-t border-slate-200 flex flex-col gap-2 no-print">
+            <div className="grid grid-cols-2 gap-2 w-full">
+              <button
+                type="button"
+                onClick={() => handlePrint(false)}
+                className="min-h-[44px] flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-[#800000] hover:bg-[#660000] text-white font-bold text-xs shadow-xs transition cursor-pointer active:scale-95 whitespace-nowrap"
+                title="Cetak langsung ke printer Bluetooth thermal kasir"
+              >
+                <Printer className="w-4 h-4 shrink-0" />
+                <span>{isAndroidPrintAvailable() ? 'Cetak BT' : 'Cetak Bluetooth'}</span>
+              </button>
+
+              <button
+                type="button"
+                disabled={isGeneratingImg}
+                onClick={handleQuickShareWhatsApp}
+                className="min-h-[44px] flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-bold text-xs shadow-xs transition cursor-pointer active:scale-95 whitespace-nowrap"
+                title="Kirim gambar struk persis seperti preview ke WhatsApp"
+              >
+                {isGeneratingImg ? (
+                  <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                ) : (
+                  <MessageCircle className="w-4 h-4 shrink-0" />
+                )}
+                <span>Share WhatsApp</span>
+              </button>
             </div>
 
-            <div className="relative z-10 space-y-2">
-              {/* Optional Store Logo */}
-              {settings.useLogo && settings.logoPath && (
-                <div className="flex justify-center mb-1">
-                  <img
-                    src={settings.logoPath}
-                    alt="Logo"
-                    className={`w-auto object-contain filter grayscale contrast-125 ${
-                      settings.logoSize === 'kecil'
-                        ? 'h-7 max-w-[70px]'
-                        : settings.logoSize === 'besar'
-                        ? 'h-13 max-w-[130px]'
-                        : 'h-9 max-w-[95px]'
-                    }`}
-                  />
-                </div>
-              )}
-
-              {/* Store Information */}
-              <div className="text-center space-y-0.5">
-                <h2 className="text-sm font-bold uppercase tracking-wide">{headerTitle}</h2>
-                {headerPhone && <p className="text-[10px]">{headerPhone}</p>}
-                {headerAddress && <p className="text-[9px] text-slate-700">{headerAddress}</p>}
-              </div>
-
-              <div className="border-b border-dashed border-slate-800 my-2"></div>
-
-              {/* Invoice Meta */}
-              <div className="space-y-0.5 text-[10px]">
-                <div className="flex justify-between">
-                  <span>No.</span>
-                  <span className="font-bold">{transaksi.nomorTransaksi || '-'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Terima</span>
-                  <span>{formatDateIndo(transaksi.tanggalMasuk, true)}</span>
-                </div>
-                {transaksi.tanggalSelesai && (
-                  <div className="flex justify-between">
-                    <span>Selesai</span>
-                    <span className="font-semibold">{formatDateIndo(transaksi.tanggalSelesai)}</span>
-                  </div>
-                )}
-                <div className="flex justify-between pt-1">
-                  <span>Yth. Bapak/Ibu</span>
-                </div>
-              </div>
-
-              <div className="border-b border-dashed border-slate-800 my-1"></div>
-
-              {/* Customer Name & Big Status */}
-              <div className="text-center py-1">
-                <div className="text-base font-extrabold uppercase">{transaksi.namaPelanggan}</div>
-                {transaksi.alamat && <div className="text-[10px] text-slate-600">({transaksi.alamat})</div>}
-                <div
-                  className={`text-xs font-black tracking-widest mt-1 ${
-                    statusFinal === 'LUNAS' ? 'text-emerald-700' : 'text-red-700'
-                  }`}
-                >
-                  {statusFinal}
-                </div>
-                {sisaBayar > 0 && (
-                  <div className="text-sm font-black text-red-700 mt-0.5">
-                    Rp.{formatNumberOnly(sisaBayar)},-
-                  </div>
-                )}
-              </div>
-
-              <div className="border-b border-dashed border-slate-800 my-1"></div>
-
-              {/* Items List */}
-              <div className="space-y-1.5 py-1">
-                {(transaksi.items || []).map((item, idx) => (
-                  <div key={idx} className="space-y-0.5">
-                    <div className="font-bold text-[11px]">{item?.namaLayanan || 'Layanan'}</div>
-                    <div className="flex justify-between text-[10px]">
-                      <span>
-                        {item?.berat || 0} {item?.satuan || ''} x {formatNumberOnly(item?.hargaPerKg || item?.hargaSatuan || 0)}
-                      </span>
-                      <span>= {formatNumberOnly(item?.subtotal || 0)}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="border-b border-dashed border-slate-800 my-1"></div>
-
-              {/* Financial Totals */}
-              <div className="space-y-1 text-[11px]">
-                {transaksi.diskon && transaksi.diskon > 0 ? (
-                  <div className="flex justify-between text-rose-700">
-                    <span>Potongan Diskon</span>
-                    <span>-Rp {formatNumberOnly(transaksi.diskon)}</span>
-                  </div>
-                ) : null}
-                <div className="flex justify-between font-bold">
-                  <span>Total Transaksi</span>
-                  <span>Rp {formatNumberOnly(transaksi.totalHarga)}</span>
-                </div>
-                {transaksi.jumlahDp > 0 && (
-                  <div className="flex justify-between">
-                    <span>Pembayaran Awal</span>
-                    <span>Rp {formatNumberOnly(transaksi.jumlahDp)}</span>
-                  </div>
-                )}
-                {sisaBayar > 0 ? (
-                  <div className="flex justify-between font-bold text-red-700">
-                    <span>Sisa Pembayaran</span>
-                    <span>Rp {formatNumberOnly(sisaBayar)}</span>
-                  </div>
-                ) : isLunas && transaksi.jumlahDp > 0 && transaksi.jumlahDp < transaksi.totalHarga ? (
-                  <div className="flex justify-between font-bold text-emerald-700">
-                    <span>Pelunasan</span>
-                    <span>Rp {formatNumberOnly(transaksi.totalHarga - transaksi.jumlahDp)}</span>
-                  </div>
-                ) : null}
-              </div>
-
-              <div className="border-b border-dashed border-slate-800 my-1"></div>
-
-              {/* Payment Method, Notes, Policy */}
-              <div className="text-center space-y-1 text-[10px] pt-1">
-                {transaksi.metodePembayaran && (
-                  <div>
-                    Metode: {transaksi.metodePembayaran}
-                    {transaksi.metodePembayaranDetail ? ` (${transaksi.metodePembayaranDetail})` : ''}
-                  </div>
-                )}
-                {transaksi.catatan && (
-                  <div className="font-bold italic text-slate-800">Catatan: {transaksi.catatan}</div>
-                )}
-                {settings.footerStruk && (
-                  <div className="text-[10px] text-slate-600 leading-tight pt-1">{settings.footerStruk}</div>
-                )}
-                {settings.chattyFooter && (
-                  <div className="text-[10px] font-semibold italic text-slate-800 pt-1">
-                    {settings.chattyFooter}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Print Feedback Notification */}
-        {printFeedback && (
-          <div className="mx-4 mb-2 p-2.5 rounded-xl bg-slate-900 text-white text-xs font-semibold flex items-center justify-between animate-fade-in shadow-md no-print">
-            <span className="truncate">{printFeedback}</span>
-            <button
-              onClick={() => setPrintFeedback(null)}
-              className="text-slate-400 hover:text-white text-xs px-2 py-0.5 rounded"
-            >
-              Tutup
-            </button>
-          </div>
-        )}
-
-        {/* Action Buttons */}
-        <div className="p-3 sm:p-3.5 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row gap-2 justify-between items-center no-print">
-          <div className="flex flex-wrap gap-2 w-full sm:w-auto">
-            <button
-              type="button"
-              onClick={() => handlePrint(false)}
-              className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#800000] hover:bg-[#660000] text-white font-bold text-xs shadow-xs transition cursor-pointer active:scale-95"
-              title="Cetak langsung ke printer Bluetooth thermal kasir"
-            >
-              <Printer className="w-4 h-4" />
-              <span>{isAndroidPrintAvailable() ? 'Cetak Bluetooth (Android)' : 'Cetak Bluetooth'}</span>
-            </button>
-
-            {/* Tombol Bagikan Struk Berdampingan dengan Cetak Bluetooth */}
             <button
               type="button"
               onClick={() => setShowShareModal(true)}
-              className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs shadow-xs transition cursor-pointer active:scale-95"
-              title="Bagikan struk ke WhatsApp atau aplikasi lain"
+              className="w-full min-h-[42px] flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs shadow-xs transition cursor-pointer active:scale-95 whitespace-nowrap"
+              title="Bagikan gambar struk ke WA Business, aplikasi lain, atau simpan PNG"
             >
-              <Share2 className="w-4 h-4" />
-              <span>Bagikan Struk</span>
+              <Share2 className="w-4 h-4 shrink-0" />
+              <span>Bagikan / Simpan Gambar Struk</span>
             </button>
           </div>
-
- 
         </div>
       </div>
-    </div>
 
-    {/* Modal Bagikan Struk Terbuka di Atas Struk */}
-    <ShareReceiptModal
-      isOpen={showShareModal}
-      onClose={() => setShowShareModal(false)}
-      transaksi={transaksi}
-      settings={settings}
-      pelanggan={pelanggan}
-      laundryName={laundryName}
-      laundryPhone={laundryPhone}
-      laundryAddress={laundryAddress}
-    />
-  </>
+      <ShareReceiptModal
+        isOpen={showShareModal}
+        onClose={() => setShowShareModal(false)}
+        transaksi={transaksi}
+        settings={settings}
+        pelanggan={pelanggan}
+        laundryName={laundryName}
+        laundryPhone={laundryPhone}
+        laundryAddress={laundryAddress}
+        initialBlob={receiptBlob}
+        initialFile={receiptFile}
+        initialUrl={receiptUrl}
+      />
+    </>
   );
 };
 

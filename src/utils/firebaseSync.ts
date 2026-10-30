@@ -139,6 +139,7 @@ export class FirebaseSyncService {
     const newUser: User = {
       uid: firebaseUser.uid,
       emailOrPhone: emailStr || phone || '',
+      authEmail: emailStr || null,
       username: userName,
       displayName: userName,
       nomorTelepon: phone,
@@ -234,6 +235,7 @@ export class FirebaseSyncService {
           ...rawUser,
           uid: firebaseUser.uid,
           emailOrPhone: rawUser.emailOrPhone || emailStr || healedPhone || '',
+          authEmail: emailStr || rawUser.authEmail || null,
           nomorTelepon: healedPhone,
           laundryId: existingLaundryId,
           laundries: {
@@ -250,18 +252,40 @@ export class FirebaseSyncService {
           healedBranchName !== existingBranchName ||
           healedDisplayName !== resolvedDisplayName;
         if (needsHeal) {
-          await setDoc(userDocRef, user, { merge: true }).catch(console.warn);
+          await updateDoc(
+            userDocRef,
+            FirebaseSyncService.sanitizeForFirestore({
+              displayName: healedDisplayName,
+              username: user.username || healedDisplayName,
+              nomorTelepon: healedPhone || null,
+              emailOrPhone: user.emailOrPhone || '',
+              authEmail: user.authEmail || null,
+              laundries: user.laundries || {},
+              laundryId: existingLaundryId,
+              updatedAt: Date.now(),
+            })
+          ).catch(console.warn);
           if (explicitLaundryName || explicitPhone) {
-            await setDoc(
-              doc(db, 'laundries', existingLaundryId),
-              {
+            const existingBranchRef = doc(db, 'laundries', existingLaundryId);
+            const existingBranchSnap = await getDoc(existingBranchRef).catch(() => null);
+            if (existingBranchSnap && existingBranchSnap.exists()) {
+              await updateDoc(existingBranchRef, {
+                namaLaundry: healedBranchName,
+                nomorTelepon: healedPhone || '',
+                updatedAt: Date.now(),
+              }).catch(console.warn);
+            } else if (existingLaundryId === defaultLaundryId) {
+              await setDoc(existingBranchRef, {
                 id: existingLaundryId,
                 ownerId: firebaseUser.uid,
                 namaLaundry: healedBranchName,
-                nomorTelepon: healedPhone,
-              },
-              { merge: true }
-            ).catch(console.warn);
+                alamat: '',
+                nomorTelepon: healedPhone || '',
+                subscriptionType: rawUser.subscriptionType || 'newcomer',
+                subscriptionEndDate: isNewcomerProfile ? null : (rawUser.subscriptionEndDate ?? null),
+                updatedAt: Date.now(),
+              }).catch(console.warn);
+            }
             await setDoc(
               doc(db, 'laundries', existingLaundryId, 'settings', 'main'),
               {
@@ -340,12 +364,22 @@ export class FirebaseSyncService {
     }
   }
 
-  // 1.1 Update user profile (sinkronisasi saldo dompet & status langganan ke Firestore)
+  // 1.1 Update profil aman non-billing ke Firestore (walletBalance & subscriptionType dikunci khusus backend)
   static async updateUserProfile(user: User): Promise<void> {
     if (!user || !user.uid || !auth.currentUser) return;
     try {
       const userDocRef = doc(db, 'users', user.uid);
-      await setDoc(userDocRef, user, { merge: true });
+      await updateDoc(
+        userDocRef,
+        FirebaseSyncService.sanitizeForFirestore({
+          displayName: user.displayName || 'Owner',
+          username: user.username || user.displayName || 'Owner',
+          nomorTelepon: user.nomorTelepon ?? null,
+          laundries: user.laundries || {},
+          laundryId: user.laundryId,
+          updatedAt: Date.now(),
+        })
+      );
     } catch (e) {
       console.warn('Gagal sinkron profil user ke Firestore:', e);
     }
@@ -493,11 +527,27 @@ export class FirebaseSyncService {
       throw new Error('Format Email atau Nomor WhatsApp kasir tidak valid.');
     }
 
+    const ownerUid = auth.currentUser.uid;
+    const ownerDocSnap = await getDoc(doc(db, 'users', ownerUid));
+    if (!ownerDocSnap.exists()) {
+      throw new Error('Profil akun Owner belum tersinkron di server. Silakan muat ulang aplikasi.');
+    }
+    const authoritativeOwner = ownerDocSnap.data() as any;
+    const authoritativeSubType = authoritativeOwner.subscriptionType || 'newcomer';
+    const authoritativeSubEnd =
+      typeof authoritativeOwner.subscriptionEndDate === 'number'
+        ? authoritativeOwner.subscriptionEndDate
+        : null;
+
+    if (authoritativeSubType !== 'premium') {
+      throw new Error(
+        'Pembuatan akun kasir memerlukan Paket Premium yang aktif dan terverifikasi di server.'
+      );
+    }
+
     await FirebaseSyncService.saveLaundry({
       ...params.laundry,
-      ownerId: params.owner.uid,
-      subscriptionType: params.owner.subscriptionType || 'premium',
-      subscriptionEndDate: params.owner.subscriptionEndDate ?? null,
+      ownerId: ownerUid,
     });
 
     const appName = `CashierProvision-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -540,7 +590,7 @@ export class FirebaseSyncService {
 
     const cashierUser: User = {
       uid: cashierUid,
-      ownerId: params.owner.uid,
+      ownerId: ownerUid,
       emailOrPhone: cleanInput,
       authEmail,
       nomorTelepon: isPhone ? cleanInput : null,
@@ -550,15 +600,18 @@ export class FirebaseSyncService {
       laundryId: branchId,
       laundries: { [branchId]: branchName },
       walletBalance: 0,
-      subscriptionType: params.owner.subscriptionType || 'premium',
-      subscriptionEndDate: params.owner.subscriptionEndDate ?? null,
+      subscriptionType: 'premium',
+      subscriptionEndDate: authoritativeSubEnd,
       createdAt: now,
     };
+
+    const cashierDocRef = doc(db, 'users', cashierUid);
+    const existingCashierSnap = await getDoc(cashierDocRef).catch(() => null);
 
     const batch = writeBatch(db);
     batch.set(doc(db, 'laundries', branchId, 'staff', cashierUid), {
       uid: cashierUid,
-      ownerId: params.owner.uid,
+      ownerId: ownerUid,
       laundryId: branchId,
       displayName: cleanName,
       emailOrPhone: cleanInput,
@@ -567,11 +620,26 @@ export class FirebaseSyncService {
       role: 'admin',
       createdAt: now,
     });
-    batch.set(
-      doc(db, 'users', cashierUid),
-      FirebaseSyncService.sanitizeForFirestore(cashierUser),
-      { merge: true }
-    );
+
+    if (existingCashierSnap && existingCashierSnap.exists()) {
+      batch.update(
+        cashierDocRef,
+        FirebaseSyncService.sanitizeForFirestore({
+          displayName: cleanName,
+          username: cleanName,
+          emailOrPhone: cleanInput,
+          authEmail,
+          nomorTelepon: isPhone ? cleanInput : null,
+          laundryId: branchId,
+          laundries: { [branchId]: branchName },
+          subscriptionType: 'premium',
+          subscriptionEndDate: authoritativeSubEnd,
+          updatedAt: now,
+        })
+      );
+    } else {
+      batch.set(cashierDocRef, FirebaseSyncService.sanitizeForFirestore(cashierUser));
+    }
     await batch.commit();
 
     return cashierUser;
@@ -588,27 +656,12 @@ export class FirebaseSyncService {
   }
 
   static async syncBranchesSubscription(
-    laundries: Laundry[],
-    subscriptionType: string,
-    subscriptionEndDate: number | null
+    _laundries: Laundry[],
+    _subscriptionType: string,
+    _subscriptionEndDate: number | null
   ): Promise<void> {
-    if (!auth.currentUser || laundries.length === 0) return;
-    const valid = laundries.filter((l) => l.id && l.id !== 'lnd-1' && l.id !== 'demo-lnd-1');
-    if (valid.length === 0) return;
-    const batch = writeBatch(db);
-    for (const lnd of valid) {
-      batch.set(
-        doc(db, 'laundries', lnd.id),
-        {
-          id: lnd.id,
-          ownerId: auth.currentUser.uid,
-          subscriptionType,
-          subscriptionEndDate,
-        },
-        { merge: true }
-      );
-    }
-    await batch.commit().catch((e) => console.warn('Gagal sinkron langganan cabang:', e));
+    // Sinkronisasi masa aktif cabang kini dijalankan secara otoritatif oleh server backend.
+    return;
   }
 
   // Helper parser dokumen transaksi seragam
@@ -883,7 +936,7 @@ export class FirebaseSyncService {
     }
   }
 
-  // 3.2 PASTIKAN DOKUMEN CABANG TERDAFTAR DI FIRESTORE (Mencegah permission-denied)
+  // 3.2 SINKRONISASI PROFIL CABANG AMAN (Tanpa memodifikasi field billing langganan)
   static async saveLaundry(laundry: Laundry): Promise<void> {
     if (!laundry || !laundry.id || !auth.currentUser) return;
     if (laundry.id === 'lnd-1' || laundry.id === 'demo-lnd-1') return;
@@ -893,20 +946,32 @@ export class FirebaseSyncService {
           ? auth.currentUser.uid
           : laundry.ownerId;
       const branchRef = doc(db, 'laundries', laundry.id);
-      const payload: Record<string, unknown> = {
-        id: laundry.id,
-        ownerId: resolvedOwnerId,
-        namaLaundry: laundry.namaLaundry || "Kafela's Laundry",
-        alamat: laundry.alamat ?? '',
-        nomorTelepon: laundry.nomorTelepon ?? '',
-      };
-      if (laundry.subscriptionType !== undefined) {
-        payload.subscriptionType = laundry.subscriptionType;
+      const existingSnap = await getDoc(branchRef).catch(() => null);
+
+      if (existingSnap && existingSnap.exists()) {
+        await updateDoc(branchRef, {
+          namaLaundry: laundry.namaLaundry || "Kafela's Laundry",
+          alamat: laundry.alamat ?? '',
+          nomorTelepon: laundry.nomorTelepon ?? '',
+          updatedAt: Date.now(),
+        });
+        return;
       }
-      if (laundry.subscriptionEndDate !== undefined) {
-        payload.subscriptionEndDate = laundry.subscriptionEndDate;
+
+      if (laundry.id === `lnd-${resolvedOwnerId}`) {
+        const ownerSnap = await getDoc(doc(db, 'users', resolvedOwnerId)).catch(() => null);
+        const ownerData = ownerSnap && ownerSnap.exists() ? (ownerSnap.data() as any) : null;
+        await setDoc(branchRef, {
+          id: laundry.id,
+          ownerId: resolvedOwnerId,
+          namaLaundry: laundry.namaLaundry || "Kafela's Laundry",
+          alamat: laundry.alamat ?? '',
+          nomorTelepon: laundry.nomorTelepon ?? '',
+          subscriptionType: ownerData?.subscriptionType || 'newcomer',
+          subscriptionEndDate: ownerData?.subscriptionEndDate ?? null,
+          updatedAt: Date.now(),
+        });
       }
-      await setDoc(branchRef, payload, { merge: true });
     } catch (e) {
       console.warn('Gagal memastikan dokumen cabang di Firestore:', e);
     }

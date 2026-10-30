@@ -2,14 +2,41 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // Default-deny global safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
     function isSignedIn() {
       return request.auth != null;
     }
 
+    function isValidId(id) {
+      return id is string &&
+        id.size() >= 1 &&
+        id.size() <= 128 &&
+        id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isOptionalString(data, key, maxLen) {
+      return !(key in data) ||
+        data[key] == null ||
+        (data[key] is string && data[key].size() <= maxLen);
+    }
+
     function isSuperAdmin() {
       return isSignedIn() &&
-        request.auth.token.email == 'qikacreative@gmail.com' &&
-        request.auth.token.email_verified == true;
+        request.auth.token.email_verified == true &&
+        (request.auth.token.email == 'qikacreative@gmail.com' ||
+         request.auth.token.email == 'iqbalsaefinnuha@gmail.com');
     }
 
     function isOwnerOfLaundry(laundryId) {
@@ -29,60 +56,177 @@ service cloud.firestore {
       return isOwnerOfLaundry(laundryId) || isStaffOfLaundry(laundryId);
     }
 
-    function isBillingUnchanged() {
-      return request.resource.data.get('walletBalance', 0) == resource.data.get('walletBalance', 0) &&
-        request.resource.data.get('subscriptionType', 'newcomer') == resource.data.get('subscriptionType', 'newcomer') &&
-        request.resource.data.get('subscriptionEndDate', null) == resource.data.get('subscriptionEndDate', null);
+    function isValidUserSafeFields(data) {
+      return (!('displayName' in data) ||
+          (data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 120)) &&
+        isOptionalString(data, 'username', 120) &&
+        isOptionalString(data, 'nomorTelepon', 40) &&
+        isOptionalString(data, 'emailOrPhone', 160) &&
+        isOptionalString(data, 'authEmail', 160) &&
+        (!('laundryId' in data) ||
+          (data.laundryId is string && data.laundryId.size() >= 1 && data.laundryId.size() <= 128)) &&
+        (!('laundries' in data) ||
+          (data.laundries is map && data.laundries.size() <= 25));
     }
 
-    function isValidWalletSpend() {
-      let oldBal = resource.data.get('walletBalance', 0);
-      let newBal = request.resource.data.get('walletBalance', 0);
-      let diff = oldBal - newBal;
-      return oldBal >= newBal && (
-        (diff == 25000 &&
-         request.resource.data.get('subscriptionType', 'newcomer') == resource.data.get('subscriptionType', 'newcomer') &&
-         request.resource.data.get('subscriptionEndDate', null) == resource.data.get('subscriptionEndDate', null)) ||
-        (diff >= 27000 &&
-         diff % 27000 == 0 &&
-         request.resource.data.get('subscriptionType', '') == 'premium' &&
-         request.resource.data.get('subscriptionEndDate', 0) > resource.data.get('subscriptionEndDate', 0))
-      );
+    function isUserBillingAndIdentityImmutable() {
+      return incoming().uid == existing().uid &&
+        incoming().role == existing().role &&
+        incoming().get('ownerId', null) == existing().get('ownerId', null) &&
+        incoming().get('walletBalance', 0) == existing().get('walletBalance', 0) &&
+        incoming().get('subscriptionType', 'newcomer') == existing().get('subscriptionType', 'newcomer') &&
+        incoming().get('subscriptionEndDate', null) == existing().get('subscriptionEndDate', null) &&
+        incoming().get('lastSettledOrderId', null) == existing().get('lastSettledOrderId', null) &&
+        incoming().get('createdAt', null) == existing().get('createdAt', null);
     }
 
-    function isValidOrderSettlement(userId) {
-      let orderId = request.resource.data.get('lastSettledOrderId', '');
-      let prevOrderId = resource.data.get('lastSettledOrderId', '');
-      let orderAfter = getAfter(/databases/$(database)/documents/payment_orders/$(orderId)).data;
-      return orderId is string &&
-        orderId.size() > 10 &&
-        orderId != prevOrderId &&
-        exists(/databases/$(database)/documents/payment_orders/$(orderId)) &&
-        get(/databases/$(database)/documents/payment_orders/$(orderId)).data.credited == false &&
-        orderAfter.ownerId == userId &&
-        orderAfter.status == 'settled' &&
-        orderAfter.credited == true &&
+    function isValidNewOwnerCreate(userId) {
+      return request.auth.uid == userId &&
+        incoming().keys().hasAll(['uid', 'role', 'laundryId', 'walletBalance', 'subscriptionType']) &&
+        incoming().keys().hasOnly([
+          'uid',
+          'emailOrPhone',
+          'authEmail',
+          'username',
+          'displayName',
+          'nomorTelepon',
+          'role',
+          'laundryId',
+          'laundries',
+          'walletBalance',
+          'createdAt',
+          'updatedAt',
+          'subscriptionType',
+          'subscriptionEndDate'
+        ]) &&
+        incoming().uid == userId &&
+        incoming().role == 'owner' &&
+        incoming().walletBalance == 0 &&
+        incoming().subscriptionType == 'newcomer' &&
+        incoming().get('subscriptionEndDate', null) == null &&
+        isValidUserSafeFields(incoming());
+    }
+
+    function isValidCashierCreateByOwner(userId) {
+      let ownerDocPath = /databases/$(database)/documents/users/$(request.auth.uid);
+      return request.auth.uid != userId &&
+        incoming().keys().hasAll(['uid', 'ownerId', 'role', 'laundryId', 'walletBalance', 'displayName']) &&
+        incoming().keys().hasOnly([
+          'uid',
+          'ownerId',
+          'emailOrPhone',
+          'authEmail',
+          'username',
+          'displayName',
+          'nomorTelepon',
+          'role',
+          'laundryId',
+          'laundries',
+          'walletBalance',
+          'subscriptionType',
+          'subscriptionEndDate',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        incoming().uid == userId &&
+        (incoming().role == 'admin' || incoming().role == 'karyawan') &&
+        incoming().ownerId == request.auth.uid &&
+        incoming().walletBalance == 0 &&
+        isValidUserSafeFields(incoming()) &&
+        exists(ownerDocPath) &&
+        get(ownerDocPath).data.get('subscriptionType', 'newcomer') == 'premium' &&
+        incoming().get('subscriptionType', 'newcomer') == 'premium' &&
+        incoming().get('subscriptionEndDate', null) == get(ownerDocPath).data.get('subscriptionEndDate', null) &&
+        isOwnerOfLaundry(incoming().laundryId);
+    }
+
+    function isValidPrimaryBranchCreate(laundryId) {
+      let userDocPath = /databases/$(database)/documents/users/$(request.auth.uid);
+      return laundryId == ('lnd-' + request.auth.uid) &&
+        incoming().keys().hasAll(['id', 'ownerId', 'namaLaundry']) &&
+        incoming().keys().hasOnly([
+          'id',
+          'ownerId',
+          'namaLaundry',
+          'alamat',
+          'nomorTelepon',
+          'subscriptionType',
+          'subscriptionEndDate',
+          'updatedAt'
+        ]) &&
+        incoming().id == laundryId &&
+        incoming().ownerId == request.auth.uid &&
+        incoming().namaLaundry is string &&
+        incoming().namaLaundry.size() >= 1 &&
+        incoming().namaLaundry.size() <= 120 &&
+        isOptionalString(incoming(), 'alamat', 300) &&
+        isOptionalString(incoming(), 'nomorTelepon', 40) &&
         (
-          (orderAfter.purpose == 'topup_wallet' &&
-           request.resource.data.get('walletBalance', 0) == resource.data.get('walletBalance', 0) + orderAfter.amount) ||
-          (orderAfter.purpose == 'extend_premium' &&
-           request.resource.data.get('walletBalance', 0) == resource.data.get('walletBalance', 0) &&
-           request.resource.data.get('subscriptionType', '') == 'premium')
+          (incoming().get('subscriptionType', 'newcomer') == 'newcomer' &&
+           incoming().get('subscriptionEndDate', null) == null) ||
+          (exists(userDocPath) &&
+           incoming().get('subscriptionType', 'newcomer') == get(userDocPath).data.get('subscriptionType', 'newcomer') &&
+           incoming().get('subscriptionEndDate', null) == get(userDocPath).data.get('subscriptionEndDate', null))
         );
+    }
+
+    function isValidBranchProfileUpdate() {
+      return existing().ownerId == request.auth.uid &&
+        incoming().ownerId == existing().ownerId &&
+        incoming().id == existing().id &&
+        incoming().get('subscriptionType', null) == existing().get('subscriptionType', null) &&
+        incoming().get('subscriptionEndDate', null) == existing().get('subscriptionEndDate', null) &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'id',
+          'namaLaundry',
+          'alamat',
+          'nomorTelepon',
+          'updatedAt'
+        ]) &&
+        incoming().namaLaundry is string &&
+        incoming().namaLaundry.size() >= 1 &&
+        incoming().namaLaundry.size() <= 120 &&
+        isOptionalString(incoming(), 'alamat', 300) &&
+        isOptionalString(incoming(), 'nomorTelepon', 40);
     }
 
     match /brands_registry/{slug} {
       allow read: if true;
-      allow create: if isSignedIn();
-      allow update, delete: if isSuperAdmin() || (isSignedIn() && (!('ownerUid' in resource.data) || resource.data.ownerUid == request.auth.uid));
+      allow create: if isSignedIn() && isValidId(slug);
+      allow update, delete: if isSuperAdmin() || (
+        isSignedIn() &&
+        isValidId(slug) &&
+        (!('ownerUid' in resource.data) || resource.data.ownerUid == request.auth.uid)
+      );
     }
 
     match /tim_studio/{uid} {
-      allow read, write: if isSignedIn() && (request.auth.uid == uid || isSuperAdmin());
+      allow read, write: if isSignedIn() && isValidId(uid) && (request.auth.uid == uid || isSuperAdmin());
     }
 
     match /owners/{ownerId} {
-      allow read, write: if isSignedIn() && (request.auth.uid == ownerId || isSuperAdmin());
+      allow get: if isSignedIn() && isValidId(ownerId) && (request.auth.uid == ownerId || isSuperAdmin());
+      allow list: if isSuperAdmin();
+      allow create: if isSuperAdmin() || (
+        isSignedIn() &&
+        isValidId(ownerId) &&
+        request.auth.uid == ownerId &&
+        incoming().get('paketAktif', 'newcomer') == 'newcomer' &&
+        incoming().get('walletBalance', 0) == 0 &&
+        incoming().get('subscriptionType', 'newcomer') == 'newcomer' &&
+        incoming().get('subscriptionEndDate', null) == null
+      );
+      allow update: if isSuperAdmin() || (
+        isSignedIn() &&
+        isValidId(ownerId) &&
+        request.auth.uid == ownerId &&
+        incoming().get('paketAktif', null) == existing().get('paketAktif', null) &&
+        incoming().get('tanggalLangganan', null) == existing().get('tanggalLangganan', null) &&
+        incoming().get('walletBalance', 0) == existing().get('walletBalance', 0) &&
+        incoming().get('subscriptionType', null) == existing().get('subscriptionType', null) &&
+        incoming().get('subscriptionEndDate', null) == existing().get('subscriptionEndDate', null)
+      );
+      allow delete: if isSuperAdmin();
 
       match /paket_layanan/{docId} {
         allow read: if true;
@@ -102,87 +246,115 @@ service cloud.firestore {
     }
 
     match /topup_requests/{reqId} {
-      allow read: if isSuperAdmin() || (isSignedIn() && resource.data.ownerUid == request.auth.uid);
-      allow create: if isSignedIn() && request.resource.data.ownerUid == request.auth.uid;
+      allow get: if isSuperAdmin() || (isSignedIn() && isValidId(reqId) && resource != null && resource.data.ownerUid == request.auth.uid);
+      allow list: if isSuperAdmin() || (isSignedIn() && resource.data.ownerUid == request.auth.uid);
+      allow create: if isSignedIn() && isValidId(reqId) && request.resource.data.ownerUid == request.auth.uid;
       allow update, delete: if isSuperAdmin();
     }
 
+    // Catatan pesanan Midtrans: Read-only bagi pemilik; penulisan HANYA oleh backend Service Account / Super Admin
     match /payment_orders/{orderId} {
-      allow get: if isSignedIn() && (resource == null || resource.data.ownerId == request.auth.uid || isSuperAdmin());
-      allow list: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isSuperAdmin());
-      allow create: if isSuperAdmin() || (
-        isSignedIn() &&
-        request.resource.data.orderId == orderId &&
-        orderId.matches('^KFLS-(PRM|TOP)-[A-Za-z0-9]+-[0-9]{13}$') &&
-        request.resource.data.ownerId == request.auth.uid &&
-        request.resource.data.status == 'pending' &&
-        request.resource.data.credited == false &&
-        request.resource.data.amount is int &&
-        request.resource.data.amount >= 10000 &&
-        request.resource.data.snapToken is string &&
-        request.resource.data.snapToken.size() >= 20
+      allow get: if isSignedIn() && isValidId(orderId) && (
+        isSuperAdmin() ||
+        (resource != null && resource.data.ownerId == request.auth.uid)
       );
-      allow update: if isSuperAdmin() || (
-        isSignedIn() &&
-        resource.data.ownerId == request.auth.uid &&
-        resource.data.credited == false &&
-        request.resource.data.orderId == resource.data.orderId &&
-        request.resource.data.ownerId == resource.data.ownerId &&
-        request.resource.data.amount == resource.data.amount &&
-        request.resource.data.purpose == resource.data.purpose
+      allow list: if isSignedIn() && (
+        isSuperAdmin() ||
+        resource.data.ownerId == request.auth.uid
       );
+      allow create, update: if isSuperAdmin();
       allow delete: if false;
     }
 
+    // Buku besar audit billing: Append-only khusus backend Service Account / Super Admin, tidak dapat diedit/dihapus
+    match /billing_audit_logs/{logId} {
+      allow get: if isSignedIn() && isValidId(logId) && (
+        isSuperAdmin() ||
+        (resource != null && resource.data.uid == request.auth.uid)
+      );
+      allow list: if isSignedIn() && (
+        isSuperAdmin() ||
+        resource.data.uid == request.auth.uid
+      );
+      allow create: if isSuperAdmin();
+      allow update, delete: if false;
+    }
+
+    // Profil pengguna: walletBalance, subscriptionType, subscriptionEndDate, role & uid dikunci mutlak dari mutasi client reguler
     match /users/{userId} {
-      allow get: if isSignedIn() && (
+      allow get: if isSignedIn() && isValidId(userId) && (
         request.auth.uid == userId ||
-        resource == null ||
-        resource.data.get('ownerId', '') == request.auth.uid ||
+        (resource != null && resource.data.get('ownerId', '') == request.auth.uid) ||
         isSuperAdmin()
       );
       allow list: if isSignedIn() && (
         resource.data.get('ownerId', '') == request.auth.uid ||
         isSuperAdmin()
       );
-      allow create: if isSuperAdmin() || (
-        isSignedIn() && (
-          (request.auth.uid == userId &&
-           request.resource.data.uid == userId &&
-           request.resource.data.role == 'owner' &&
-           request.resource.data.get('walletBalance', 0) == 0 &&
-           request.resource.data.get('subscriptionType', 'newcomer') == 'newcomer' &&
-           request.resource.data.get('subscriptionEndDate', null) == null) ||
-          (request.resource.data.uid == userId &&
-           (request.resource.data.role == 'admin' || request.resource.data.role == 'karyawan') &&
-           request.resource.data.get('ownerId', '') == request.auth.uid &&
-           request.resource.data.get('walletBalance', 0) == 0 &&
-           isOwnerOfLaundry(request.resource.data.laundryId))
+      allow create: if isSignedIn() && isValidId(userId) && (
+        isSuperAdmin() ||
+        isValidNewOwnerCreate(userId) ||
+        isValidCashierCreateByOwner(userId)
+      );
+      allow update: if isSignedIn() && isValidId(userId) && (
+        isSuperAdmin() ||
+        (
+          request.auth.uid == userId &&
+          isValidUserSafeFields(incoming()) &&
+          isUserBillingAndIdentityImmutable() &&
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'displayName',
+            'username',
+            'nomorTelepon',
+            'emailOrPhone',
+            'authEmail',
+            'laundries',
+            'laundryId',
+            'gajiTerakhir',
+            'tanggalGajian',
+            'bayarGajiOtomatis',
+            'updatedAt'
+          ])
+        ) ||
+        (
+          (existing().role == 'admin' || existing().role == 'karyawan') &&
+          existing().get('ownerId', '') == request.auth.uid &&
+          incoming().get('ownerId', '') == request.auth.uid &&
+          incoming().uid == userId &&
+          (incoming().role == 'admin' || incoming().role == 'karyawan') &&
+          incoming().get('walletBalance', 0) == 0 &&
+          isValidUserSafeFields(incoming()) &&
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'displayName',
+            'username',
+            'nomorTelepon',
+            'emailOrPhone',
+            'authEmail',
+            'laundryId',
+            'laundries',
+            'subscriptionType',
+            'subscriptionEndDate',
+            'updatedAt'
+          ]) &&
+          exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('subscriptionType', 'newcomer') == 'premium' &&
+          incoming().get('subscriptionType', 'newcomer') == 'premium' &&
+          incoming().get('subscriptionEndDate', null) == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('subscriptionEndDate', null) &&
+          isOwnerOfLaundry(incoming().laundryId)
         )
       );
-      allow update: if isSuperAdmin() || (
-        isSignedIn() && (
-          (request.auth.uid == userId &&
-           request.resource.data.uid == resource.data.uid &&
-           request.resource.data.role == resource.data.role &&
-           (isBillingUnchanged() || isValidWalletSpend() || isValidOrderSettlement(userId))) ||
-          ((resource.data.role == 'admin' || resource.data.role == 'karyawan') &&
-           resource.data.get('ownerId', '') == request.auth.uid &&
-           request.resource.data.get('ownerId', '') == request.auth.uid &&
-           request.resource.data.uid == userId &&
-           request.resource.data.get('walletBalance', 0) == 0 &&
-           isOwnerOfLaundry(request.resource.data.laundryId))
+      allow delete: if isSignedIn() && isValidId(userId) && (
+        isSuperAdmin() ||
+        (
+          (resource.data.role == 'admin' || resource.data.role == 'karyawan') &&
+          resource.data.get('ownerId', '') == request.auth.uid
         )
-      );
-      allow delete: if isSuperAdmin() || (
-        isSignedIn() &&
-        (resource.data.role == 'admin' || resource.data.role == 'karyawan') &&
-        resource.data.get('ownerId', '') == request.auth.uid
       );
     }
 
+    // Cabang laundry: hanya cabang utama awal (lnd-{uid}) yang dapat dibuat dari client; cabang ke-2+ wajib lewat backend berbayar
     match /laundries/{laundryId} {
-      allow get: if isSignedIn() && (
+      allow get: if isSignedIn() && isValidId(laundryId) && (
         resource == null ||
         resource.data.ownerId == request.auth.uid ||
         isStaffOfLaundry(laundryId) ||
@@ -192,15 +364,15 @@ service cloud.firestore {
         resource.data.ownerId == request.auth.uid ||
         isSuperAdmin()
       );
-      allow create: if isSignedIn() && (
-        request.resource.data.ownerId == request.auth.uid ||
-        isSuperAdmin()
+      allow create: if isSignedIn() && isValidId(laundryId) && (
+        isSuperAdmin() ||
+        isValidPrimaryBranchCreate(laundryId)
       );
-      allow update: if isSignedIn() && (
-        (resource.data.ownerId == request.auth.uid && request.resource.data.ownerId == resource.data.ownerId) ||
-        isSuperAdmin()
+      allow update: if isSignedIn() && isValidId(laundryId) && (
+        isSuperAdmin() ||
+        isValidBranchProfileUpdate()
       );
-      allow delete: if isSignedIn() && (
+      allow delete: if isSignedIn() && isValidId(laundryId) && (
         resource.data.ownerId == request.auth.uid ||
         isSuperAdmin()
       );
@@ -241,12 +413,19 @@ service cloud.firestore {
       }
     }
 
-    match /test/{docId} {
-      allow read: if true;
+    match /app_config/{configId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSuperAdmin() &&
+        isValidId(configId) &&
+        request.resource.data.keys().hasOnly(['backendUrl', 'updatedAt']) &&
+        request.resource.data.backendUrl is string &&
+        request.resource.data.backendUrl.size() <= 300 &&
+        request.resource.data.updatedAt is int;
+      allow delete: if isSuperAdmin();
     }
 
-    match /{document=**} {
-      allow read, write: if false;
+    match /test/{docId} {
+      allow read: if true;
     }
   }
 }

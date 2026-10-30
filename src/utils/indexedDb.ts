@@ -508,18 +508,45 @@ export class IndexedDbService {
   }
 
   /**
+   * Cek secara sinkron apakah migrasi satu kali LocalStorage -> IndexedDB sudah selesai.
+   */
+  static isSsotMigrated(): boolean {
+    if (typeof window === 'undefined') return true;
+    try {
+      return localStorage.getItem('idb_ssot_migrated_v1') === 'true';
+    } catch {
+      return true;
+    }
+  }
+
+  /**
+   * Hidrasi transaksi cabang dalam satu jalur cepat tanpa hop async tambahan jika migrasi sudah selesai.
+   */
+  static async hydrateBranchTransaksi(activeLaundryId: string): Promise<Transaksi[]> {
+    if (!this.isSsotMigrated()) {
+      await this.migrateLocalStorageToIndexedDb(activeLaundryId);
+    }
+    const list = await this.getAllLaundryTransaksi(activeLaundryId);
+    return list.map((t) => ({
+      ...t,
+      items: Array.isArray(t?.items) ? t.items : [],
+    }));
+  }
+
+  /**
    * Migrasi satu kali (One-time migration) dari LocalStorage ke IndexedDB
    * untuk memastikan Single Source of Truth (SSOT) yang konsisten.
    */
   static async migrateLocalStorageToIndexedDb(activeLaundryId: string): Promise<{ migrated: number }> {
     if (typeof window === 'undefined') return { migrated: 0 };
     const MIGRATION_KEY = 'idb_ssot_migrated_v1';
-    if (localStorage.getItem(MIGRATION_KEY) === 'true') {
+    if (this.isSsotMigrated()) {
       return { migrated: 0 };
     }
 
     try {
-      const raw = localStorage.getItem('transaksi');
+      const raw =
+        localStorage.getItem('laundry_suci_transaksi') || localStorage.getItem('transaksi');
       if (!raw) {
         localStorage.setItem(MIGRATION_KEY, 'true');
         return { migrated: 0 };

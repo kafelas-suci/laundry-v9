@@ -51,7 +51,17 @@ import {
   EXTRA_BRANCH_PRICE,
   HARGA_PREMIUM_BULANAN,
 } from './utils/subscription';
-import { MidtransVerifyResult, PaymentPurpose } from './services/midtransService';
+import {
+  MidtransVerifyResult,
+  PaymentPurpose,
+  loadPaymentGatewayConfig,
+} from './services/midtransService';
+import {
+  BillingApiError,
+  activateBranchViaBackend,
+  extendSubscriptionViaBackend,
+} from './services/billingService';
+import { SelfAccountBillingSnapshot } from './components/SuperAdminBillingModal';
 import { formatRupiah, formatLocalInvoiceDateKey } from './utils/formatters';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { DesktopSidebar } from './components/DesktopSidebar';
@@ -102,7 +112,85 @@ function getValidStoredUser(): User | null {
   return null;
 }
 
-export default function App() {
+export function resolveInitialLaundryId(): string {
+  const storedId = StorageService.get<string>('current_laundry_id', '');
+  const rawUser = getValidStoredUser();
+  if (storedId && storedId !== 'lnd-1' && storedId !== 'demo-lnd-1') {
+    return storedId;
+  }
+  if (rawUser && typeof rawUser.laundryId === 'string' && rawUser.laundryId.trim()) {
+    return rawUser.laundryId.trim();
+  }
+  const storedLaundries = StorageService.get<Laundry[]>('laundries', []);
+  const validBranch = storedLaundries.find(
+    (l) => l && typeof l.id === 'string' && l.id !== 'lnd-1' && l.id !== 'demo-lnd-1'
+  );
+  if (validBranch) {
+    return validBranch.id;
+  }
+  return storedId || 'lnd-1';
+}
+
+export interface InitialBootData {
+  laundryId: string;
+  transaksi: Transaksi[] | null;
+  hydrated: boolean;
+  pendingHydration?: Promise<Transaksi[]>;
+}
+
+function normalizeTransaksiItems(list: Transaksi[]): Transaksi[] {
+  return (Array.isArray(list) ? list : []).map((t) => ({
+    ...t,
+    items: Array.isArray(t?.items) ? t.items : [],
+  }));
+}
+
+function hasTransaksiListChanged(prev: Transaksi[], next: Transaksi[]): boolean {
+  if (prev === next) return false;
+  if (prev.length !== next.length) return true;
+  for (let i = 0; i < prev.length; i++) {
+    const a = prev[i];
+    const b = next[i];
+    if (
+      a.id !== b.id ||
+      a.status !== b.status ||
+      a.statusPembayaran !== b.statusPembayaran ||
+      a.totalHarga !== b.totalHarga ||
+      a.jumlahDp !== b.jumlahDp ||
+      a.terakhirDieditPada !== b.terakhirDieditPada ||
+      a.tanggalPengambilan !== b.tanggalPengambilan ||
+      a.tanggalStatusSelesai !== b.tanggalStatusSelesai ||
+      a.tanggalPelunasan !== b.tanggalPelunasan ||
+      a.dikerjakanOleh !== b.dikerjakanOleh ||
+      a.namaPelanggan !== b.namaPelanggan ||
+      a.nomorTelepon !== b.nomorTelepon ||
+      a.alamat !== b.alamat ||
+      a.catatan !== b.catatan ||
+      (a.items?.length || 0) !== (b.items?.length || 0)
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function areUsersEquivalent(a: User | null, b: User | null): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return (
+    a.uid === b.uid &&
+    a.displayName === b.displayName &&
+    a.role === b.role &&
+    a.laundryId === b.laundryId &&
+    a.walletBalance === b.walletBalance &&
+    a.subscriptionType === b.subscriptionType &&
+    a.subscriptionEndDate === b.subscriptionEndDate &&
+    a.nomorTelepon === b.nomorTelepon &&
+    JSON.stringify(a.laundries || {}) === JSON.stringify(b.laundries || {})
+  );
+}
+
+export default function App({ initialBootData }: { initialBootData?: InitialBootData }) {
   const toast = useToast();
   // Application State
   const [activeView, setActiveView] = useState<ViewType>(() => {
@@ -138,35 +226,83 @@ export default function App() {
     return raw.length > 0 ? raw : [{ id: 'lnd-1', ownerId: 'own-1', namaLaundry: "Kafela's Laundry", alamat: '', nomorTelepon: '' }];
   });
 
-  const [activeLaundryId, setActiveLaundryId] = useState<string>(() =>
-    StorageService.get<string>('current_laundry_id', 'lnd-1')
+  const [activeLaundryId, setActiveLaundryId] = useState<string>(
+    () => initialBootData?.laundryId || resolveInitialLaundryId()
   );
 
   const [transaksiList, setTransaksiList] = useState<Transaksi[]>(() => {
+    if (initialBootData?.hydrated && Array.isArray(initialBootData.transaksi)) {
+      return normalizeTransaksiItems(initialBootData.transaksi);
+    }
     const raw = StorageService.get<Transaksi[]>('transaksi', []);
-    return (Array.isArray(raw) ? raw : []).map((t) => ({
-      ...t,
-      items: Array.isArray(t?.items) ? t.items : [],
-    }));
+    return normalizeTransaksiItems(raw);
   });
 
-  // 1. Inisialisasi: One-time migration LocalStorage ke IndexedDB (SSOT) & hydrate transaksi lokal
+  const [isHydratingTransaksi, setIsHydratingTransaksi] = useState<boolean>(
+    () => !initialBootData?.hydrated
+  );
+  const hydratedBranchRef = useRef<string | null>(
+    initialBootData?.hydrated ? initialBootData.laundryId : null
+  );
+  const pendingBootHydrationRef = useRef<{
+    laundryId: string;
+    promise: Promise<Transaksi[]>;
+  } | null>(
+    initialBootData?.pendingHydration
+      ? { laundryId: initialBootData.laundryId, promise: initialBootData.pendingHydration }
+      : null
+  );
+
+  // 1. Hidrasi transaksi lokal dari IndexedDB (SSOT) tanpa kedipan (lewatkan jika sudah di-prehydrate di entry point)
   useEffect(() => {
-    StorageService.initData();
-    IndexedDbService.migrateLocalStorageToIndexedDb(activeLaundryId)
-      .then(() => IndexedDbService.getAllLaundryTransaksi(activeLaundryId))
+    if (!activeLaundryId) return;
+    if (hydratedBranchRef.current === activeLaundryId) {
+      setIsHydratingTransaksi((prev) => (prev ? false : prev));
+      return;
+    }
+
+    let cancelled = false;
+    setIsHydratingTransaksi((prev) => (prev ? prev : true));
+
+    const pendingBoot = pendingBootHydrationRef.current;
+    const hydrationPromise =
+      pendingBoot && pendingBoot.laundryId === activeLaundryId
+        ? pendingBoot.promise
+        : IndexedDbService.hydrateBranchTransaksi(activeLaundryId);
+
+    if (pendingBoot && pendingBoot.laundryId === activeLaundryId) {
+      pendingBootHydrationRef.current = null;
+    }
+
+    hydrationPromise
       .then((idbList) => {
+        if (cancelled) return;
+        hydratedBranchRef.current = activeLaundryId;
         if (idbList && idbList.length > 0) {
           setTransaksiList((prev) => {
             if (prev.length === 0) return idbList;
             const map = new Map<string, Transaksi>();
             idbList.forEach((t) => map.set(t.id, t));
             prev.forEach((t) => map.set(t.id, t));
-            return Array.from(map.values()).sort((a, b) => b.tanggalMasuk - a.tanggalMasuk);
+            const merged = Array.from(map.values()).sort(
+              (a, b) => b.tanggalMasuk - a.tanggalMasuk
+            );
+            return hasTransaksiListChanged(prev, merged) ? merged : prev;
           });
         }
+        setIsHydratingTransaksi(false);
       })
-      .catch(console.warn);
+      .catch((err) => {
+        console.warn(err);
+        if (!cancelled) {
+          hydratedBranchRef.current = activeLaundryId;
+          setIsHydratingTransaksi(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [activeLaundryId]);
 
   // Real-time Live Synchronization untuk Multi-User Kasir & Owner
@@ -178,15 +314,17 @@ export default function App() {
       (liveList) => {
         setTransaksiList((prev) => {
           const map = new Map<string, Transaksi>();
-          // Gabungkan data lama di memori
           prev.forEach((t) => map.set(t.id, t));
-          // Timpa / sisipkan pembaruan terbaru dari Firestore
-          liveList.forEach((t) => map.set(t.id, t));
+          liveList.forEach((t) =>
+            map.set(t.id, {
+              ...t,
+              items: Array.isArray(t?.items) ? t.items : [],
+            })
+          );
           const merged = Array.from(map.values()).sort(
             (a, b) => b.tanggalMasuk - a.tanggalMasuk
           );
-          // SSOT dikelola oleh IndexedDB di level data layer, tidak menduplikasi ke LocalStorage
-          return merged;
+          return hasTransaksiListChanged(prev, merged) ? merged : prev;
         });
       },
       (err) => {
@@ -286,6 +424,11 @@ export default function App() {
     method: 'midtrans',
     nominal: HARGA_PREMIUM_BULANAN,
   });
+
+  useEffect(() => {
+    if (!currentUser) return;
+    loadPaymentGatewayConfig().catch(() => {});
+  }, [currentUser?.uid]);
 
   useEffect(() => {
     if (!currentUser || activeTier === 'newcomer') return;
@@ -817,8 +960,57 @@ export default function App() {
     StorageService.set('staff', newList);
   };
 
-  // Load real user and real Firestore data when authenticated
-  const loadFirestoreData = async (user: User, forceSync = false): Promise<{
+  // Ref snapshot state terkini agar fungsi async (onAuthStateChanged / loadFirestoreData) tidak membaca closure lama
+  const latestDataRef = useRef({
+    transaksiList,
+    pelangganList,
+    layananList,
+    pengeluaranList,
+    laundries,
+    staffList,
+    settings,
+    currentUser,
+    activeLaundryId,
+  });
+
+  useEffect(() => {
+    latestDataRef.current = {
+      transaksiList,
+      pelangganList,
+      layananList,
+      pengeluaranList,
+      laundries,
+      staffList,
+      settings,
+      currentUser,
+      activeLaundryId,
+    };
+  }, [
+    transaksiList,
+    pelangganList,
+    layananList,
+    pengeluaranList,
+    laundries,
+    staffList,
+    settings,
+    currentUser,
+    activeLaundryId,
+  ]);
+
+  const activeSyncPromiseRef = useRef<Promise<
+    | {
+        transaksiCount: number;
+        pelangganCount: number;
+        layananCount: number;
+      }
+    | undefined
+  > | null>(null);
+
+  // Load real user and real Firestore data when authenticated (Parallel fetch + Single batched state commit)
+  const loadFirestoreData = async (
+    user: User,
+    forceSync = false
+  ): Promise<{
     transaksiCount: number;
     pelangganCount: number;
     layananCount: number;
@@ -826,219 +1018,327 @@ export default function App() {
     if (!auth.currentUser) {
       return;
     }
-    const now = Date.now();
-    const cleanField = (v: any): string => {
-      if (typeof v !== 'string') return '';
-      const t = v.trim();
-      if (!t || t === '-' || t === '0812-3456-7890') return '';
-      return t;
-    };
 
-    try {
-      // 0. Jika forceSync, kuras antrean Outbox terlebih dahulu (agar nota offline kasir tidak tertimpa/hilang)
-      if (forceSync) {
-        await FirebaseSyncService.syncPendingOutbox().catch((err) => {
-          console.warn('Gagal sinkron outbox sebelum forceSync:', err);
-        });
-      }
+    if (activeSyncPromiseRef.current) {
+      return activeSyncPromiseRef.current;
+    }
 
-      // Gunakan cache terbaru dari StorageService untuk mencegah closure state lama menimpa data baru saat signup
-      const latestStoredLaundries = StorageService.get<Laundry[]>('laundries', laundries);
-      const latestStoredSettings = StorageService.get<SettingsData>('settings', settings);
+    const runSync = async () => {
+      const now = Date.now();
+      const cleanField = (v: any): string => {
+        if (typeof v !== 'string') return '';
+        const t = v.trim();
+        if (!t || t === '-' || t === '0812-3456-7890') return '';
+        return t;
+      };
 
-      let targetLaundryId = user.laundryId || `lnd-${user.uid}`;
-      let resolvedPrimaryBranch: Laundry;
+      try {
+        // 0. Jika forceSync, kuras antrean Outbox terlebih dahulu (agar nota offline kasir tidak tertimpa/hilang)
+        if (forceSync) {
+          await FirebaseSyncService.syncPendingOutbox().catch((err) => {
+            console.warn('Gagal sinkron outbox sebelum forceSync:', err);
+          });
+        }
 
-      if (user.role !== 'owner') {
-        const assignedBranch = await FirebaseSyncService.fetchAssignedLaundry(user.laundryId);
-        if (assignedBranch) {
-          targetLaundryId = assignedBranch.id;
-          resolvedPrimaryBranch = assignedBranch;
-          updateLaundries([assignedBranch]);
-          if (assignedBranch.subscriptionType) {
-            const branchTier = normalizeTier(assignedBranch.subscriptionType);
-            setActiveTier(branchTier);
-            StorageService.set('active_subscription_tier', branchTier);
+        const snap = latestDataRef.current;
+        const latestStoredLaundries = StorageService.get<Laundry[]>('laundries', snap.laundries);
+        const latestStoredSettings = StorageService.get<SettingsData>('settings', snap.settings);
+        const preferredBranchId =
+          StorageService.get<string>('current_laundry_id', '') || snap.activeLaundryId;
+
+        let targetLaundryId = user.laundryId || `lnd-${user.uid}`;
+        let resolvedPrimaryBranch: Laundry;
+        let nextBranches: Laundry[] = latestStoredLaundries;
+        let nextStaffList: User[] | null = null;
+        let nextBranchTier: LaundryTier | null = null;
+
+        if (user.role !== 'owner') {
+          const assignedBranch = await FirebaseSyncService.fetchAssignedLaundry(user.laundryId);
+          if (assignedBranch) {
+            targetLaundryId = assignedBranch.id;
+            resolvedPrimaryBranch = assignedBranch;
+            nextBranches = [assignedBranch];
+            if (assignedBranch.subscriptionType) {
+              nextBranchTier = normalizeTier(assignedBranch.subscriptionType);
+            }
+          } else {
+            resolvedPrimaryBranch = {
+              id: targetLaundryId,
+              ownerId: user.ownerId || '',
+              namaLaundry: cleanField(user.laundries?.[targetLaundryId]) || "Kafela's Laundry",
+              alamat: '',
+              nomorTelepon: cleanField(user.nomorTelepon),
+            };
+            nextBranches = [resolvedPrimaryBranch];
           }
         } else {
-          resolvedPrimaryBranch = {
-            id: targetLaundryId,
-            ownerId: user.ownerId || '',
-            namaLaundry: cleanField(user.laundries?.[targetLaundryId]) || "Kafela's Laundry",
-            alamat: '',
-            nomorTelepon: cleanField(user.nomorTelepon),
-          };
-          updateLaundries([resolvedPrimaryBranch]);
+          const userLaundries = await FirebaseSyncService.fetchLaundries(
+            user.uid,
+            latestStoredLaundries,
+            forceSync
+          );
+          const cleanLaundries =
+            user && user.uid && !user.uid.startsWith('demo')
+              ? userLaundries.filter(
+                  (l) => l.id !== 'lnd-1' && l.id !== 'demo-lnd-1' && l.namaLaundry !== '-'
+                )
+              : userLaundries;
+          const finalLaundries = cleanLaundries.length > 0 ? cleanLaundries : userLaundries;
+
+          if (finalLaundries.length > 0) {
+            const enrichedBranches = finalLaundries.map((branch, idx) => {
+              if (idx !== 0) return branch;
+              const profileBranchName = cleanField(user.laundries?.[branch.id]);
+              const profilePhone = cleanField(user.nomorTelepon);
+              return {
+                ...branch,
+                namaLaundry:
+                  cleanField(branch.namaLaundry) && branch.namaLaundry !== 'Laundry'
+                    ? branch.namaLaundry
+                    : profileBranchName || branch.namaLaundry || "Kafela's Laundry",
+                nomorTelepon: cleanField(branch.nomorTelepon) || profilePhone || '',
+                alamat: cleanField(branch.alamat),
+              };
+            });
+
+            // Pertahankan cabang aktif pilihan user jika valid pada daftar cabang milik owner
+            const matchedPreferred =
+              preferredBranchId && preferredBranchId !== 'lnd-1'
+                ? enrichedBranches.find((b) => b.id === preferredBranchId)
+                : undefined;
+
+            resolvedPrimaryBranch = matchedPreferred || enrichedBranches[0];
+            targetLaundryId = resolvedPrimaryBranch.id;
+            nextBranches = enrichedBranches;
+            nextStaffList = await FirebaseSyncService.fetchOwnerStaff(
+              enrichedBranches.map((b) => b.id)
+            );
+          } else {
+            const profileBranchName = cleanField(user.laundries?.[targetLaundryId]);
+            const initialName =
+              profileBranchName ||
+              cleanField(latestStoredSettings?.headerStruk) ||
+              cleanField(user.displayName) ||
+              "Kafela's Laundry";
+            const initialPhone =
+              cleanField(user.nomorTelepon) || cleanField(latestStoredSettings?.phoneNumber) || '';
+            const initialAddress = cleanField(latestStoredSettings?.address);
+
+            const defaultBranch: Laundry = {
+              id: targetLaundryId,
+              ownerId: user.uid,
+              namaLaundry: initialName,
+              alamat: initialAddress,
+              nomorTelepon: initialPhone,
+              subscriptionType: user.subscriptionType || 'newcomer',
+              subscriptionEndDate: user.subscriptionEndDate ?? null,
+            };
+            resolvedPrimaryBranch = defaultBranch;
+            nextBranches = [defaultBranch];
+            FirebaseSyncService.saveLaundry(defaultBranch).catch(console.warn);
+          }
         }
-      } else {
-        const userLaundries = await FirebaseSyncService.fetchLaundries(user.uid, latestStoredLaundries, forceSync);
-        const cleanLaundries = user && user.uid && !user.uid.startsWith('demo')
-          ? userLaundries.filter((l) => l.id !== 'lnd-1' && l.id !== 'demo-lnd-1' && l.namaLaundry !== '-')
-          : userLaundries;
-        const finalLaundries = cleanLaundries.length > 0 ? cleanLaundries : userLaundries;
-        targetLaundryId = finalLaundries[0]?.id || user.laundryId || `lnd-${user.uid}`;
 
-        if (finalLaundries.length > 0) {
-          const first = finalLaundries[0];
-          const profileBranchName = cleanField(user.laundries?.[first.id]);
-          const profilePhone = cleanField(user.nomorTelepon);
-          const enrichedFirst: Laundry = {
-            ...first,
-            namaLaundry:
-              cleanField(first.namaLaundry) && first.namaLaundry !== 'Laundry'
-                ? first.namaLaundry
-                : profileBranchName || first.namaLaundry || "Kafela's Laundry",
-            nomorTelepon: cleanField(first.nomorTelepon) || profilePhone || '',
-            alamat: cleanField(first.alamat),
-          };
-          const updatedBranches = [enrichedFirst, ...finalLaundries.slice(1)];
-          resolvedPrimaryBranch = enrichedFirst;
-          updateLaundries(updatedBranches);
-          const cloudStaff = await FirebaseSyncService.fetchOwnerStaff(updatedBranches.map((b) => b.id));
-          updateStaffList(cloudStaff);
-        } else {
-          const profileBranchName = cleanField(user.laundries?.[targetLaundryId]);
-          const initialName =
-            profileBranchName ||
-            cleanField(latestStoredSettings?.headerStruk) ||
-            cleanField(user.displayName) ||
-            "Kafela's Laundry";
-          const initialPhone =
-            cleanField(user.nomorTelepon) || cleanField(latestStoredSettings?.phoneNumber) || '';
-          const initialAddress = cleanField(latestStoredSettings?.address);
+        // Ambil baseline transaksi dari memori + IndexedDB agar delta sync tidak pernah menimpa transaksi lokal dengan array kosong
+        const idbBaseline = await IndexedDbService.hydrateBranchTransaksi(targetLaundryId);
+        const baselineMap = new Map<string, Transaksi>();
+        idbBaseline.forEach((t) => baselineMap.set(t.id, t));
+        snap.transaksiList.forEach((t) => {
+          if (t.laundryId === targetLaundryId) {
+            baselineMap.set(t.id, t);
+          }
+        });
+        const latestStoredTrx = Array.from(baselineMap.values()).sort(
+          (a, b) => b.tanggalMasuk - a.tanggalMasuk
+        );
 
-          const defaultBranch: Laundry = {
-            id: targetLaundryId,
-            ownerId: user.uid,
-            namaLaundry: initialName,
-            alamat: initialAddress,
-            nomorTelepon: initialPhone,
-            subscriptionType: user.subscriptionType || 'newcomer',
-            subscriptionEndDate: user.subscriptionEndDate ?? null,
-          };
-          resolvedPrimaryBranch = defaultBranch;
-          updateLaundries([defaultBranch]);
-          FirebaseSyncService.saveLaundry(defaultBranch).catch(console.warn);
-        }
-      }
-      setActiveLaundryId(targetLaundryId);
-      StorageService.set('current_laundry_id', targetLaundryId);
+        const latestStoredPelanggan =
+          snap.pelangganList.length > 0
+            ? snap.pelangganList
+            : StorageService.get<Pelanggan[]>('pelanggan', []);
+        const latestStoredLayanan =
+          snap.layananList.length > 0
+            ? snap.layananList
+            : StorageService.get<Layanan[]>('layanan', []);
+        const latestStoredPengeluaran =
+          snap.pengeluaranList.length > 0
+            ? snap.pengeluaranList
+            : StorageService.get<Pengeluaran[]>('pengeluaran', []);
 
-      // 2. Sync Transaksi (Smart Delta Sync berbasis terakhirDieditPada jika forceSync)
-      const latestStoredTrx =
-        transaksiList.length > 0 ? transaksiList : StorageService.get<Transaksi[]>('transaksi', []);
-      let newOrUpdatedTrx = 0;
-      if (forceSync) {
         const deltaSyncKey = `last_trx_delta_sync_${targetLaundryId}`;
         const lastDeltaSync = StorageService.get<number>(deltaSyncKey, 0);
-        const { updatedList, newOrUpdatedCount } = await FirebaseSyncService.fetchTransaksiDelta(
-          targetLaundryId,
-          lastDeltaSync,
-          latestStoredTrx
+
+        // Jalankan seluruh kueri koleksi cabang secara paralel agar selesai sekaligus tanpa waterfall re-render
+        const [trxDeltaResult, custs, lays, exps, st] = await Promise.all([
+          forceSync
+            ? FirebaseSyncService.fetchTransaksiDelta(
+                targetLaundryId,
+                lastDeltaSync,
+                latestStoredTrx
+              )
+            : Promise.resolve({ updatedList: latestStoredTrx, newOrUpdatedCount: 0 }),
+          FirebaseSyncService.fetchPelanggan(targetLaundryId, latestStoredPelanggan),
+          FirebaseSyncService.fetchLayanan(targetLaundryId, latestStoredLayanan),
+          FirebaseSyncService.fetchPengeluaran(targetLaundryId, latestStoredPengeluaran),
+          FirebaseSyncService.fetchSettings(targetLaundryId, latestStoredSettings),
+        ]);
+
+        const newOrUpdatedTrx = trxDeltaResult.newOrUpdatedCount;
+        const resolvedTrxList = normalizeTransaksiItems(
+          trxDeltaResult.updatedList.length > 0 ? trxDeltaResult.updatedList : latestStoredTrx
         );
-        newOrUpdatedTrx = newOrUpdatedCount;
-        if (updatedList.length > 0) {
-          updateTransaksiList(updatedList);
-          StorageService.set(deltaSyncKey, now);
-        }
-      } else if (latestStoredTrx.length > 0) {
-        updateTransaksiList(latestStoredTrx);
-      }
 
-      // 3. Sync Pelanggan (Smart merge)
-      const latestStoredPelanggan =
-        pelangganList.length > 0 ? pelangganList : StorageService.get<Pelanggan[]>('pelanggan', []);
-      const custs = await FirebaseSyncService.fetchPelanggan(targetLaundryId, latestStoredPelanggan);
-      if (custs && custs.length > 0) {
-        updatePelangganList(custs);
-      }
+        let nextSettings: SettingsData | null = null;
+        if (st) {
+          const cleanHeader = cleanField(st.headerStruk);
+          const cleanPhone = cleanField(st.phoneNumber);
+          const cleanAddr = cleanField(st.address);
+          const hasSavedSettings = Boolean((st as any).updatedAt);
+          const cleanLogoPath =
+            typeof st.logoPath === 'string' && st.logoPath.trim() ? st.logoPath.trim() : null;
 
-      // 4. Sync Layanan (Smart merge)
-      const latestStoredLayanan =
-        layananList.length > 0 ? layananList : StorageService.get<Layanan[]>('layanan', []);
-      const lays = await FirebaseSyncService.fetchLayanan(targetLaundryId, latestStoredLayanan);
-      if (lays && lays.length > 0) {
-        updateLayananList(lays);
-      }
+          nextSettings = {
+            ...st,
+            logoPath: cleanLogoPath,
+            useLogo: Boolean(st.useLogo && cleanLogoPath),
+            logoSize: st.logoSize === 'kecil' || st.logoSize === 'besar' ? st.logoSize : 'sedang',
+            headerStruk:
+              hasSavedSettings && cleanHeader
+                ? cleanHeader
+                : !cleanHeader || cleanHeader === 'Laundry' || cleanHeader === "Kafela's Laundry"
+                ? resolvedPrimaryBranch.namaLaundry || cleanHeader || "Kafela's Laundry"
+                : cleanHeader,
+            appTitle:
+              hasSavedSettings && cleanHeader
+                ? cleanHeader
+                : !cleanField(st.appTitle) ||
+                  st.appTitle === 'Laundry' ||
+                  st.appTitle === "Kafela's Laundry"
+                ? resolvedPrimaryBranch.namaLaundry || st.appTitle
+                : st.appTitle,
+            phoneNumber: hasSavedSettings
+              ? cleanPhone
+              : cleanPhone || cleanField(resolvedPrimaryBranch.nomorTelepon) || '',
+            address: hasSavedSettings
+              ? cleanAddr
+              : cleanAddr || cleanField(resolvedPrimaryBranch.alamat) || '',
+          };
 
-      // 5. Sync Pengeluaran (Smart merge)
-      const latestStoredPengeluaran =
-        pengeluaranList.length > 0 ? pengeluaranList : StorageService.get<Pengeluaran[]>('pengeluaran', []);
-      const exps = await FirebaseSyncService.fetchPengeluaran(targetLaundryId, latestStoredPengeluaran);
-      if (exps && exps.length > 0) {
-        updatePengeluaranList(exps);
-      }
-
-      // 6. Sync Settings & pastikan nama laundry + nomor telepon + logo selaras dengan cabang aktif
-      const st = await FirebaseSyncService.fetchSettings(targetLaundryId, latestStoredSettings);
-      if (st) {
-        const cleanHeader = cleanField(st.headerStruk);
-        const cleanPhone = cleanField(st.phoneNumber);
-        const cleanAddr = cleanField(st.address);
-        const hasSavedSettings = Boolean((st as any).updatedAt);
-        const cleanLogoPath =
-          typeof st.logoPath === 'string' && st.logoPath.trim() ? st.logoPath.trim() : null;
-
-        const syncedSettings: SettingsData = {
-          ...st,
-          logoPath: cleanLogoPath,
-          useLogo: Boolean(st.useLogo && cleanLogoPath),
-          logoSize: st.logoSize === 'kecil' || st.logoSize === 'besar' ? st.logoSize : 'sedang',
-          headerStruk:
-            hasSavedSettings && cleanHeader
-              ? cleanHeader
-              : !cleanHeader || cleanHeader === 'Laundry' || cleanHeader === "Kafela's Laundry"
-              ? resolvedPrimaryBranch.namaLaundry || cleanHeader || "Kafela's Laundry"
-              : cleanHeader,
-          appTitle:
-            hasSavedSettings && cleanHeader
-              ? cleanHeader
-              : !cleanField(st.appTitle) || st.appTitle === 'Laundry' || st.appTitle === "Kafela's Laundry"
-              ? resolvedPrimaryBranch.namaLaundry || st.appTitle
-              : st.appTitle,
-          phoneNumber: hasSavedSettings
-            ? cleanPhone
-            : cleanPhone || cleanField(resolvedPrimaryBranch.nomorTelepon) || '',
-          address: hasSavedSettings
-            ? cleanAddr
-            : cleanAddr || cleanField(resolvedPrimaryBranch.alamat) || '',
-        };
-        setSettings(syncedSettings);
-        StorageService.set('settings', syncedSettings);
-        if (hasSavedSettings) {
-          StorageService.set('has_customized_settings', true);
-          if (cleanHeader) {
-            const syncedBranch: Laundry = {
-              ...resolvedPrimaryBranch,
-              namaLaundry: cleanHeader,
-              alamat: cleanAddr,
-              nomorTelepon: cleanPhone,
-            };
-            setLaundries((prev) => {
-              const next = prev.map((l) => (l.id === targetLaundryId ? syncedBranch : l));
-              StorageService.set('laundries', next);
-              return next;
-            });
+          if (hasSavedSettings) {
+            StorageService.set('has_customized_settings', true);
+            if (cleanHeader) {
+              const syncedBranch: Laundry = {
+                ...resolvedPrimaryBranch,
+                namaLaundry: cleanHeader,
+                alamat: cleanAddr,
+                nomorTelepon: cleanPhone,
+              };
+              nextBranches = nextBranches.map((l) =>
+                l.id === targetLaundryId ? syncedBranch : l
+              );
+            }
           }
         }
+
+        // Persist perubahan ke Storage & IndexedDB terlebih dahulu
+        StorageService.set('current_laundry_id', targetLaundryId);
+        StorageService.set('laundries', nextBranches);
+        if (nextBranchTier) {
+          StorageService.set('active_subscription_tier', nextBranchTier);
+        }
+        if (nextStaffList) {
+          StorageService.set('staff', nextStaffList);
+        }
+        if (forceSync && resolvedTrxList.length > 0) {
+          StorageService.set(deltaSyncKey, now);
+          if (newOrUpdatedTrx > 0) {
+            IndexedDbService.saveAllTransaksi(targetLaundryId, resolvedTrxList).catch(console.warn);
+          }
+        }
+        if (custs && custs.length > 0) {
+          StorageService.set('pelanggan', custs);
+        }
+        if (lays && lays.length > 0) {
+          StorageService.set('layanan', lays);
+        }
+        if (exps && exps.length > 0) {
+          StorageService.set('pengeluaran', exps);
+        }
+        if (nextSettings) {
+          StorageService.set('settings', nextSettings);
+        }
+        StorageService.set('last_global_sync', now);
+
+        // Tandai cabang telah terhidrasi sebelum commit state agar useEffect([activeLaundryId]) tidak memicu baca ulang IndexedDB
+        hydratedBranchRef.current = targetLaundryId;
+
+        // SATU BLOK COMMIT STATE SINKRON (React 18/19 menggabungkan seluruh perubahan menjadi 1 kali render saja!)
+        if (nextBranchTier) {
+          setActiveTier((prev) => (prev === nextBranchTier ? prev : nextBranchTier));
+        }
+        setLaundries((prev) =>
+          JSON.stringify(prev) === JSON.stringify(nextBranches) ? prev : nextBranches
+        );
+        if (nextStaffList) {
+          setStaffList((prev) =>
+            JSON.stringify(prev) === JSON.stringify(nextStaffList) ? prev : nextStaffList
+          );
+        }
+        setActiveLaundryId((prev) => (prev === targetLaundryId ? prev : targetLaundryId));
+
+        if (resolvedTrxList.length > 0) {
+          setTransaksiList((prev) => {
+            const map = new Map<string, Transaksi>();
+            prev.forEach((t) => map.set(t.id, t));
+            resolvedTrxList.forEach((t) => map.set(t.id, t));
+            const merged = Array.from(map.values()).sort(
+              (a, b) => b.tanggalMasuk - a.tanggalMasuk
+            );
+            return hasTransaksiListChanged(prev, merged) ? merged : prev;
+          });
+        }
+        setIsHydratingTransaksi((prev) => (prev ? false : prev));
+
+        if (custs && custs.length > 0) {
+          setPelangganList((prev) =>
+            JSON.stringify(prev) === JSON.stringify(custs) ? prev : custs
+          );
+        }
+        if (lays && lays.length > 0) {
+          setLayananList((prev) =>
+            JSON.stringify(prev) === JSON.stringify(lays) ? prev : lays
+          );
+        }
+        if (exps && exps.length > 0) {
+          setPengeluaranList((prev) =>
+            JSON.stringify(prev) === JSON.stringify(exps) ? prev : exps
+          );
+        }
+        if (nextSettings) {
+          setSettings((prev) =>
+            JSON.stringify(prev) === JSON.stringify(nextSettings) ? prev : nextSettings
+          );
+        }
+
+        return {
+          transaksiCount: newOrUpdatedTrx,
+          pelangganCount: custs.length,
+          layananCount: lays.length,
+        };
+      } catch (err) {
+        console.error('Error loading Firestore data:', err);
+        throw err;
+      } finally {
+        activeSyncPromiseRef.current = null;
       }
+    };
 
-      StorageService.set('last_global_sync', now);
-
-      return {
-        transaksiCount: newOrUpdatedTrx,
-        pelangganCount: custs.length,
-        layananCount: lays.length,
-      };
-    } catch (err) {
-      console.error('Error loading Firestore data:', err);
-      throw err;
-    }
+    activeSyncPromiseRef.current = runSync();
+    return activeSyncPromiseRef.current;
   };
 
-  // Firebase Auth Observer
+  // Firebase Auth Observer (tanpa pemanggilan duplikat initData & syncPendingOutbox)
   useEffect(() => {
-    StorageService.initData();
     const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
       // Lewati jika proses login / daftar sedang dijalankan langsung oleh AuthView (mencegah race condition menimpa namaLaundry & no telepon)
       if (FirebaseSyncService.isAuthFlowActive()) {
@@ -1052,12 +1352,14 @@ export default function App() {
             displayName: fbUser.displayName,
             phoneNumber: fbUser.phoneNumber,
           });
-          setCurrentUser(profile);
-          setActiveTier(normalizeTier(profile.subscriptionType));
-          StorageService.set('active_subscription_tier', normalizeTier(profile.subscriptionType));
+          const nextTier = normalizeTier(profile.subscriptionType);
+          StorageService.set('active_subscription_tier', nextTier);
           StorageService.set('active_user', profile);
+
+          setCurrentUser((prev) => (areUsersEquivalent(prev, profile) ? prev : profile));
+          setActiveTier((prev) => (prev === nextTier ? prev : nextTier));
+
           await loadFirestoreData(profile, true);
-          FirebaseSyncService.syncPendingOutbox().catch(console.warn);
         } catch (err: any) {
           if (err?.code === 'CASHIER_REVOKED') {
             await signOut(auth).catch(() => undefined);
@@ -1551,75 +1853,118 @@ export default function App() {
     FirebaseSyncService.deleteLayanan(activeLaundryId, id).catch(console.error);
   };
 
-  const handleAddLaundry = (
+  const handleAddLaundry = async (
     nama: string,
     alamat?: string,
     telepon?: string,
     copyFromId?: string
-  ) => {
-    const isExtraBranch = laundries.length >= 1;
-    const EXTRA_COST = EXTRA_BRANCH_PRICE;
+  ): Promise<boolean> => {
+    if (!currentUser) {
+      toast.error('Silakan masuk terlebih dahulu.');
+      return false;
+    }
 
-    if (isExtraBranch && currentUser) {
-      if ((currentUser.walletBalance || 0) < EXTRA_COST) {
-        toast.warning(
-          `Saldo dompet tidak mencukupi (${formatRupiah(EXTRA_COST)}). Silakan top up saldo terlebih dahulu.`
-        );
-        return;
-      }
+    try {
+      const result = await activateBranchViaBackend({
+        namaLaundry: nama,
+        alamat,
+        nomorTelepon: telepon,
+      });
+
+      const newLnd: Laundry = {
+        ...result.branch,
+        alamat: result.branch.alamat || null,
+        nomorTelepon: result.branch.nomorTelepon || null,
+      };
 
       const updatedUser: User = {
         ...currentUser,
-        walletBalance: Math.max(0, (currentUser.walletBalance || 0) - EXTRA_COST),
+        walletBalance: result.walletBalance,
+        laundries: result.laundriesMap || {
+          ...(currentUser.laundries || {}),
+          [newLnd.id]: newLnd.namaLaundry,
+        },
       };
       setCurrentUser(updatedUser);
       StorageService.set('active_user', updatedUser);
-      FirebaseSyncService.updateUserProfile(updatedUser).catch(console.error);
 
-      const newHist: SubscriptionHistory = {
-        id: `hist-${Date.now()}`,
-        ownerId: currentUser.uid,
-        packageName: `Aktivasi Slot Cabang Baru: ${nama}`,
-        cost: EXTRA_COST,
-        purchaseDate: Date.now(),
-        durationDays: 30,
-        newExpiryDate: currentUser.subscriptionEndDate || Date.now() + 30 * 24 * 3600 * 1000,
-        laundries: [nama],
+      updateLaundries([...laundries.filter((l) => l.id !== newLnd.id), newLnd]);
+
+      if (result.isExtraBranch && result.cost > 0) {
+        const newHist: SubscriptionHistory = {
+          id: result.auditId || `hist-${Date.now()}`,
+          ownerId: currentUser.uid,
+          packageName: `Aktivasi Slot Cabang Baru: ${newLnd.namaLaundry}`,
+          cost: result.cost,
+          purchaseDate: Date.now(),
+          durationDays: 0,
+          newExpiryDate: currentUser.subscriptionEndDate || 0,
+          laundries: [newLnd.id],
+        };
+        const updatedHist = [newHist, ...subscriptionHistory];
+        setSubscriptionHistory(updatedHist);
+        StorageService.set('subscription_history', updatedHist);
+      }
+
+      const branchSettings: SettingsData = {
+        ...defaultSettings,
+        headerStruk: newLnd.namaLaundry,
+        appTitle: newLnd.namaLaundry,
+        address: newLnd.alamat || '',
+        phoneNumber: newLnd.nomorTelepon || '',
+        useLogo: false,
+        logoPath: null,
+        logoSize: 'sedang',
       };
-      const updatedHist = [newHist, ...subscriptionHistory];
-      setSubscriptionHistory(updatedHist);
-      StorageService.set('subscription_history', updatedHist);
-    }
+      FirebaseSyncService.saveSettings(newLnd.id, branchSettings).catch(console.warn);
 
-    const newLndId = `lnd-${Date.now()}`;
-    const newLnd: Laundry = {
-      id: newLndId,
-      ownerId: currentUser?.uid || 'own-1',
-      namaLaundry: nama,
-      alamat: alamat || null,
-      nomorTelepon: telepon || null,
-      subscriptionType: currentUser?.subscriptionType || activeTier,
-      subscriptionEndDate: currentUser?.subscriptionEndDate ?? null,
-    };
-    updateLaundries([...laundries, newLnd]);
-    FirebaseSyncService.saveLaundry(newLnd).catch(console.warn);
-
-    if (copyFromId) {
-      const sourceLayanan = layananList.filter((l) => l.laundryId === copyFromId);
-      const clonedLayanan = sourceLayanan.map((l, i) => ({
+      const sourceLayanan = copyFromId
+        ? layananList.filter((l) => l.laundryId === copyFromId)
+        : [];
+      const baseTemplates = sourceLayanan.length > 0 ? sourceLayanan : defaultLayananList;
+      const seededBranchLayanan = baseTemplates.map((l, i) => ({
         ...l,
         id: `lay-${Date.now()}-${i}`,
-        laundryId: newLndId,
+        laundryId: newLnd.id,
       }));
-      updateLayananList([...layananList, ...clonedLayanan]);
-    }
+      updateLayananList([...layananList, ...seededBranchLayanan]);
+      seededBranchLayanan.forEach((lay) => {
+        FirebaseSyncService.saveLayanan(lay).catch(console.warn);
+      });
 
-    setActiveLaundryId(newLndId);
-    toast.success(
-      isExtraBranch
-        ? `Cabang '${nama}' berhasil diaktifkan dengan biaya ${formatRupiah(EXTRA_COST)}!`
-        : `Cabang '${nama}' berhasil dibuat!`
-    );
+      setActiveLaundryId(newLnd.id);
+      toast.success(
+        result.isExtraBranch
+          ? `Cabang '${newLnd.namaLaundry}' berhasil diaktifkan dengan biaya ${formatRupiah(result.cost)}!`
+          : `Cabang '${newLnd.namaLaundry}' berhasil dibuat!`
+      );
+      return true;
+    } catch (err) {
+      const billingErr = err as BillingApiError;
+      if (typeof billingErr?.walletBalance === 'number') {
+        const syncedUser: User = {
+          ...currentUser,
+          walletBalance: billingErr.walletBalance,
+        };
+        setCurrentUser(syncedUser);
+        StorageService.set('active_user', syncedUser);
+      }
+      if (billingErr?.code === 'INSUFFICIENT_WALLET_BALANCE') {
+        toast.warning(
+          billingErr.message ||
+            `Saldo dompet tidak mencukupi (${formatRupiah(EXTRA_BRANCH_PRICE)}). Silakan top up saldo terlebih dahulu.`
+        );
+        setGlobalPaymentModal({
+          open: true,
+          purpose: 'topup_wallet',
+          method: 'midtrans',
+          nominal: EXTRA_BRANCH_PRICE,
+        });
+      } else {
+        toast.error(billingErr?.message || 'Gagal mengaktifkan cabang baru di server.');
+      }
+      return false;
+    }
   };
 
   const handleUpdateLaundry = (lnd: Laundry) => {
@@ -1768,9 +2113,6 @@ export default function App() {
         subscriptionEndDate: nextSubEnd,
       }));
       updateLaundries(nextBranches);
-      FirebaseSyncService.syncBranchesSubscription(nextBranches, 'premium', nextSubEnd).catch(
-        console.warn
-      );
     }
 
     if (!result.alreadyCredited) {
@@ -1795,56 +2137,112 @@ export default function App() {
     }
   };
 
-  const handleExtendSubscription = (packageName: string, cost: number, days: number) => {
-    if (!currentUser) return;
+  const handleAdminSelfAccountUpdated = (snapshot: SelfAccountBillingSnapshot) => {
+    if (!currentUser || snapshot.uid !== currentUser.uid) return;
+    const updatedUser: User = {
+      ...currentUser,
+      walletBalance: snapshot.walletBalance,
+      subscriptionType: snapshot.subscriptionType,
+      subscriptionEndDate: snapshot.subscriptionEndDate,
+    };
+    setCurrentUser(updatedUser);
+    StorageService.set('active_user', updatedUser);
+
+    const resolvedTier = normalizeTier(snapshot.subscriptionType);
+    setActiveTier(resolvedTier);
+    StorageService.set('active_subscription_tier', resolvedTier);
+
+    const nextBranches = laundries.map((l) => ({
+      ...l,
+      subscriptionType: snapshot.subscriptionType,
+      subscriptionEndDate: snapshot.subscriptionEndDate,
+    }));
+    updateLaundries(nextBranches);
+  };
+
+  const handleExtendSubscription = async (
+    packageName: string,
+    cost: number,
+    days: number
+  ): Promise<boolean> => {
+    if (!currentUser) return false;
     if ((currentUser.walletBalance || 0) < cost) {
-      toast.warning(`Saldo dompet tidak mencukupi (${formatRupiah(cost)}). Pilih Lewat Midtrans atau Transfer Biasa.`);
+      toast.warning(
+        `Saldo dompet tidak mencukupi (${formatRupiah(cost)}). Pilih Lewat Midtrans atau Transfer Biasa.`
+      );
       setGlobalPaymentModal({
         open: true,
         purpose: 'extend_premium',
         method: 'midtrans',
         nominal: cost,
       });
-      return;
+      return false;
     }
 
-    const currentEnd = Math.max(Date.now(), currentUser.subscriptionEndDate || Date.now());
-    const newEnd = currentEnd + days * 24 * 60 * 60 * 1000;
+    try {
+      const result = await extendSubscriptionViaBackend(days);
+      const updatedUser: User = {
+        ...currentUser,
+        walletBalance: result.walletBalance,
+        subscriptionEndDate: result.subscriptionEndDate,
+        subscriptionType: result.subscriptionType,
+      };
+      setCurrentUser(updatedUser);
+      StorageService.set('active_user', updatedUser);
 
-    const updatedUser: User = {
-      ...currentUser,
-      walletBalance: Math.max(0, currentUser.walletBalance - cost),
-      subscriptionEndDate: newEnd,
-      subscriptionType: 'premium',
-    };
-    setCurrentUser(updatedUser);
-    StorageService.set('active_user', updatedUser);
-    setActiveTier('premium');
-    StorageService.set('active_subscription_tier', 'premium');
+      const resolvedTier = normalizeTier(result.subscriptionType);
+      setActiveTier(resolvedTier);
+      StorageService.set('active_subscription_tier', resolvedTier);
 
-    const nextBranches = laundries.map((l) => ({
-      ...l,
-      subscriptionType: 'premium',
-      subscriptionEndDate: newEnd,
-    }));
-    updateLaundries(nextBranches);
+      const nextBranches = laundries.map((l) => ({
+        ...l,
+        subscriptionType: result.subscriptionType,
+        subscriptionEndDate: result.subscriptionEndDate,
+      }));
+      updateLaundries(nextBranches);
 
-    const historyItem: SubscriptionHistory = {
-      id: `sub-${Date.now()}`,
-      ownerId: currentUser.uid,
-      purchaseDate: Date.now(),
-      packageName,
-      cost,
-      durationDays: days,
-      newExpiryDate: newEnd,
-      laundries: laundries.map((l) => l.id),
-    };
-    const newHist = [historyItem, ...subscriptionHistory];
-    setSubscriptionHistory(newHist);
-    StorageService.set('subscription_history', newHist);
-
-    FirebaseSyncService.updateUserProfile(updatedUser).catch(console.error);
-    FirebaseSyncService.syncBranchesSubscription(nextBranches, 'premium', newEnd).catch(console.warn);
+      const historyItem: SubscriptionHistory = {
+        id: result.auditId || `sub-${Date.now()}`,
+        ownerId: currentUser.uid,
+        purchaseDate: Date.now(),
+        packageName,
+        cost: result.cost,
+        durationDays: result.durationDays,
+        newExpiryDate: result.subscriptionEndDate,
+        laundries: laundries.map((l) => l.id),
+      };
+      const newHist = [historyItem, ...subscriptionHistory];
+      setSubscriptionHistory(newHist);
+      StorageService.set('subscription_history', newHist);
+      return true;
+    } catch (err) {
+      const billingErr = err as BillingApiError;
+      if (typeof billingErr?.walletBalance === 'number') {
+        const syncedUser: User = {
+          ...currentUser,
+          walletBalance: billingErr.walletBalance,
+        };
+        setCurrentUser(syncedUser);
+        StorageService.set('active_user', syncedUser);
+      }
+      if (billingErr?.code === 'INSUFFICIENT_WALLET_BALANCE') {
+        toast.warning(
+          billingErr.message ||
+            `Saldo dompet tidak mencukupi (${formatRupiah(cost)}). Pilih Lewat Midtrans atau Transfer Biasa.`
+        );
+        setGlobalPaymentModal({
+          open: true,
+          purpose: 'extend_premium',
+          method: 'midtrans',
+          nominal: billingErr.requiredCost || cost,
+        });
+      } else {
+        toast.error(
+          billingErr?.message || 'Gagal memperpanjang langganan di server. Saldo tidak terpotong.'
+        );
+      }
+      return false;
+    }
   };
 
   const handleUpdateOwnerProfile = (data: { displayName: string; nomorTelepon?: string | null }) => {
@@ -1905,6 +2303,7 @@ export default function App() {
     } catch (e) {
       console.error(e);
     }
+    hydratedBranchRef.current = null;
     setCurrentUser(null);
     setActiveTier('newcomer');
     StorageService.set('active_user', null);
@@ -1913,6 +2312,7 @@ export default function App() {
     StorageService.clearAllDummyData();
     setSettings(defaultSettings);
     setTransaksiList([]);
+    setIsHydratingTransaksi(false);
     setPelangganList([]);
     setPengeluaranList([]);
     setManualCashLogs([]);
@@ -1992,7 +2392,7 @@ export default function App() {
             staffList={staffList}
             initialSignUp={initialSignUpMode}
             onOpenLandingPage={() => {
-              window.location.href = '/landing.html';
+              window.location.href = '/profil.html';
             }}
             onLoginSuccess={async (user) => {
               setInitialSignUpMode(false);
@@ -2010,6 +2410,7 @@ export default function App() {
         {activeView === 'dashboard' && currentUser && (
           <DashboardView
             transaksiList={transaksiList}
+            isLoadingTransaksi={isHydratingTransaksi}
             pelangganList={pelangganList}
             settings={settings}
             currentUser={currentUser}
@@ -2181,6 +2582,7 @@ export default function App() {
           <StatusPengerjaanView
             onBack={navigateBack}
             transaksiList={transaksiList}
+            isLoadingTransaksi={isHydratingTransaksi}
             pelangganList={pelangganList}
             semuaLayanan={layananList}
             staffList={staffList}
@@ -2373,6 +2775,7 @@ export default function App() {
               onDeleteLaundry={handleDeleteLaundry}
               onExtendSubscription={handleExtendSubscription}
               onMidtransSettled={handleMidtransSettled}
+              onSelfAccountUpdated={handleAdminSelfAccountUpdated}
               onUpdateOwnerProfile={handleUpdateOwnerProfile}
               onOpenUpgradeModal={handleOpenUpgradeModal}
               onOpenExpiredModal={() => setIsExpiredModalOpen(true)}
@@ -2430,6 +2833,7 @@ export default function App() {
             onOpenApkModal={() => setIsApkModalOpen(true)}
             onOpenUpgradeModal={handleOpenUpgradeModal}
             onMidtransSettled={handleMidtransSettled}
+            onSelfAccountUpdated={handleAdminSelfAccountUpdated}
             onUpdateOwnerProfile={handleUpdateOwnerProfile}
             onStartTour={handleStartTour}
             onLogout={handleLogoutUser}
@@ -2467,9 +2871,17 @@ export default function App() {
           currentUser={currentUser}
           currentTier={activeTier}
           triggerReason={upgradeTriggerReason}
-          onExtendWithWallet={() =>
-            handleExtendSubscription('Paket Premium (30 Hari)', HARGA_PREMIUM_BULANAN, 30)
-          }
+          onExtendWithWallet={async () => {
+            const ok = await handleExtendSubscription(
+              'Paket Premium (30 Hari)',
+              HARGA_PREMIUM_BULANAN,
+              30
+            );
+            if (ok) {
+              toast.success('Paket Premium (30 Hari) berhasil diaktifkan!');
+            }
+            return ok;
+          }}
           onChoosePayment={(method) =>
             setGlobalPaymentModal({
               open: true,
